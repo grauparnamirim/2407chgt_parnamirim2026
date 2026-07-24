@@ -1,0 +1,251 @@
+﻿<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CHGT HelpDesk — Meus Chamados</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/iconify-icon@2/dist/iconify-icon.min.js"></script>
+</head>
+<body>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><img src="/midia/logo_grau_rn.png" alt="Grau Técnico" style="width:32px;height:32px;border-radius:6px;flex-shrink:0;"><div class="brand-text"><h2>CHGT HelpDesk</h2><span>GRAU TÉCNICO</span></div></div>
+    <nav class="sidebar-nav" id="sidebar-nav"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-avatar" id="sidebar-avatar">U</div>
+      <div class="sidebar-user-info"><div class="user-name" id="sidebar-nome">Usuário</div><div class="user-role" id="sidebar-cargo">usuario</div></div>
+      <button class="sidebar-logout" id="sidebar-logout" title="Sair"><iconify-icon icon="mdi:logout" width="18" height="18"></iconify-icon></button>
+    </div>
+  </aside>
+  <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
+  <div class="main">
+    <div class="top-header"><div class="breadcrumb" id="breadcrumb">Usuário › <strong>Meus Chamados</strong></div><div class="header-actions"><button class="header-icon-btn" id="btn-tema-u" title="Selecionar tema" onclick="abrirModalTemas()"><iconify-icon icon="mdi:theme-light-dark" width="20" height="20"></iconify-icon></button><button class="btn btn-sm btn-outline" onclick="carregarTudo()"><iconify-icon icon="mdi:refresh" width="16" height="16"></iconify-icon> Atualizar</button></div></div>
+    <div class="tabs">
+      <button class="tab-btn active" data-tab="meus-chamados" onclick="ativarTab('meus-chamados')"><span style="display:inline-flex;align-items:center;gap:6px;"><iconify-icon icon="mdi:ticket-outline" width="20" height="20"></iconify-icon> Meus Chamados</span></button>
+    </div>
+    <div class="tab-panel active" id="tab-meus-chamados">
+      <div class="stats-grid" id="stats-usuario">
+        <div class="stat-card"><div class="stat-icon abertos"><iconify-icon icon="mdi:folder-open-outline" width="22" height="22"></iconify-icon></div><div class="stat-data"><div class="stat-num" id="stat-u-abertos">0</div><div class="stat-lbl">Abertos</div></div></div>
+        <div class="stat-card"><div class="stat-icon andamento"><iconify-icon icon="mdi:progress-wrench" width="22" height="22"></iconify-icon></div><div class="stat-data"><div class="stat-num" id="stat-u-andamento">0</div><div class="stat-lbl">Em Andamento</div></div></div>
+        <div class="stat-card"><div class="stat-icon abertos"><iconify-icon icon="mdi:truck-outline" width="22" height="22"></iconify-icon></div><div class="stat-data"><div class="stat-num" id="stat-u-aguardando">0</div><div class="stat-lbl">Aguard. Fornecedor</div></div></div>
+        <div class="stat-card"><div class="stat-icon resolvidos"><iconify-icon icon="mdi:check-circle-outline" width="22" height="22"></iconify-icon></div><div class="stat-data"><div class="stat-num" id="stat-u-resolvidos">0</div><div class="stat-lbl">Resolvidos</div></div></div>
+      </div>
+      <div class="card"><div class="card-header"><h2><iconify-icon icon="mdi:ticket-outline" width="20" height="20"></iconify-icon> Meus Chamados</h2><span class="text-secondary" style="font-size:0.8rem" id="total-meus-chamados"></span></div><div class="card-body no-padding"><div class="filter-bar"><button class="filter-btn active" onclick="selecionarFiltro(this,'todos')">Todos</button><button class="filter-btn" onclick="selecionarFiltro(this,'Aberto')">Aberto</button><button class="filter-btn" onclick="selecionarFiltro(this,'Em andamento')">Em andamento</button><button class="filter-btn" onclick="selecionarFiltro(this,'Aguardando Fornecedor')">Aguard. Fornecedor</button><button class="filter-btn" onclick="selecionarFiltro(this,'Resolvido')">Resolvido</button></div><div class="table-wrap"><table><thead><tr><th>#</th><th>Título / Descrição</th><th>Categoria</th><th>Local</th><th>Técnico</th><th>Status</th><th>Tempo aguardando</th><th>Ações</th><th>Histórico</th><th>Última Atualização</th></tr></thead><tbody id="tabela-chamados"><tr><td colspan="10" class="text-center text-secondary">Carregando...</td></tr></tbody></table></div></div></div>
+    </div>
+  </div>
+  <button class="fab" onclick="abrirModalNovoChamado()" title="Abrir chamado"><iconify-icon icon="mdi:plus" width="24" height="24"></iconify-icon></button>
+  <span class="fab-label">Novo Chamado</span>
+  <script src="app.js"></script>
+  <script>
+    document.getElementById('sidebar-logout').addEventListener('click', function(e) {
+      e.preventDefault();
+      openModal('🚪 Sair do Sistema', '<p>Tem certeza que deseja sair?</p>', [
+        { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-logout', onClick: closeModal },
+        { text:'✅ Sair', cls:'btn-danger', id:'btn-confirmar-logout', onClick: () => AppState.logout() }
+      ]);
+    });
+
+    if (!verificarAutenticacao('usuario')) throw new Error('Acesso negado.');
+    // Usuários com permissões avançadas (ex: coordenador) são redirecionados ao painel completo
+    if (temPermissoesAvancadas()) {
+      window.location.href = 'painel';
+      throw new Error('Redirecionando...');
+    }
+    const usuario = AppState.usuario;
+    configurarSidebar([
+      { id: 'meus-chamados', icon: icons.chamados, label: 'Meus Chamados', section: 'Principal' }
+    ]);
+
+    let todosChamados = [];
+    let categorias = [];
+    let filtroStatus = 'todos';
+    async function carregarTudo() { await carregarChamados(); }
+
+    function renderizarChamados() {
+      const chamados = todosChamados;
+      document.getElementById('stat-u-abertos').textContent = chamados.filter(c => c.status === 'Aberto').length;
+      document.getElementById('stat-u-andamento').textContent = chamados.filter(c => c.status === 'Em andamento').length;
+      document.getElementById('stat-u-aguardando').textContent = chamados.filter(c => c.status === 'Aguardando Fornecedor').length;
+      document.getElementById('stat-u-resolvidos').textContent = chamados.filter(c => c.status === 'Resolvido').length;
+      document.getElementById('total-meus-chamados').textContent = `${chamados.length} chamado(s)`;
+
+      const filtrados = filtroStatus === 'todos' ? chamados : chamados.filter(c => c.status === filtroStatus);
+      const tbody = document.getElementById('tabela-chamados');
+      if (!filtrados.length) {
+        const msg = filtroStatus === 'todos' ? 'Nenhum chamado' : `Nenhum chamado com status "${filtroStatus}".`;
+        tbody.innerHTML = `<tr><td colspan="10"><div class="empty-state"><div class="empty-icon"><iconify-icon icon="mdi:inbox-outline" width="40" height="40"></iconify-icon></div><h3>${msg}</h3>${filtroStatus === 'todos' ? '<p>Clique no botão <strong>+</strong> no canto inferior direito para abrir um chamado.</p>' : ''}</div></td></tr>`;
+        return;
+      }
+      tbody.innerHTML = filtrados.map(c => {
+        const catNome = c.subcategoria_id ? (c.subcategoria_nome || c.categoria_nome || '—') : (c.categoria_nome || '—');
+        const acoes = (c.status === 'Resolvido'
+          ? `<button class="btn btn-warning btn-sm" onclick="reabrirChamado(${c.id},'${escapeHTML(c.titulo)}')" style="padding:4px 8px;font-size:0.7rem">🔄 Reabrir</button> ` : '')
+          + `<button class="btn btn-outline btn-sm" onclick="abrirComentarios(${c.id},'${escapeHTML(c.titulo)}')" style="padding:4px 8px;font-size:0.7rem"><iconify-icon icon="mdi:comment-text-outline" width="14" height="14"></iconify-icon></button>`;
+        const historicoBtn = `<button class="btn btn-outline btn-sm" onclick="abrirHistorico(${c.id},'${escapeHTML(c.titulo)}')" style="padding:4px 8px;font-size:0.7rem" title="Ver histórico"><iconify-icon icon="mdi:clock-outline" width="14" height="14"></iconify-icon></button>`;
+        return `<tr>
+          <td><strong>#${c.id}</strong></td>
+          <td><strong>${escapeHTML(c.titulo)}</strong><br><small class="text-secondary">${escapeHTML(c.descricao)}</small></td>
+          <td><small>${catNome}</small></td>
+          <td>${c.local_nome ? `<span class="chamado-local-badge"><iconify-icon icon="mdi:map-marker-outline" width="14" height="14"></iconify-icon>${escapeHTML(c.local_nome)}</span>` : '<span class="text-secondary">—</span>'}</td>
+          <td>${c.tecnico_nome ? escapeHTML(c.tecnico_nome) : '<span class="text-secondary">Aguardando</span>'}</td>
+          <td>${statusBadgeHTML(c.status)}</td>
+          <td>${tempoRespostaHTML(c)}</td>
+          <td>${acoes}</td>
+          <td>${historicoBtn}</td>
+          <td>${formatarData(c.atualizado_em||c.criado_em)}</td>
+        </tr>`;
+      }).join('');
+      atualizarTimersResposta();
+    }
+
+    async function carregarChamados() {
+      try {
+        todosChamados = await api(`/api/chamados?usuario_id=${usuario.id}&perfil=usuario`);
+        renderizarChamados();
+      } catch (e) { showToast('Erro: '+e.message, 'error'); }
+    }
+
+    function selecionarFiltro(el, status) {
+      document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+      el.classList.add('active');
+      filtroStatus = status;
+      renderizarChamados();
+    }
+
+    async function reabrirChamado(id, titulo) {
+      openModal('🔄 Reabrir Chamado', `<p>Deseja reabrir o chamado <strong>#${id}: ${escapeHTML(titulo)}</strong>?</p><p class="text-secondary mt-12">O chamado voltará para a lista de ativos para o técnico.</p>`, [
+        { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-reabrir', onClick: closeModal },
+        { text:'🔄 Reabrir', cls:'btn-warning', id:'btn-confirmar-reabrir', onClick: async () => {
+          try {
+            const r = await api(`/api/chamados/${id}/reabrir`, { method:'PUT' });
+            showToast(r.mensagem, 'success');
+            closeModal();
+            carregarChamados();
+          } catch(err) { showToast(err.message, 'error'); }
+        }}
+      ]);
+    }
+
+    async function abrirComentarios(chamadoId, titulo) {
+      let comentarios = [];
+      try { comentarios = await api(`/api/chamados/${chamadoId}/comentarios`); } catch(e) { comentarios = []; }
+      const lista = comentarios.length
+        ? comentarios.map(c => `<div style="padding:10px;border-bottom:1px solid var(--color-border);">
+            <strong>${escapeHTML(c.autor_nome)}</strong> <small class="text-secondary">(${c.autor_perfil}) — ${formatarData(c.criado_em)}</small>
+            <p style="margin:4px 0 0;white-space:pre-wrap">${escapeHTML(c.texto)}</p></div>`).join('')
+        : '<p class="text-secondary">Nenhum comentário ainda.</p>';
+      openModal(`💬 Comentários — #${chamadoId} ${escapeHTML(titulo)}`, `
+        <div style="max-height:300px;overflow-y:auto;margin-bottom:12px;">${lista}</div>
+        <div class="form-group"><label>Novo comentário</label><textarea id="novo-comentario" rows="2" placeholder="Digite seu comentário..." style="width:100%"></textarea></div>`,
+        [{ text:'Fechar', cls:'btn-outline', id:'btn-fechar-coment', onClick: closeModal },
+         { text:'💬 Enviar', cls:'btn-primary', id:'btn-enviar-coment', onClick: async () => {
+           const texto = document.getElementById('novo-comentario').value.trim();
+           if (!texto) { showToast('Digite um comentário.', 'error'); return; }
+           try {
+             await api(`/api/chamados/${chamadoId}/comentarios`, { method:'POST', body:{ texto } });
+             showToast('Comentário enviado!', 'success');
+             closeModal();
+           } catch(err) { showToast(err.message, 'error'); }
+         }}
+        ]);
+    }
+
+    async function abrirHistorico(chamadoId, titulo) {
+      try {
+        const data = await api(`/api/chamados/${chamadoId}/historico`);
+        const c = data.chamado;
+        const logs = data.historico;
+        let html = `<div style="max-height:400px;overflow-y:auto;padding:4px 0">`;
+
+        html += `<div style="display:flex;gap:12px;padding:10px 0;border-left:2px solid #22c55e;padding-left:16px;position:relative;margin-left:8px">
+          <div style="position:absolute;left:-6px;top:14px;width:10px;height:10px;border-radius:50%;background:#22c55e"></div>
+          <div>
+            <strong style="color:#22c55e">🟢 Aberto</strong>
+            <div style="font-size:0.78rem;color:var(--color-text-secondary)">${formatarData(c.criado_em)}</div>
+            <div style="margin-top:2px;font-size:0.85rem">Por: ${escapeHTML(c.usuario_nome)}</div>
+          </div>
+        </div>`;
+
+        logs.forEach(log => {
+          const cores = { 'Aberto': '#22c55e', 'Em andamento': '#3b82f6', 'Aguardando Fornecedor': '#eab308', 'Resolvido': '#22c55e' };
+          const icones = { 'Aberto': '🟢', 'Em andamento': '🔵', 'Aguardando Fornecedor': '🟡', 'Resolvido': '✅' };
+          const cor = cores[log.status_novo] || '#6b7280';
+          const icone = icones[log.status_novo] || '➡️';
+          const quem = log.alterado_por_nome ? ` — ${escapeHTML(log.alterado_por_nome)}` : '';
+          html += `<div style="display:flex;gap:12px;padding:10px 0;border-left:2px solid ${cor};padding-left:16px;position:relative;margin-left:8px">
+            <div style="position:absolute;left:-6px;top:14px;width:10px;height:10px;border-radius:50%;background:${cor}"></div>
+            <div>
+              <strong>${icone} ${log.status_anterior} → ${log.status_novo}</strong>
+              <div style="font-size:0.78rem;color:var(--color-text-secondary)">${formatarData(log.enviada_em)}${quem}</div>
+            </div>
+          </div>`;
+        });
+
+        if (c.fornecedor_nome) {
+          html += `<div style="padding:12px 0;margin-top:8px;border-top:1px solid var(--color-border);font-size:0.88rem">
+            <strong>🏢 Fornecedor:</strong> ${escapeHTML(c.fornecedor_nome)}
+            ${c.motivo_aguardando ? '<br><small>📌 '+escapeHTML(c.motivo_aguardando)+'</small>' : ''}
+          </div>`;
+        }
+        if (c.motivo) {
+          html += `<div style="padding:12px 0;border-top:1px solid var(--color-border);font-size:0.88rem">
+            <strong>🔧 Motivo da resolução:</strong><br>${escapeHTML(c.motivo)}
+          </div>`;
+        }
+        html += `</div>`;
+        openModal(`📋 Histórico — #${chamadoId}`, html,
+          [{ text:'Fechar', cls:'btn-outline', id:'btn-fechar-hist', onClick: closeModal }]);
+      } catch (e) {
+        showToast('Erro: '+e.message, 'error');
+      }
+    }
+    async function carregarCategorias() {
+      try { categorias = await api('/api/categorias'); } catch(e) { categorias = []; }
+    }
+
+    async function carregarSubcategorias(categoriaId) {
+      if (!categoriaId) { document.getElementById('nc-subcategoria').innerHTML = '<option value="">Selecione uma categoria primeiro</option>'; return; }
+      try {
+        const subs = await api(`/api/subcategorias?categoria_id=${categoriaId}`);
+        const sel = document.getElementById('nc-subcategoria');
+        if (subs.length) {
+          sel.innerHTML = '<option value="">Selecione...</option>' + subs.map(s => `<option value="${s.id}">${s.nome}</option>`).join('');
+        } else {
+          sel.innerHTML = '<option value="">Nenhuma subcategoria</option>';
+        }
+      } catch(e) { console.error("Erro ao carregar subcategorias:", e); }
+    }
+
+    async function abrirModalNovoChamado() {
+      await carregarCategorias();
+      let locais = [];
+      try { locais = await api('/api/locais'); } catch (_) {}
+      const optsCat = categorias.length
+        ? '<option value="">Selecione...</option>' + categorias.map(c => `<option value="${c.id}">${c.nome}</option>`).join('')
+        : '<option value="">Nenhuma categoria cadastrada</option>';
+      openModal('➕ Novo Chamado', `<form id="fnc" class="form-grid col-1">
+        <div class="form-group"><label>Local físico</label><select id="nc-local"><option value="">Problema individual / sem local</option>${locais.map(local => `<option value="${local.id}">${escapeHTML(local.nome)}</option>`).join('')}</select><small class="text-secondary">Escolha o ambiente quando o problema afetar uma sala ou laboratório.</small></div>
+        <div class="form-group"><label>Categoria</label><select id="nc-categoria" onchange="carregarSubcategorias(this.value)">${optsCat}</select></div>
+        <div class="form-group"><label>Subcategoria</label><select id="nc-subcategoria"><option value="">Selecione uma categoria primeiro</option></select></div>
+        <div class="form-group"><label>Descrição detalhada</label><textarea id="nc-descricao" placeholder="Descreva o problema com detalhes..." required></textarea></div>
+      </form>`, [
+        { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-chamado', onClick: closeModal },
+        { text:'➕ Abrir Chamado', cls:'btn-primary', id:'btn-abrir-chamado', onClick: async () => {
+          const descricao = document.getElementById('nc-descricao').value.trim();
+          const subcategoria_id = document.getElementById('nc-subcategoria').value || null;
+          const local_id = document.getElementById('nc-local').value || null;
+          try {
+            const r = await api('/api/chamados', { method:'POST', body:{ titulo: descricao.substring(0, 100), descricao, subcategoria_id: subcategoria_id ? parseInt(subcategoria_id) : null, local_id: local_id ? Number(local_id) : null } });
+            showToast(r.mensagem, 'success');
+            closeModal();
+            carregarChamados();
+          } catch(err) { showToast(err.message, 'error'); }
+        }}
+      ]);
+    }
+
+    carregarTudo();
+    setInterval(carregarChamados, 5000);
+  </script>
+</body>
+</html>

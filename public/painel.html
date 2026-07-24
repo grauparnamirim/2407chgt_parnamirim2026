@@ -1,0 +1,804 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CHGT HelpDesk — Painel</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/iconify-icon@2/dist/iconify-icon.min.js"></script>
+</head>
+<body>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><img src="/midia/logo_grau_rn.png" alt="Grau Técnico" style="width:32px;height:32px;border-radius:6px;flex-shrink:0;"><div class="brand-text"><h2>CHGT HelpDesk</h2><span>GRAU TÉCNICO</span></div></div>
+    <nav class="sidebar-nav" id="sidebar-nav"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-avatar" id="sidebar-avatar">G</div>
+      <div class="sidebar-user-info"><div class="user-name" id="sidebar-nome">Usuário</div><div class="user-role" id="sidebar-cargo">perfil</div></div>
+      <button class="sidebar-logout" id="sidebar-logout" title="Sair"><iconify-icon icon="mdi:logout" width="18" height="18"></iconify-icon></button>
+    </div>
+  </aside>
+  <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
+  <div class="main">
+    <div class="top-header"><div class="breadcrumb" id="breadcrumb">Gestor › <strong>Dashboard</strong></div><div class="header-actions"><button class="header-icon-btn" id="btn-tema-g" title="Selecionar tema" onclick="abrirModalTemas()"><iconify-icon icon="mdi:theme-light-dark" width="20" height="20"></iconify-icon></button><button class="btn btn-sm btn-outline" onclick="carregarTudo()"><iconify-icon icon="mdi:refresh" width="16" height="16"></iconify-icon> Atualizar</button></div></div>
+    <div class="tabs" id="tabs-container"></div>
+    <div class="tab-panel active" id="tab-dashboard">
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-icon abertos"><iconify-icon icon="mdi:folder-open-outline" width="22" height="22"></iconify-icon></div><div class="stat-data"><div class="stat-num" id="stat-abertos">0</div><div class="stat-lbl">Chamados Abertos</div></div></div>
+        <div class="stat-card"><div class="stat-icon andamento"><iconify-icon icon="mdi:refresh" width="22" height="22"></iconify-icon></div><div class="stat-data"><div class="stat-num" id="stat-andamento">0</div><div class="stat-lbl">Em Andamento</div></div></div>
+        <div class="stat-card"><div class="stat-icon resolvidos"><iconify-icon icon="mdi:check-circle-outline" width="22" height="22"></iconify-icon></div><div class="stat-data"><div class="stat-num" id="stat-resolvidos">0</div><div class="stat-lbl">Resolvidos</div></div></div>
+        <div class="stat-card"><div class="stat-icon total"><iconify-icon icon="mdi:package-variant-closed" width="22" height="22"></iconify-icon></div><div class="stat-data"><div class="stat-num" id="stat-total">0</div><div class="stat-lbl">Total de Chamados</div></div></div>
+      </div>
+      <div class="card"><div class="card-header"><h2><iconify-icon icon="mdi:ticket-outline" width="20" height="20"></iconify-icon> Resumo por Técnico</h2></div><div class="card-body no-padding"><div class="table-wrap"><table><thead><tr><th>Técnico</th><th>Total de Chamados</th></tr></thead><tbody id="tabela-tecnico-resumo"><tr><td colspan="2" class="text-center text-secondary">Carregando...</td></tr></tbody></table></div></div></div>
+    </div>
+    <div class="tab-panel" id="tab-chamados">
+      <div class="card"><div class="card-header"><h2><iconify-icon icon="mdi:ticket-outline" width="20" height="20"></iconify-icon> Todos os Chamados</h2><span class="text-secondary" style="font-size:0.8rem" id="total-chamados-badge"></span></div><div class="card-body no-padding"><div class="table-wrap"><table><thead><tr><th>#</th><th>Título</th><th>Usuário</th><th>Local</th><th>Técnico</th><th>Status</th><th>Fornecedor</th><th>Tempo aguardando</th><th>Alterar</th><th>Custo</th><th>Ações</th><th>Histórico</th><th>Detalhes</th><th>Data</th></tr></thead><tbody id="tabela-chamados"><tr><td colspan="14" class="text-center text-secondary">Carregando...</td></tr></tbody></table></div></div></div>
+    </div>
+
+    <button class="fab" onclick="abrirModalNovoChamado()" title="Abrir chamado"><iconify-icon icon="mdi:plus" width="24" height="24"></iconify-icon></button>
+    <span class="fab-label">Novo Chamado</span>
+
+    <div class="tab-panel permissoes-painel" id="tab-permissoes">
+      <section class="permissoes-hero" aria-labelledby="permissoes-titulo">
+        <span class="permissoes-hero-icone"><iconify-icon icon="mdi:shield-key-outline" width="29" height="29"></iconify-icon></span>
+        <div><span class="permissoes-eyebrow">Controle de acesso</span><h1 id="permissoes-titulo">Grupos e permissões</h1><p>Defina o que cada grupo pode acessar e vincule-o às pessoas ativas.</p></div>
+      </section>
+      <section class="permissoes-resumo" aria-label="Resumo de permissões">
+        <article><span><iconify-icon icon="mdi:account-group-outline" width="20" height="20"></iconify-icon></span><div><strong id="resumo-perm-grupos">0</strong><small>grupos cadastrados</small></div></article>
+        <article><span class="customizados"><iconify-icon icon="mdi:shield-edit-outline" width="20" height="20"></iconify-icon></span><div><strong id="resumo-perm-customizados">0</strong><small>grupos personalizados</small></div></article>
+        <article><span class="usuarios"><iconify-icon icon="mdi:account-check-outline" width="20" height="20"></iconify-icon></span><div><strong id="resumo-perm-usuarios">0</strong><small>usuários ativos</small></div></article>
+      </section>
+      <div class="tabs permissoes-subtabs" aria-label="Seções de permissões">
+        <button class="tab-btn active" data-tab="perm-grupos" onclick="mudarSubTabPerm(this,'perm-grupos')"><iconify-icon icon="mdi:account-group-outline" width="18" height="18"></iconify-icon> Grupos</button>
+        <button class="tab-btn" data-tab="perm-usuarios" onclick="mudarSubTabPerm(this,'perm-usuarios')"><iconify-icon icon="mdi:account-key-outline" width="18" height="18"></iconify-icon> Usuários ativos</button>
+      </div>
+      <div id="sub-perm-grupos">
+        <div class="card permissoes-card">
+          <div class="card-header permissoes-card-header"><div><h2><iconify-icon icon="mdi:shield-account-outline" width="20" height="20"></iconify-icon> Grupos de permissão</h2><p>Grupos do sistema são somente leitura; os personalizados podem ser ajustados.</p></div><button class="btn btn-primary btn-sm" id="btn-novo-grupo" onclick="abrirModalNovoGrupo()"><iconify-icon icon="mdi:plus" width="16" height="16"></iconify-icon> Novo grupo</button></div>
+          <div class="card-body no-padding"><div class="table-wrap"><table class="permissoes-tabela"><thead><tr><th>Grupo</th><th>Tipo</th><th>Permissões</th><th class="permissoes-coluna-acoes">Ações</th></tr></thead><tbody id="tabela-grupos"><tr><td colspan="4" class="text-center text-secondary">Carregando...</td></tr></tbody></table></div></div>
+        </div>
+      </div>
+      <div id="sub-perm-usuarios" style="display:none">
+        <div class="card permissoes-card">
+          <div class="card-header permissoes-card-header"><div><h2><iconify-icon icon="mdi:account-key-outline" width="20" height="20"></iconify-icon> Vincular grupos aos usuários</h2><p>Somente usuários ativos são exibidos. Os vínculos de inativos permanecem preservados.</p></div></div>
+          <div class="card-body no-padding"><div class="table-wrap"><table class="permissoes-tabela permissoes-usuarios-tabela"><thead><tr><th>Usuário</th><th>Perfil</th><th>Grupos vinculados</th><th class="permissoes-coluna-acoes">Ações</th></tr></thead><tbody id="tabela-usuarios-permissoes"><tr><td colspan="4" class="text-center text-secondary">Carregando...</td></tr></tbody></table></div></div>
+        </div>
+      </div>
+    </div>
+    <div class="tab-panel" id="tab-relatorios">
+      <div class="stats-grid">
+        <div class="stat-card"><div class="stat-icon resolvidos"><iconify-icon icon="mdi:timer-outline" width="22" height="22"></iconify-icon></div><div class="stat-data"><div class="stat-num" id="met-media">0</div><div class="stat-lbl">Tempo Médio (Útil)</div></div></div>
+        <div class="stat-card"><div class="stat-icon total"><iconify-icon icon="mdi:timer-sand" width="22" height="22"></iconify-icon></div><div class="stat-data"><div class="stat-num" id="met-media-total">0</div><div class="stat-lbl">Tempo Médio (Total)</div></div></div>
+        <div class="stat-card"><div class="stat-icon andamento"><iconify-icon icon="mdi:tortoise" width="22" height="22"></iconify-icon></div><div class="stat-data"><div class="stat-num" id="met-lento">0</div><div class="stat-lbl">Mais Demorado</div></div></div>
+        <div class="stat-card"><div class="stat-icon abertos"><iconify-icon icon="mdi:rabbit" width="22" height="22"></iconify-icon></div><div class="stat-data"><div class="stat-num" id="met-rapido">0</div><div class="stat-lbl">Mais Rápido</div></div></div>
+        <div class="stat-card"><div class="stat-icon total"><iconify-icon icon="mdi:percent" width="22" height="22"></iconify-icon></div><div class="stat-data"><div class="stat-num" id="met-taxa">0%</div><div class="stat-lbl">Taxa de Resolução</div></div></div>
+      </div>
+      <div class="card"><div class="card-header"><h2><iconify-icon icon="mdi:ticket-outline" width="20" height="20"></iconify-icon> Chamados Concluídos — Métricas de Tempo</h2></div><div class="card-body no-padding"><div class="table-wrap"><table><thead><tr><th>#</th><th>Título</th><th>Usuário</th><th>Técnico</th><th>Aberto em</th><th>Concluído em</th><th>${icons.dashboard} Tempo Util</th><th>⏸️ Aguardando Fornecedor</th><th>${icons.historico} Tempo em Aberto</th></tr></thead><tbody id="tabela-tempos"><tr><td colspan="9" class="text-center text-secondary">Carregando...</td></tr></tbody></table></div></div></div>
+    </div>
+  </div>
+  <script src="app.js"></script>
+  <script>
+    // ✅ Impede Enter de recarregar a página em qualquer campo de formulário
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); }
+    });
+
+    if (!verificarAutenticacao('admin', 'gestor', 'tecnico')) { throw new Error('Acesso negado.'); }
+    const painelUsuario = AppState.usuario;
+    configurarSidebar([]);
+
+    // ============================================================
+    // CONFIGURAÇÃO DE ABAS POR PERMISSÃO
+    // ============================================================
+    const CONFIG_TABS = {
+      dashboard: {
+        label: 'Dashboard',
+        icon: '<iconify-icon icon="mdi:view-dashboard" width="20" height="20"></iconify-icon>',
+        permissoes: ['relatorios.ver_dashboard']
+      },
+      chamados: {
+        label: 'Chamados',
+        icon: '<iconify-icon icon="mdi:ticket-outline" width="20" height="20"></iconify-icon>',
+        permissoes: ['chamados.ver_atribuidos', 'chamados.ver_todos_unidade', 'chamados.ver_proprios']
+      },
+      relatorios: {
+        label: 'Relatórios',
+        icon: '<iconify-icon icon="mdi:chart-bar" width="20" height="20"></iconify-icon>',
+        permissoes: ['relatorios.ver_dashboard', 'relatorios.ver_tempos'],
+        sidebarOnly: true
+      },
+      permissoes: {
+        label: 'Permissões',
+        icon: '<iconify-icon icon="mdi:lock-outline" width="20" height="20"></iconify-icon>',
+        permissoes: ['usuarios.gerenciar_permissoes'],
+        oninit: 'carregarPermissoes()'
+      }
+    };
+
+    function construirTabs() {
+      const container = document.getElementById('tabs-container');
+      if (!container) return;
+      let html = '';
+      let primeiroTab = null;
+      for (const [id, config] of Object.entries(CONFIG_TABS)) {
+        if (!config.sidebarOnly && temAlgumaPermissao(...config.permissoes)) {
+          if (!primeiroTab) primeiroTab = id;
+          const onclick = config.oninit
+            ? `ativarTab('${id}');${config.oninit}`
+            : `ativarTab('${id}')`;
+          html += `<button class="tab-btn${!primeiroTab || primeiroTab === id ? ' active' : ''}" data-tab="${id}" onclick="${onclick}"><span style="display:inline-flex;align-items:center;gap:6px;">${config.icon} ${config.label}</span></button>`;
+        }
+      }
+      container.innerHTML = html;
+      // Esconde painéis sem permissão
+      document.querySelectorAll('.tab-panel').forEach(p => {
+        const tabId = p.id.replace('tab-', '');
+        if (tabId && CONFIG_TABS[tabId]) {
+          p.style.display = temAlgumaPermissao(...CONFIG_TABS[tabId].permissoes) ? '' : 'none';
+        }
+      });
+      // Ativa o primeiro tab visível
+      if (primeiroTab) {
+        document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+        const primeiroPanel = document.getElementById(`tab-${primeiroTab}`);
+        if (primeiroPanel) {
+          primeiroPanel.classList.add('active');
+          if (CONFIG_TABS[primeiroTab].oninit) {
+            setTimeout(() => eval(CONFIG_TABS[primeiroTab].oninit), 50);
+          }
+        }
+      }
+    }
+
+    function construirSidebarPerms() {
+      const navEl = document.getElementById('sidebar-nav');
+      if (!navEl) return;
+      const perfil = AppState.usuario.perfil;
+      const isAdminOrGestor = ['admin','gestor','tecnico'].includes(perfil);
+      let html = '';
+
+      // --- Principal ---
+      html += '<div class="nav-section">Principal</div>';
+      html += `<a href="#" data-tab="dashboard" class="active" onclick="ativarTab('dashboard');return false;"><span class="nav-icon"><iconify-icon icon="mdi:view-dashboard" width="20" height="20"></iconify-icon></span> Painel</a>`;
+      if (temAlgumaPermissao('chamados.ver_atribuidos', 'chamados.ver_todos_unidade', 'chamados.ver_proprios')) {
+        html += `<a href="#" data-tab="chamados" onclick="ativarTab('chamados');return false;"><span class="nav-icon"><iconify-icon icon="mdi:ticket-outline" width="20" height="20"></iconify-icon></span> Chamados</a>`;
+      }
+
+      // --- Cadastros ---
+      const mostraCadastros = temAlgumaPermissao('setores.ver', 'categorias.ver', 'usuarios.ver', 'inventario.ver');
+      if (mostraCadastros) {
+        html += '<div class="nav-section">Cadastros</div>';
+        if (temAlgumaPermissao('setores.ver')) {
+          html += `<a href="setores"><span class="nav-icon"><iconify-icon icon="mdi:domain" width="20" height="20"></iconify-icon></span> Setores</a>`;
+        }
+        if (temAlgumaPermissao('categorias.ver')) {
+          html += `<a href="categorias"><span class="nav-icon"><iconify-icon icon="mdi:shape-outline" width="20" height="20"></iconify-icon></span> Categorias</a>`;
+        }
+        if (temAlgumaPermissao('inventario.ver')) {
+          html += `<a href="inventario"><span class="nav-icon"><iconify-icon icon="mdi:desktop-tower-monitor" width="20" height="20"></iconify-icon></span> Inventário</a>`;
+        }
+        if (temAlgumaPermissao('usuarios.ver')) {
+          html += `<a href="usuarios"><span class="nav-icon"><iconify-icon icon="mdi:account-group" width="20" height="20"></iconify-icon></span> Usuários</a>`;
+        }
+      }
+
+      // --- Gestão ---
+      const mostraGestao = temAlgumaPermissao('relatorios.ver_dashboard', 'relatorios.ver_tempos', 'impressoras.ver', 'fornecedores.ver', 'dispositivos.ver') || isAdminOrGestor;
+      if (mostraGestao) {
+        html += '<div class="nav-section">Gestão</div>';
+        if (temAlgumaPermissao('relatorios.ver_dashboard', 'relatorios.ver_tempos')) {
+          html += `<a href="relatorios"><span class="nav-icon"><iconify-icon icon="mdi:chart-bar" width="20" height="20"></iconify-icon></span> Relatórios</a>`;
+        }
+        if (temAlgumaPermissao('impressoras.ver') || isAdminOrGestor) {
+          html += `<a href="impressoras"><span class="nav-icon"><iconify-icon icon="mdi:printer" width="20" height="20"></iconify-icon></span> Controle Impressões</a>`;
+        }
+        if (temAlgumaPermissao('fornecedores.ver') || isAdminOrGestor) {
+          html += `<a href="fornecedores"><span class="nav-icon"><iconify-icon icon="mdi:truck-delivery" width="20" height="20"></iconify-icon></span> Fornecedores</a>`;
+        }
+        if (temPermissao('dispositivos.ver')) {
+          html += `<a href="dispositivos"><span class="nav-icon"><iconify-icon icon="mdi:cellphone-link" width="20" height="20"></iconify-icon></span> Dispositivos</a>`;
+        }
+      }
+
+      const mostraFinanceiro = temAlgumaPermissao('financeiro.ver', 'financeiro.criar', 'financeiro.aprovar') || isAdminOrGestor;
+      if (mostraFinanceiro) {
+        html += '<div class="nav-section">Financeiro</div>';
+        html += `<a href="financeiro"><span class="nav-icon"><iconify-icon icon="mdi:currency-usd" width="20" height="20"></iconify-icon></span> Financeiro</a>`;
+        if (temAlgumaPermissao('notas_fiscais.ver') || isAdminOrGestor) {
+          html += `<a href="notas-fiscais"><span class="nav-icon"><iconify-icon icon="mdi:file-document" width="20" height="20"></iconify-icon></span> Notas Fiscais</a>`;
+        }
+      }
+
+      navEl.innerHTML = html;
+    }
+
+    function esconderBotoesSemPermissao() {
+      const botoes = [
+        { id: 'btn-novo-grupo', perm: 'usuarios.gerenciar_permissoes' }
+      ];
+      botoes.forEach(b => {
+        const el = document.getElementById(b.id);
+        if (el && !temPermissao(b.perm)) {
+          el.style.display = 'none';
+        }
+      });
+    }
+
+    // Constrói interface com base nas permissões
+    construirTabs();
+    construirSidebarPerms();
+    esconderBotoesSemPermissao();
+
+    async function carregarTudo() {
+      const promises = [carregarDashboard(), carregarChamados(), carregarRelatorios()];
+      if (temPermissao('usuarios.gerenciar_permissoes')) promises.push(carregarPermissoes());
+      await Promise.all(promises);
+    }
+    async function carregarDashboard() {
+      try { const rel = await api(`/api/relatorios?gestor_id=${painelUsuario.id}`); const ps = {}; rel.porStatus.forEach(s => ps[s.status]=s.total); document.getElementById('stat-abertos').textContent = ps['Aberto']||0; document.getElementById('stat-andamento').textContent = ps['Em andamento']||0; document.getElementById('stat-resolvidos').textContent = ps['Resolvido']||0; document.getElementById('stat-total').textContent = rel.totalChamados; const tbody = document.getElementById('tabela-tecnico-resumo'); if (rel.porTecnico?.length) { tbody.innerHTML = rel.porTecnico.map(t=>`<tr><td>${t.tecnico}</td><td><strong>${t.total}</strong></td></tr>`).join(''); } else { tbody.innerHTML = '<tr><td colspan="2" class="text-center text-secondary">Nenhum técnico com chamados.</td></tr>'; } } catch (e) { showToast('Erro: '+e.message, 'error'); }
+    }
+    async function carregarChamados() {
+      try {
+        const chamados = await api(`/api/chamados`);
+        document.getElementById('total-chamados-badge').textContent = `${chamados.length} chamado(s)`;
+        const tbody = document.getElementById('tabela-chamados');
+        if (!chamados.length) {
+          tbody.innerHTML = '<tr><td colspan="14"><div class="empty-state"><div class="empty-icon"><iconify-icon icon="mdi:inbox-outline" width="40" height="40"></iconify-icon></div><h3>Nenhum chamado</h3></div></td></tr>';
+          return;
+        }
+        const isTecnico = painelUsuario.perfil === 'tecnico';
+        const temPermAlterarStatus = temPermissao('chamados.alterar_status');
+        tbody.innerHTML = chamados.map(c => {
+          const podeAlterar = (isTecnico && c.tecnico_id === painelUsuario.id) || temPermAlterarStatus;
+          const statusSelect = podeAlterar
+            ? `<select class="status-select" data-chamado-id="${c.id}" data-status-atual="${c.status}" style="padding:6px 10px;border:1px solid var(--color-border);border-radius:6px;font-size:0.82rem;font-family:inherit;background:var(--color-surface);color:var(--color-text);cursor:pointer;">
+                <option value="Aberto" ${c.status==='Aberto'?'selected':''}>Aberto</option>
+                <option value="Em andamento" ${c.status==='Em andamento'?'selected':''}>Em andamento</option>
+                <option value="Aguardando Fornecedor" ${c.status==='Aguardando Fornecedor'?'selected':''}>Aguardando Fornecedor</option>
+                <option value="Resolvido" ${c.status==='Resolvido'?'selected':''}>Resolvido</option>
+               </select>`
+            : '<span class="text-secondary">—</span>';
+          const temFin = temPermissao('financeiro.ver') || temPermissao('financeiro.criar');
+          const custoBtn = temFin ? `<button class="btn btn-outline btn-sm" onclick="abrirModalCustosChamado(${c.id},'${escapeHTML(c.titulo)}')" style="padding:4px 8px;font-size:0.7rem" title="Custos"><iconify-icon icon="mdi:currency-usd" width="14" height="14"></iconify-icon></button>` : '';
+          const acoesBtn = `<button class="btn btn-outline btn-sm" onclick="abrirComentarios(${c.id},'${escapeHTML(c.titulo)}')" style="padding:4px 8px;font-size:0.7rem"><iconify-icon icon="mdi:comment-text-outline" width="14" height="14"></iconify-icon></button>`;
+          const historicoBtn = `<button class="btn btn-outline btn-sm" onclick="abrirHistorico(${c.id},'${escapeHTML(c.titulo)}')" style="padding:4px 8px;font-size:0.7rem" title="Ver histórico"><iconify-icon icon="mdi:clock-outline" width="14" height="14"></iconify-icon></button>`;
+          const detalhesBtn = `<button class="btn btn-outline btn-sm" onclick="abrirModalDetalhesChamado(${c.id})" style="padding:4px 8px;font-size:0.7rem" title="Detalhes"><iconify-icon icon="mdi:information-outline" width="14" height="14"></iconify-icon></button>`;
+          const fornecedorInfo = c.status === 'Aguardando Fornecedor'
+            ? (c.fornecedor_nome ? `<small style="color:#92400e">${escapeHTML(c.fornecedor_nome)}${c.motivo_aguardando ? '<br>📌 '+escapeHTML(c.motivo_aguardando) : ''}</small>` : '<span class="text-secondary">—</span>')
+            : '<span class="text-secondary">—</span>';
+          return `<tr data-chamado-id="${c.id}"><td><strong>#${c.id}</strong></td><td>${escapeHTML(c.titulo)}</td><td>${escapeHTML(c.usuario_nome || '')}</td><td>${c.local_nome ? `<span class="chamado-local-badge"><iconify-icon icon="mdi:map-marker-outline" width="14" height="14"></iconify-icon>${escapeHTML(c.local_nome)}</span>` : '<span class="text-secondary">—</span>'}</td><td>${c.tecnico_nome ? escapeHTML(c.tecnico_nome) : '<span class="text-secondary">Não atribuído</span>'}</td><td><span class="status-cell">${statusBadgeHTML(c.status)}</span></td><td>${fornecedorInfo}</td><td>${tempoRespostaHTML(c)}</td><td>${statusSelect}</td><td>${custoBtn}</td><td>${acoesBtn}</td><td>${historicoBtn}</td><td>${detalhesBtn}</td><td>${formatarData(c.criado_em)}</td></tr>`;
+        }).join('');
+        atualizarTimersResposta();
+        document.querySelectorAll('#tabela-chamados .status-select').forEach(select => select.addEventListener('change', alterarStatus));
+        const foco = new URLSearchParams(window.location.search).get('focusChamado');
+        const linhaFoco = foco && Array.from(tbody.querySelectorAll('[data-chamado-id]')).find(linha => linha.dataset.chamadoId === foco);
+        if (linhaFoco) {
+          linhaFoco.classList.add('search-result-highlight');
+          linhaFoco.scrollIntoView({ behavior: 'smooth', block: 'center' });
+          setTimeout(() => linhaFoco.classList.remove('search-result-highlight'), 3500);
+        }
+      } catch (e) { showToast('Erro: '+e.message, 'error'); }
+    }
+    async function alterarStatus(event) {
+      const select = event.target; const chamadoId = select.dataset.chamadoId; const novoStatus = select.value; const statusAnterior = select.dataset.statusAtual;
+      if (novoStatus === statusAnterior) return;
+      let extraHTML = '';
+      if (novoStatus === 'Resolvido') {
+        extraHTML = '<div class="form-group mt-12"><label for="modal-motivo">🔧 Motivo da resolução *</label><textarea id="modal-motivo" placeholder="Descreva o que foi feito..." required rows="3" style="width:100%;padding:10px;border:1px solid var(--color-border);border-radius:var(--radius-sm);font-family:inherit;font-size:0.88rem;resize:vertical;background:var(--color-surface);color:var(--color-text);"></textarea></div>';
+      } else if (novoStatus === 'Aguardando Fornecedor') {
+        try {
+          const fornecedores = await api('/api/fornecedores');
+          const opts = fornecedores.filter(f => f.status === 'Ativo').map(f => `<option value="${f.id}">${escapeHTML(f.nome)}</option>`).join('') || '<option value="">Nenhum fornecedor ativo</option>';
+          extraHTML = `
+            <div class="form-group mt-12"><label for="modal-fornecedor">🏢 Fornecedor *</label><select id="modal-fornecedor" style="width:100%;padding:10px;border:1px solid var(--color-border);border-radius:var(--radius-sm);font-family:inherit;font-size:0.88rem;background:var(--color-surface);color:var(--color-text);"><option value="">Selecione...</option>${opts}</select></div>
+            <div class="form-group mt-12"><label for="modal-motivo-aguardando">📌 Motivo</label><textarea id="modal-motivo-aguardando" placeholder="Ex: Aguardando peça X do fornecedor..." rows="2" style="width:100%;padding:10px;border:1px solid var(--color-border);border-radius:var(--radius-sm);font-family:inherit;font-size:0.88rem;resize:vertical;background:var(--color-surface);color:var(--color-text);"></textarea></div>`;
+        } catch(e) { showToast('Erro ao carregar fornecedores.', 'error'); select.value = statusAnterior; return; }
+      }
+      openModal('⚠️ Confirmar Alteração', `<p>Deseja alterar o status do chamado <strong>#${chamadoId}</strong>?</p><p style="margin-top:8px;">De: ${statusBadgeHTML(statusAnterior)} → Para: ${statusBadgeHTML(novoStatus)}</p>${extraHTML}<p style="margin-top:8px;font-size:0.85rem;color:#92400e;">${icons.notificacoes} O usuário será notificado!</p>`,
+        [{ text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-status', onClick:()=>{ select.value=statusAnterior; closeModal(); }},
+         { text:'✅ Confirmar', cls:'btn-success', id:'btn-confirmar-status', onClick:async()=>{
+          let motivo = ''; let fornecedor_id = null; let motivo_aguardando = '';
+          if (novoStatus === 'Resolvido') {
+            motivo = document.getElementById('modal-motivo').value.trim();
+            if (!motivo) { showToast('Informe o motivo da resolução.', 'error'); return; }
+          } else if (novoStatus === 'Aguardando Fornecedor') {
+            fornecedor_id = document.getElementById('modal-fornecedor').value;
+            if (!fornecedor_id) { showToast('Selecione um fornecedor.', 'error'); return; }
+            motivo_aguardando = document.getElementById('modal-motivo-aguardando').value.trim();
+          }
+          closeModal();
+          try {
+            const body = { status:novoStatus, tecnico_id:painelUsuario.id };
+            if (motivo) body.motivo = motivo;
+            if (fornecedor_id) body.fornecedor_id = parseInt(fornecedor_id);
+            if (motivo_aguardando) body.motivo_aguardando = motivo_aguardando;
+            const result = await api(`/api/chamados/${chamadoId}/status`, { method:'PUT', body });
+            showToast(result.mensagem,'success'); select.dataset.statusAtual=novoStatus; const sc=select.closest('tr').querySelector('.status-cell'); if(sc)sc.innerHTML=statusBadgeHTML(novoStatus); carregarChamados();
+          } catch(err){ showToast(err.message,'error'); select.value=statusAnterior; }
+        }}]);
+    }
+    async function abrirComentarios(chamadoId, titulo) {
+      let comentarios = [];
+      try { comentarios = await api(`/api/chamados/${chamadoId}/comentarios`); } catch(e) { comentarios = []; }
+      const lista = comentarios.length
+        ? comentarios.map(c => `<div style="padding:10px;border-bottom:1px solid var(--color-border);">
+            <strong>${escapeHTML(c.autor_nome)}</strong> <small class="text-secondary">(${c.autor_perfil}) — ${formatarData(c.criado_em)}</small>
+            <p style="margin:4px 0 0;white-space:pre-wrap">${escapeHTML(c.texto)}</p></div>`).join('')
+        : '<p class="text-secondary">Nenhum comentário ainda.</p>';
+      openModal(`💬 Comentários — #${chamadoId} ${escapeHTML(titulo)}`, `
+        <div style="max-height:300px;overflow-y:auto;margin-bottom:12px;">${lista}</div>
+        <div class="form-group"><label>Novo comentário</label><textarea id="novo-comentario" rows="2" placeholder="Digite seu comentário..." style="width:100%"></textarea></div>`,
+        [{ text:'Fechar', cls:'btn-outline', id:'btn-fechar-coment', onClick: closeModal },
+         { text:'💬 Enviar', cls:'btn-primary', id:'btn-enviar-coment', onClick: async () => {
+           const texto = document.getElementById('novo-comentario').value.trim();
+           if (!texto) { showToast('Digite um comentário.', 'error'); return; }
+           try {
+             await api(`/api/chamados/${chamadoId}/comentarios`, { method:'POST', body:{ texto } });
+             showToast('Comentário enviado!', 'success');
+             closeModal();
+           } catch(err) { showToast(err.message, 'error'); }
+         }}
+        ]);
+    }
+    async function abrirHistorico(chamadoId, titulo) {
+      try {
+        const data = await api(`/api/chamados/${chamadoId}/historico`);
+        const c = data.chamado;
+        const logs = data.historico;
+        let html = `<div style="max-height:400px;overflow-y:auto;padding:4px 0">`;
+
+        // Evento 1: Abertura do chamado
+        html += `<div style="display:flex;gap:12px;padding:10px 0;border-left:2px solid #22c55e;padding-left:16px;position:relative;margin-left:8px">
+          <div style="position:absolute;left:-6px;top:14px;width:10px;height:10px;border-radius:50%;background:#22c55e"></div>
+          <div>
+            <strong style="color:#22c55e">🟢 Aberto</strong>
+            <div style="font-size:0.78rem;color:var(--color-text-secondary)">${formatarData(c.criado_em)}</div>
+            <div style="margin-top:2px;font-size:0.85rem">Por: ${escapeHTML(c.usuario_nome)}</div>
+          </div>
+        </div>`;
+
+        // Eventos: cada transição de status
+        logs.forEach(log => {
+          const cores = { 'Aberto': '#22c55e', 'Em andamento': '#3b82f6', 'Aguardando Fornecedor': '#eab308', 'Resolvido': '#22c55e' };
+          const icones = { 'Aberto': '🟢', 'Em andamento': '🔵', 'Aguardando Fornecedor': '🟡', 'Resolvido': '✅' };
+          const cor = cores[log.status_novo] || '#6b7280';
+          const icone = icones[log.status_novo] || '➡️';
+          const quem = log.alterado_por_nome ? ` — ${escapeHTML(log.alterado_por_nome)}` : '';
+          html += `<div style="display:flex;gap:12px;padding:10px 0;border-left:2px solid ${cor};padding-left:16px;position:relative;margin-left:8px">
+            <div style="position:absolute;left:-6px;top:14px;width:10px;height:10px;border-radius:50%;background:${cor}"></div>
+            <div>
+              <strong>${icone} ${log.status_anterior} → ${log.status_novo}</strong>
+              <div style="font-size:0.78rem;color:var(--color-text-secondary)">${formatarData(log.enviada_em)}${quem}</div>
+            </div>
+          </div>`;
+        });
+
+        // Informações adicionais
+        if (c.fornecedor_nome) {
+          html += `<div style="padding:12px 0;margin-top:8px;border-top:1px solid var(--color-border);font-size:0.88rem">
+            <strong>🏢 Fornecedor:</strong> ${escapeHTML(c.fornecedor_nome)}
+            ${c.motivo_aguardando ? '<br><small>📌 '+escapeHTML(c.motivo_aguardando)+'</small>' : ''}
+          </div>`;
+        }
+        if (c.motivo) {
+          html += `<div style="padding:12px 0;border-top:1px solid var(--color-border);font-size:0.88rem">
+            <strong>🔧 Motivo da resolução:</strong><br>${escapeHTML(c.motivo)}
+          </div>`;
+        }
+        html += `</div>`;
+        openModal(`📋 Histórico — #${chamadoId}`, html,
+          [{ text:'Fechar', cls:'btn-outline', id:'btn-fechar-hist', onClick: closeModal }]);
+      } catch (e) {
+        showToast('Erro: '+e.message, 'error');
+      }
+    }
+    function formatarTempo(ms) { if (ms < 0) ms = 0; const seg = Math.floor(ms / 1000); if (seg < 60) return `${seg}s`; const min = Math.floor(seg / 60); if (min < 60) return `${min}min`; const horas = Math.floor(min / 60); const minRest = min % 60; if (horas < 24) return `${horas}h ${minRest}min`; const dias = Math.floor(horas / 24); const hRest = horas % 24; return `${dias}d ${hRest}h`; }
+    async function carregarRelatorios() { try { const data = await api(`/api/relatorios/tempos?gestor_id=${painelUsuario.id}`); const { chamados, metricas } = data; document.getElementById('met-media').textContent = formatarTempo(metricas.tempo_medio_util_ms); document.getElementById('met-media-total').textContent = formatarTempo(metricas.tempo_medio_total_ms); document.getElementById('met-lento').textContent = metricas.mais_demorado_ms ? formatarTempo(metricas.mais_demorado_ms) : '—'; document.getElementById('met-rapido').textContent = metricas.mais_rapido_ms ? formatarTempo(metricas.mais_rapido_ms) : '—'; const taxa = metricas.total_chamados > 0 ? Math.round((metricas.total_resolvidos / metricas.total_chamados) * 100) : 0; document.getElementById('met-taxa').textContent = `${taxa}%`; const tbody = document.getElementById('tabela-tempos'); if (!chamados.length) { tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="empty-icon"><iconify-icon icon="mdi:chart-timeline" width="40" height="40"></iconify-icon></div><h3>Nenhum chamado concluído</h3></div></td></tr>'; return; } tbody.innerHTML = chamados.map(c=>`<tr><td><strong>#${c.id}</strong></td><td>${c.titulo}</td><td>${c.usuario_nome}</td><td>${c.tecnico_nome}</td><td>${formatarData(c.aberto_em)}</td><td>${formatarData(c.concluido_em)}</td><td><strong>${formatarTempo(c.tempo_util_ms)}</strong></td><td>${c.tempo_espera_ms > 0 ? formatarTempo(c.tempo_espera_ms) : '<span class="text-secondary">—</span>'}</td><td>${formatarTempo(c.tempo_aberto_ms)}</td></tr>`).join(''); } catch (e) { showToast('Erro: '+e.message, 'error'); } }
+
+    // Logout com confirmação
+    document.getElementById('sidebar-logout').addEventListener('click', function(e) {
+      e.preventDefault();
+      openModal('🚪 Sair do Sistema', '<p>Tem certeza que deseja sair?</p>', [
+        { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-logout', onClick: closeModal },
+        { text:'✅ Sair', cls:'btn-danger', id:'btn-confirmar-logout', onClick: () => AppState.logout() }
+      ]);
+    });
+
+    // Auto-refresh e som para técnico
+    if (painelUsuario.perfil === 'tecnico') {
+      let ultimoChamadoId = 0;
+      const originalCarregarChamados = carregarChamados;
+      carregarChamados = async function() {
+        try {
+          const chamados = await api(`/api/chamados?usuario_id=${painelUsuario.id}&perfil=tecnico`);
+          const maxId = chamados.length ? Math.max(...chamados.map(c => c.id)) : 0;
+          if (maxId > ultimoChamadoId && ultimoChamadoId > 0) tocarSomNotificacao();
+          ultimoChamadoId = maxId;
+        } catch(e) { /* silent */ }
+        return originalCarregarChamados.call(this);
+      };
+      setInterval(carregarChamados, 5000);
+    }
+
+    // --- CUSTOS POR CHAMADO ---
+    async function abrirModalCustosChamado(chamadoId, titulo) {
+      const podeCriar = temPermissao('financeiro.criar');
+      const custos = await api(`/api/custos-chamado?chamado_id=${chamadoId}`);
+      const lista = custos.length ? custos.map(c => `
+        <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--color-border);font-size:0.85rem">
+          <div><strong>${c.descricao}</strong><br><span class="badge badge-andamento">${c.tipo}</span> ${c.fornecedor_nome ? '— '+c.fornecedor_nome : ''}</div>
+          <div style="text-align:right"><strong>R$ ${parseFloat(c.valor).toFixed(2).replace('.',',')}</strong><br>
+            ${podeCriar ? `<span style="cursor:pointer;color:var(--color-danger);font-size:0.75rem" onclick="excluirCustoChamado(${c.id})">✕ remover</span>` : ''}
+          </div>
+        </div>
+      `).join('') : '<div class="text-secondary text-center">Nenhum custo registrado</div>';
+
+      const formAdd = podeCriar ? `
+        <div style="margin-top:12px;padding-top:12px;border-top:2px solid var(--color-border)">
+          <h4 style="margin-bottom:8px">Adicionar Custo</h4>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
+            <input id="cc-desc" placeholder="Descrição" style="padding:8px;border:1px solid var(--color-border);border-radius:6px;background:var(--color-surface);color:var(--color-text)">
+            <input type="number" id="cc-valor" placeholder="Valor (R$)" step="0.01" min="0" style="padding:8px;border:1px solid var(--color-border);border-radius:6px;background:var(--color-surface);color:var(--color-text)">
+          </div>
+          <button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="adicionarCustoChamado(${chamadoId})">➕ Adicionar</button>
+        </div>` : '';
+
+      openModal(`💰 Custos — #${chamadoId} ${titulo ? '— '+escapeHTML(titulo) : ''}`, `<div style="max-height:400px;overflow-y:auto">${lista}${formAdd}</div>`, [
+        {text:'Fechar',cls:'btn-outline',id:'btn-fechar-custos',onClick:closeModal}
+      ]);
+    }
+
+    async function adicionarCustoChamado(chamadoId) {
+      const desc = document.getElementById('cc-desc').value.trim();
+      const valor = parseFloat(document.getElementById('cc-valor').value);
+      if (!desc || !valor) { showToast('Preencha descrição e valor.', 'error'); return; }
+      try { const r = await api('/api/custos-chamado', { method:'POST', body:{ chamado_id: chamadoId, descricao: desc, valor } }); showToast(r.mensagem, 'success'); closeModal(); } catch(err) { showToast(err.message, 'error'); }
+    }
+
+    async function excluirCustoChamado(id) {
+      try { const r = await api(`/api/custos-chamado/${id}`, { method:'DELETE' }); showToast(r.mensagem, 'success'); closeModal(); } catch(err) { showToast(err.message, 'error'); }
+    }
+
+    function tocarSomNotificacao() {
+      try {
+        const ctx = new (window.AudioContext || window.webkitAudioContext)();
+        const notas = [880, 1100];
+        notas.forEach((freq, i) => {
+          const osc = ctx.createOscillator(); const gain = ctx.createGain();
+          osc.type = 'square';
+          osc.frequency.setValueAtTime(freq, ctx.currentTime + i * 0.15);
+          gain.gain.setValueAtTime(0.15, ctx.currentTime + i * 0.15);
+          gain.gain.exponentialRampToValueAtTime(0.001, ctx.currentTime + i * 0.15 + 0.2);
+          osc.connect(gain); gain.connect(ctx.destination);
+          osc.start(ctx.currentTime + i * 0.15);
+          osc.stop(ctx.currentTime + i * 0.15 + 0.2);
+        });
+      } catch(e) { /* ponytail */ }
+    }
+
+    // ============================================================
+    // PERMISSÕES (RBAC)
+    // ============================================================
+    let usuariosPermissoesAtivos = [];
+
+    function mudarSubTabPerm(el, tabId) {
+      document.querySelectorAll('#tab-permissoes .tab-btn').forEach(b => b.classList.remove('active'));
+      el.classList.add('active');
+      document.getElementById('sub-perm-grupos').style.display = tabId === 'perm-grupos' ? '' : 'none';
+      document.getElementById('sub-perm-usuarios').style.display = tabId === 'perm-usuarios' ? '' : 'none';
+    }
+
+    function iniciaisUsuarioPermissao(nome) {
+      return String(nome || '')
+        .trim()
+        .split(/\s+/)
+        .filter(Boolean)
+        .slice(0, 2)
+        .map(parte => parte[0])
+        .join('')
+        .toUpperCase() || 'U';
+    }
+
+    function atualizarResumoPermissoes(grupos, usuariosAtivos) {
+      const resumo = [
+        ['resumo-perm-grupos', grupos.length],
+        ['resumo-perm-customizados', grupos.filter(g => !g.sistema).length],
+        ['resumo-perm-usuarios', usuariosAtivos.length]
+      ];
+      resumo.forEach(([id, valor]) => {
+        const el = document.getElementById(id);
+        if (el) el.textContent = valor;
+      });
+    }
+
+    async function carregarPermissoes() {
+      try {
+        const grupos = await api('/api/grupos');
+        const tbody = document.getElementById('tabela-grupos');
+        if (!grupos.length) {
+          tbody.innerHTML = '<tr><td colspan="4"><div class="empty-state permissoes-vazio"><iconify-icon icon="mdi:shield-outline" width="32" height="32"></iconify-icon><h3>Nenhum grupo disponível</h3><p>Crie um grupo personalizado para começar a organizar os acessos.</p></div></td></tr>';
+        } else tbody.innerHTML = grupos.map(g => {
+          const tipo = g.sistema
+            ? '<span class="permissao-tipo sistema"><iconify-icon icon="mdi:shield-lock-outline" width="14" height="14"></iconify-icon> Sistema</span>'
+            : '<span class="permissao-tipo personalizado"><iconify-icon icon="mdi:shield-edit-outline" width="14" height="14"></iconify-icon> Personalizado</span>';
+          const qtdPerms = g.permissoes ? g.permissoes.length : 0;
+          const acoes = g.sistema
+            ? `<button class="btn btn-outline btn-sm permissoes-acao" onclick="abrirModalPermissoesGrupo(${g.id})" title="Ver permissões"><iconify-icon icon="mdi:eye-outline" width="15" height="15"></iconify-icon><span>Ver</span></button>`
+            : `<button class="btn btn-outline btn-sm permissoes-acao apenas-icone" onclick="abrirModalEditarGrupo(${g.id})" title="Editar grupo"><iconify-icon icon="mdi:pencil-outline" width="16" height="16"></iconify-icon></button><button class="btn btn-outline btn-sm permissoes-acao apenas-icone" onclick="abrirModalPermissoesGrupo(${g.id})" title="Gerenciar permissões"><iconify-icon icon="mdi:lock-outline" width="16" height="16"></iconify-icon></button><button class="btn btn-danger btn-sm permissoes-acao apenas-icone" onclick="excluirGrupo(${g.id})" title="Excluir grupo"><iconify-icon icon="mdi:delete-outline" width="16" height="16"></iconify-icon></button>`;
+          const icone = g.sistema ? 'mdi:shield-lock-outline' : 'mdi:shield-edit-outline';
+          return `<tr>
+            <td><div class="permissao-grupo-identificacao"><span class="permissao-grupo-icone ${g.sistema ? 'sistema' : ''}"><iconify-icon icon="${icone}" width="19" height="19"></iconify-icon></span><div><strong>${escapeHTML(g.nome)}</strong><small>${escapeHTML(g.descricao) || 'Grupo sem descrição'}</small></div></div></td>
+            <td>${tipo}</td>
+            <td><span class="permissao-contagem"><iconify-icon icon="mdi:key-variant" width="16" height="16"></iconify-icon><strong>${qtdPerms}</strong><small>permissões</small></span></td>
+            <td class="permissoes-acoes">${acoes}</td>
+          </tr>`;
+        }).join('');
+
+        const usuarios = await api('/api/usuarios');
+        usuariosPermissoesAtivos = usuarios.filter(u => Number(u.ativo) === 1);
+        atualizarResumoPermissoes(grupos, usuariosPermissoesAtivos);
+        const tbody2 = document.getElementById('tabela-usuarios-permissoes');
+        if (!usuariosPermissoesAtivos.length) {
+          tbody2.innerHTML = '<tr><td colspan="4"><div class="empty-state permissoes-vazio"><iconify-icon icon="mdi:account-off-outline" width="34" height="34"></iconify-icon><h3>Nenhum usuário ativo</h3><p>Ative um usuário em <strong>Cadastros › Usuários</strong> para gerenciar seus grupos.</p></div></td></tr>';
+          return;
+        }
+        tbody2.innerHTML = usuariosPermissoesAtivos.map(u => {
+          return `<tr>
+            <td><div class="permissao-usuario-identificacao"><span class="permissao-avatar">${iniciaisUsuarioPermissao(u.nome)}</span><div><strong>${escapeHTML(u.nome)}</strong><small>${escapeHTML(u.email)}</small></div></div></td>
+            <td>${perfilBadgeHTML(u.perfil)}</td>
+            <td id="grupos-user-${u.id}"><span class="text-secondary">Carregando grupos...</span></td>
+            <td class="permissoes-acoes"><button class="btn btn-outline btn-sm permissoes-acao" onclick="abrirModalGruposUsuario(${u.id})"><iconify-icon icon="mdi:account-key-outline" width="16" height="16"></iconify-icon><span>Gerenciar</span></button></td>
+          </tr>`;
+        }).join('');
+
+        // Carregar grupos de cada usuário
+        for (const u of usuariosPermissoesAtivos) {
+          try {
+            const gs = await api(`/api/usuarios/${u.id}/grupos`);
+            const el = document.getElementById(`grupos-user-${u.id}`);
+            if (gs.length) el.innerHTML = gs.map(g => `<span class="permissao-grupo-chip">${escapeHTML(g.nome)}</span>`).join(' ');
+            else el.innerHTML = '<span class="text-secondary">Nenhum</span>';
+          } catch(e) { /* skip */ }
+        }
+      } catch (e) {
+        usuariosPermissoesAtivos = [];
+        atualizarResumoPermissoes([], []);
+        showToast('Erro: '+e.message, 'error');
+      }
+    }
+
+    async function abrirModalNovoGrupo() {
+      openModal('Novo grupo', `
+        <section class="permissoes-modal-intro">
+          <span><iconify-icon icon="mdi:shield-plus-outline" width="22" height="22"></iconify-icon></span>
+          <div><strong>Organize acessos com segurança</strong><p>Defina um nome e uma descrição clara para o novo grupo.</p></div>
+        </section>
+        <form id="fng" class="form-grid col-1">
+          <div class="form-group"><label>Nome do grupo *</label><input id="ng-nome" placeholder="Ex: Suporte N1" required></div>
+          <div class="form-group"><label>Descrição</label><textarea id="ng-descricao" placeholder="O que este grupo pode fazer..." rows="2"></textarea></div>
+        </form>`, [
+        { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-grupo', onClick: closeModal },
+        { text:'💾 Criar', cls:'btn-primary', id:'btn-criar-grupo', onClick: async () => {
+          const nome = document.getElementById('ng-nome').value.trim();
+          const descricao = document.getElementById('ng-descricao').value.trim();
+          if (!nome) { showToast('Informe o nome do grupo.', 'error'); return; }
+          try {
+            await api('/api/grupos', { method:'POST', body:{ nome, descricao } });
+            showToast('Grupo criado!', 'success');
+            closeModal();
+            carregarPermissoes();
+          } catch(err) { showToast(err.message, 'error'); }
+        }}
+      ], 'modal-permissoes');
+    }
+
+    async function abrirModalEditarGrupo(id) {
+      const grupos = await api('/api/grupos');
+      const g = grupos.find(x => x.id === id);
+      if (!g) return;
+      openModal('Editar grupo', `
+        <section class="permissoes-modal-intro compacta">
+          <span><iconify-icon icon="mdi:shield-edit-outline" width="21" height="21"></iconify-icon></span>
+          <div><strong>Atualize os dados do grupo</strong><p>As permissões e os vínculos atuais serão preservados.</p></div>
+        </section>
+        <form id="feg" class="form-grid col-1">
+          <div class="form-group"><label>Nome</label><input id="eg-nome" value="${escapeHTML(g.nome)}" required></div>
+          <div class="form-group"><label>Descrição</label><textarea id="eg-descricao" rows="2">${escapeHTML(g.descricao || '')}</textarea></div>
+        </form>`, [
+        { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-edtgrupo', onClick: closeModal },
+        { text:'💾 Salvar', cls:'btn-primary', id:'btn-salvar-grupo', onClick: async () => {
+          const nome = document.getElementById('eg-nome').value.trim();
+          const descricao = document.getElementById('eg-descricao').value.trim();
+          if (!nome) { showToast('Informe o nome.', 'error'); return; }
+          try {
+            await api(`/api/grupos/${id}`, { method:'PUT', body:{ nome, descricao } });
+            showToast('Grupo atualizado!', 'success');
+            closeModal();
+            carregarPermissoes();
+          } catch(err) { showToast(err.message, 'error'); }
+        }}
+      ], 'modal-permissoes');
+    }
+
+    async function excluirGrupo(id) {
+      const grupos = await api('/api/grupos');
+      const g = grupos.find(x => x.id === id);
+      openModal('🗑️ Excluir Grupo', `<p>Tem certeza que deseja excluir <strong>${escapeHTML(g.nome)}</strong>?</p>`, [
+        { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-delgrupo', onClick: closeModal },
+        { text:'🗑️ Excluir', cls:'btn-danger', id:'btn-del-grupo', onClick: async () => {
+          try {
+            await api(`/api/grupos/${id}`, { method:'DELETE' });
+            showToast('Grupo excluído!', 'success');
+            closeModal();
+            carregarPermissoes();
+          } catch(err) { showToast(err.message, 'error'); }
+        }}
+      ]);
+    }
+
+    async function abrirModalPermissoesGrupo(id) {
+      const isSystem = (await api('/api/grupos')).find(g => g.id === id)?.sistema;
+      const data = await api('/api/permissoes');
+      const grupos = await api('/api/grupos');
+      const g = grupos.find(x => x.id === id);
+      const permsAtuais = g ? (g.permissoes || []) : [];
+      let html = `<section class="permissoes-modal-intro compacta">
+        <span><iconify-icon icon="mdi:lock-check-outline" width="21" height="21"></iconify-icon></span>
+        <div><strong>${isSystem ? 'Permissões do grupo do sistema' : 'Defina os acessos do grupo'}</strong><p>${isSystem ? 'Grupos do sistema são exibidos apenas para consulta.' : 'Marque somente as permissões necessárias.'}</p></div>
+      </section><form id="fpg" class="permissoes-modal-lista">`;
+      let modulos = Object.keys(data.agrupadas);
+      modulos.forEach(mod => {
+        html += `<section class="permissoes-modulo"><strong>${escapeHTML(mod)}</strong>`;
+        data.agrupadas[mod].forEach(p => {
+          const checked = permsAtuais.includes(p.chave) ? 'checked' : '';
+          html += `<label class="permissao-checkbox"><input type="checkbox" name="perm" value="${p.chave}" ${checked} ${isSystem ? 'disabled' : ''}><span><strong>${escapeHTML(p.descricao)}</strong><small>${escapeHTML(p.chave)}</small></span></label>`;
+        });
+        html += `</section>`;
+      });
+      html += `</form>`;
+      openModal(`🔒 Permissões — ${escapeHTML(g.nome)}`, html,
+        isSystem
+          ? [{ text:'Fechar', cls:'btn-outline', id:'btn-fechar-perms', onClick: closeModal }]
+          : [{ text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-perms', onClick: closeModal },
+             { text:'💾 Salvar', cls:'btn-primary', id:'btn-salvar-perms', onClick: async () => {
+               const checks = document.querySelectorAll('#fpg input[name="perm"]:checked');
+               const selecionadas = Array.from(checks).map(c => c.value);
+               try {
+                 await api(`/api/grupos/${id}/permissoes`, { method:'PUT', body:{ permissoes: selecionadas } });
+                 showToast('Permissões salvas!', 'success');
+                 closeModal();
+                 carregarPermissoes();
+               } catch(err) { showToast(err.message, 'error'); }
+             }}
+          ], 'modal-permissoes');
+    }
+
+    async function abrirModalGruposUsuario(usuarioId) {
+      const usuario = usuariosPermissoesAtivos.find(u => u.id === usuarioId);
+      if (!usuario) { showToast('Usuário ativo não encontrado.', 'error'); return; }
+      const grupos = await api('/api/grupos');
+      const userGrupos = await api(`/api/usuarios/${usuarioId}/grupos`);
+      const userGrupoIds = new Set(userGrupos.map(g => g.id));
+      let html = `<section class="permissoes-modal-intro compacta">
+        <span><iconify-icon icon="mdi:account-key-outline" width="21" height="21"></iconify-icon></span>
+        <div><strong>Grupos de ${escapeHTML(usuario.nome)}</strong><p>Selecione os grupos que definem os acessos deste usuário.</p></div>
+      </section><form id="fug" class="permissoes-modal-lista grupos-usuario-lista">`;
+      grupos.forEach(g => {
+        const checked = userGrupoIds.has(g.id) ? 'checked' : '';
+        html += `<label class="grupo-checkbox"><input type="checkbox" name="grupo" value="${g.id}" ${checked}><span><strong>${escapeHTML(g.nome)}</strong><small>${escapeHTML(g.descricao || 'Grupo sem descrição')}</small></span>${g.sistema ? '<em>Sistema</em>' : '<em>Personalizado</em>'}</label>`;
+      });
+      html += `</form>`;
+      openModal(`Grupos do usuário`, html, [
+        { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-ug', onClick: closeModal },
+        { text:'💾 Salvar', cls:'btn-primary', id:'btn-salvar-ug', onClick: async () => {
+          const checks = document.querySelectorAll('#fug input[name="grupo"]:checked');
+          const selecionados = Array.from(checks).map(c => parseInt(c.value));
+          try {
+            await api(`/api/usuarios/${usuarioId}/grupos`, { method:'PUT', body:{ grupos: selecionados } });
+            showToast('Grupos atribuídos!', 'success');
+            closeModal();
+            carregarPermissoes();
+          } catch(err) { showToast(err.message, 'error'); }
+        }}
+      ], 'modal-permissoes');
+    }
+
+    // --- DETALHES DO CHAMADO ---
+    async function abrirModalDetalhesChamado(chamadoId) {
+      try {
+        const d = await api(`/api/chamados/${chamadoId}/detalhes`);
+        const pcSection = d.computador_id ? `
+          <div class="detail-section">
+            <div class="detail-section-title"><iconify-icon icon="mdi:desktop-classic" width="18" height="18"></iconify-icon> Computador</div>
+            <div class="detail-grid">
+              <div class="detail-item"><span class="detail-label">Patrimônio</span><span class="detail-value">${escapeHTML(d.patrimonio || '—')}</span></div>
+              <div class="detail-item"><span class="detail-label">Local do bem</span><span class="detail-value">${escapeHTML(d.pc_local || 'Sem local')}</span></div>
+              <div class="detail-item"><span class="detail-label">Processador</span><span class="detail-value">${escapeHTML(d.processador || '—')}</span></div>
+              <div class="detail-item"><span class="detail-label">Memória RAM</span><span class="detail-value">${escapeHTML(d.memoria_ram || '—')}</span></div>
+              <div class="detail-item"><span class="detail-label">Armazenamento</span><span class="detail-value">${escapeHTML(d.armazenamento_tipo || '')} ${escapeHTML(d.armazenamento_tamanho || '')}</span></div>
+              <div class="detail-item"><span class="detail-label">AnyDesk</span><span class="detail-value">${d.anydesk_id ? `<span class="detail-copy" onclick="navigator.clipboard.writeText('${escapeHTML(d.anydesk_id)}'); showToast('AnyDesk copiado!')">${escapeHTML(d.anydesk_id)} <iconify-icon icon="mdi:content-copy" width="12" height="12"></iconify-icon></span>` : '—'}</span></div>
+              <div class="detail-item"><span class="detail-label">TeamViewer</span><span class="detail-value">${d.teamviewer_id ? escapeHTML(d.teamviewer_id) : '—'}</span></div>
+            </div>
+          </div>` : `
+          <div class="detail-section">
+            <div class="detail-section-title"><iconify-icon icon="mdi:desktop-classic" width="18" height="18"></iconify-icon> Computador</div>
+            <div class="detail-empty">Nenhum computador cadastrado para este usuário.</div>
+          </div>`;
+
+        openModal(`📋 Chamado #${chamadoId}`, `
+          <div class="detail-modal">
+            <div class="detail-section">
+              <div class="detail-section-title"><iconify-icon icon="mdi:ticket-outline" width="18" height="18"></iconify-icon> Chamado</div>
+              <div class="detail-grid">
+                <div class="detail-item" style="grid-column:1/-1"><span class="detail-label">Título</span><span class="detail-value" style="font-weight:600">${escapeHTML(d.titulo)}</span></div>
+                <div class="detail-item" style="grid-column:1/-1"><span class="detail-label">Descrição</span><span class="detail-value" style="white-space:pre-wrap">${escapeHTML(d.descricao)}</span></div>
+                <div class="detail-item"><span class="detail-label">Status</span><span class="detail-value">${statusBadgeHTML(d.status)}</span></div>
+                <div class="detail-item"><span class="detail-label">Local do chamado</span><span class="detail-value">${d.local_nome ? escapeHTML(d.local_nome) : '<span class="text-secondary">Sem local específico</span>'}</span></div>
+                <div class="detail-item"><span class="detail-label">Técnico</span><span class="detail-value">${d.tecnico_nome ? escapeHTML(d.tecnico_nome) : '<span class="text-secondary">Não atribuído</span>'}</span></div>
+                <div class="detail-item"><span class="detail-label">Data de abertura</span><span class="detail-value">${formatarData(d.criado_em)}</span></div>
+                <div class="detail-item"><span class="detail-label">Última atualização</span><span class="detail-value">${formatarData(d.atualizado_em)}</span></div>
+              </div>
+            </div>
+            <div class="detail-section">
+              <div class="detail-section-title"><iconify-icon icon="mdi:account-outline" width="18" height="18"></iconify-icon> Usuário</div>
+              <div class="detail-grid">
+                <div class="detail-item"><span class="detail-label">Nome</span><span class="detail-value">${escapeHTML(d.usuario_nome || '')}</span></div>
+                <div class="detail-item"><span class="detail-label">Email</span><span class="detail-value">${escapeHTML(d.usuario_email || '—')}</span></div>
+                <div class="detail-item"><span class="detail-label">Perfil</span><span class="detail-value">${perfilBadgeHTML(d.usuario_perfil)}</span></div>
+              </div>
+            </div>
+            ${pcSection}
+          </div>`, [{ text:'Fechar', cls:'btn-outline', id:'btn-fechar-detalhes', onClick: closeModal }], 'modal-lg');
+      } catch (e) {
+        showToast('Erro ao carregar detalhes: ' + e.message, 'error');
+      }
+    }
+
+    // --- NOVO CHAMADO ---
+    let categorias = [];
+    async function carregarCategorias() {
+      try { categorias = await api('/api/categorias'); } catch(e) { categorias = []; }
+    }
+    async function carregarSubcategorias(categoriaId) {
+      if (!categoriaId) { document.getElementById('nc-subcategoria').innerHTML = '<option value="">Selecione uma categoria primeiro</option>'; return; }
+      try {
+        const subs = await api(`/api/subcategorias?categoria_id=${categoriaId}`);
+        const sel = document.getElementById('nc-subcategoria');
+        if (subs.length) {
+          sel.innerHTML = '<option value="">Selecione...</option>' + subs.map(s => `<option value="${s.id}">${s.nome}</option>`).join('');
+        } else {
+          sel.innerHTML = '<option value="">Nenhuma subcategoria</option>';
+        }
+      } catch(e) { console.error("Erro ao carregar subcategorias:", e); }
+    }
+    async function abrirModalNovoChamado() {
+      await carregarCategorias();
+      let locais = [];
+      try { locais = await api('/api/locais'); } catch (_) {}
+      const optsCat = categorias.length
+        ? '<option value="">Selecione...</option>' + categorias.map(c => `<option value="${c.id}">${c.nome}</option>`).join('')
+        : '<option value="">Nenhuma categoria cadastrada</option>';
+      openModal('➕ Novo Chamado', `<form id="fnc" class="form-grid col-1">
+        <div class="form-group"><label>Local físico</label><select id="nc-local"><option value="">Problema individual / sem local</option>${locais.map(local => `<option value="${local.id}">${escapeHTML(local.nome)}</option>`).join('')}</select><small class="text-secondary">Use para problemas que afetam uma sala, laboratório ou ambiente.</small></div>
+        <div class="form-group"><label>Categoria</label><select id="nc-categoria" onchange="carregarSubcategorias(this.value)">${optsCat}</select></div>
+        <div class="form-group"><label>Subcategoria</label><select id="nc-subcategoria"><option value="">Selecione uma categoria primeiro</option></select></div>
+        <div class="form-group"><label>Descrição detalhada</label><textarea id="nc-descricao" placeholder="Descreva o problema com detalhes..." required></textarea></div>
+      </form>`, [
+        { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-chamado', onClick: closeModal },
+        { text:'➕ Abrir Chamado', cls:'btn-primary', id:'btn-abrir-chamado', onClick: async () => {
+          const descricao = document.getElementById('nc-descricao').value.trim();
+          const subcategoria_id = document.getElementById('nc-subcategoria').value || null;
+          const local_id = document.getElementById('nc-local').value || null;
+          try {
+            const r = await api('/api/chamados', { method:'POST', body:{ titulo: descricao.substring(0, 100), descricao, subcategoria_id: subcategoria_id ? parseInt(subcategoria_id) : null, local_id: local_id ? Number(local_id) : null } });
+            showToast(r.mensagem, 'success');
+            closeModal();
+            carregarChamados();
+          } catch(err) { showToast(err.message, 'error'); }
+        }}
+      ]);
+    }
+
+    carregarTudo();
+  </script>
+</body>
+</html>

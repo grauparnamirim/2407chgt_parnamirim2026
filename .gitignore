@@ -1,0 +1,19 @@
+# Credenciais e configurações sensíveis
+.env
+
+# Banco de dados
+*.db
+*.sqlite
+helpdesk.json
+
+# Node
+node_modules/
+npm-debug.log*
+
+# Dados locais gerados a partir do template público
+data/local.json
+data/*.tmp
+
+# Sistema operacional
+Thumbs.db
+.DS_Store

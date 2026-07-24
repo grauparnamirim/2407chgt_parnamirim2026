@@ -1,0 +1,289 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CHGT — Usuários</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/iconify-icon@2/dist/iconify-icon.min.js"></script>
+</head>
+<body class="page-usuarios">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><img src="/midia/logo_grau_rn.png" alt="Grau Técnico" style="width:32px;height:32px;border-radius:6px;flex-shrink:0;"><div class="brand-text"><h2>CHGT HelpDesk</h2><span>GRAU TÉCNICO</span></div></div>
+    <nav class="sidebar-nav" id="sidebar-nav"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-avatar" id="sidebar-avatar">U</div>
+      <div class="sidebar-user-info"><div class="user-name" id="sidebar-nome">Usuário</div><div class="user-role" id="sidebar-cargo">perfil</div></div>
+      <button class="sidebar-logout" id="sidebar-logout" title="Sair"><iconify-icon icon="mdi:logout" width="18" height="18"></iconify-icon></button>
+    </div>
+  </aside>
+  <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
+  <div class="main">
+    <div class="top-header">
+      <div class="breadcrumb" id="breadcrumb">Cadastros › <strong>Usuários</strong></div>
+      <div class="header-actions">
+        <button class="header-icon-btn" id="btn-tema" title="Selecionar tema" onclick="abrirModalTemas()"><iconify-icon icon="mdi:theme-light-dark" width="20" height="20"></iconify-icon></button>
+        <button class="btn btn-sm btn-outline" onclick="carregarUsuarios()"><iconify-icon icon="mdi:refresh" width="16" height="16"></iconify-icon> Atualizar</button>
+      </div>
+    </div>
+
+    <main class="usuarios-page-content">
+      <section class="usuarios-hero" aria-labelledby="usuarios-titulo">
+        <span class="usuarios-hero-icone"><iconify-icon icon="mdi:account-group-outline" width="30" height="30"></iconify-icon></span>
+        <div>
+          <span class="usuarios-eyebrow">Cadastros e acessos</span>
+          <h1 id="usuarios-titulo">Usuários</h1>
+          <p>Organize as pessoas que acessam o sistema e seus respectivos perfis.</p>
+        </div>
+        <button class="btn btn-primary" id="btn-novo-usuario" onclick="abrirModalCadastroUsuario()"><iconify-icon icon="mdi:account-plus-outline" width="19" height="19"></iconify-icon> Novo usuário</button>
+      </section>
+
+      <section class="usuarios-resumo" aria-label="Resumo de usuários">
+        <article><span><iconify-icon icon="mdi:account-group-outline" width="21" height="21"></iconify-icon></span><div><strong id="resumo-total-usuarios">0</strong><small>usuários cadastrados</small></div></article>
+        <article><span class="tecnicos"><iconify-icon icon="mdi:headset" width="21" height="21"></iconify-icon></span><div><strong id="resumo-tecnicos-usuarios">0</strong><small>técnicos</small></div></article>
+        <article><span class="setores"><iconify-icon icon="mdi:domain" width="21" height="21"></iconify-icon></span><div><strong id="resumo-setores-usuarios">0</strong><small>setores vinculados</small></div></article>
+      </section>
+
+    <div class="tab-panel active" style="display:block">
+    <div class="card usuarios-lista-card">
+      <div class="card-header usuarios-lista-cabecalho">
+        <h2><iconify-icon icon="mdi:account-group" width="20" height="20"></iconify-icon> Usuários Cadastrados</h2>
+        <div class="usuarios-filtros">
+          <label class="usuarios-busca"><iconify-icon icon="mdi:magnify" width="19" height="19"></iconify-icon><input id="filtro-busca-usuarios" type="search" autocomplete="off" placeholder="Buscar nome, e-mail ou setor" oninput="renderizarUsuarios()" aria-label="Buscar usuários"></label>
+          <select id="filtro-perfil-usuarios" onchange="renderizarUsuarios()" aria-label="Filtrar por perfil"><option value="">Todos os perfis</option><option value="gestor">Gestores</option><option value="tecnico">Técnicos</option><option value="usuario">Usuários</option></select>
+          <select id="filtro-status-usuarios" onchange="renderizarUsuarios()" aria-label="Filtrar por status"><option value="">Todos os status</option><option value="ativo">Ativos</option><option value="inativo">Inativos</option></select>
+          <button class="btn btn-outline btn-sm" type="button" onclick="limparFiltrosUsuarios()" title="Limpar filtros"><iconify-icon icon="mdi:filter-remove-outline" width="17" height="17"></iconify-icon><span>Limpar</span></button>
+        </div>
+      </div>
+      <div class="card-body no-padding">
+        <div class="table-wrap">
+          <table class="usuarios-tabela">
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>Email</th>
+                <th>Perfil</th>
+                <th>Setor</th>
+                <th>Data Cadastro</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="tabela-usuarios">
+              <tr><td colspan="6" class="text-center text-secondary">Carregando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    </div>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); }
+    });
+
+    verificarAutenticacao();
+    const u = AppState.usuario;
+    if (!u) { window.location.href = '/'; }
+    else if (!['admin','gestor','tecnico'].includes(u.perfil) && !temPermissao('usuarios.ver')) {
+      window.location.href = u.perfil === 'usuario' ? '/usuario' : '/';
+    }
+
+    configurarSidebar([]);
+    (function() {
+      const navEl = document.getElementById('sidebar-nav');
+      if (!navEl) return;
+      const perfil = AppState.usuario.perfil;
+      const isAdminOrGestor = ['admin','gestor','tecnico'].includes(perfil);
+      let html = '';
+
+      html += '<div class="nav-section">Principal</div>';
+      html += `<a href="painel"><span class="nav-icon"><iconify-icon icon="mdi:view-dashboard" width="20" height="20"></iconify-icon></span> Painel</a>`;
+      if (temAlgumaPermissao('chamados.ver_atribuidos', 'chamados.ver_todos_unidade', 'chamados.ver_proprios')) {
+        html += `<a href="painel"><span class="nav-icon"><iconify-icon icon="mdi:ticket-outline" width="20" height="20"></iconify-icon></span> Chamados</a>`;
+      }
+
+      const mostraCadastros = temAlgumaPermissao('setores.ver', 'categorias.ver', 'usuarios.ver', 'inventario.ver', 'ativos.ver');
+      if (mostraCadastros) {
+        html += '<div class="nav-section">Cadastros</div>';
+        if (temAlgumaPermissao('setores.ver')) {
+          html += `<a href="setores"><span class="nav-icon"><iconify-icon icon="mdi:domain" width="20" height="20"></iconify-icon></span> Setores</a>`;
+        }
+        if (temAlgumaPermissao('categorias.ver')) {
+          html += `<a href="categorias"><span class="nav-icon"><iconify-icon icon="mdi:shape-outline" width="20" height="20"></iconify-icon></span> Categorias</a>`;
+        }
+        if (temAlgumaPermissao('inventario.ver')) {
+          html += `<a href="inventario"><span class="nav-icon"><iconify-icon icon="mdi:desktop-tower-monitor" width="20" height="20"></iconify-icon></span> Inventário</a>`;
+        }
+        if (temAlgumaPermissao('usuarios.ver')) {
+          html += `<a href="usuarios" class="active"><span class="nav-icon"><iconify-icon icon="mdi:account-group" width="20" height="20"></iconify-icon></span> Usuários</a>`;
+        }
+      }
+
+      const mostraGestao = temAlgumaPermissao('relatorios.ver_dashboard', 'relatorios.ver_tempos', 'impressoras.ver', 'fornecedores.ver', 'dispositivos.ver') || isAdminOrGestor;
+      if (mostraGestao) {
+        html += '<div class="nav-section">Gestão</div>';
+        if (temAlgumaPermissao('relatorios.ver_dashboard', 'relatorios.ver_tempos')) {
+          html += `<a href="relatorios"><span class="nav-icon"><iconify-icon icon="mdi:chart-bar" width="20" height="20"></iconify-icon></span> Relatórios</a>`;
+        }
+        if (temAlgumaPermissao('impressoras.ver') || isAdminOrGestor) {
+          html += `<a href="impressoras"><span class="nav-icon"><iconify-icon icon="mdi:printer" width="20" height="20"></iconify-icon></span> Controle Impressões</a>`;
+        }
+        if (temAlgumaPermissao('fornecedores.ver') || isAdminOrGestor) {
+          html += `<a href="fornecedores"><span class="nav-icon"><iconify-icon icon="mdi:truck-delivery" width="20" height="20"></iconify-icon></span> Fornecedores</a>`;
+        }
+        if (temPermissao('dispositivos.ver')) {
+          html += `<a href="dispositivos"><span class="nav-icon"><iconify-icon icon="mdi:cellphone-link" width="20" height="20"></iconify-icon></span> Dispositivos</a>`;
+        }
+      }
+
+      const mostraFinanceiro = temAlgumaPermissao('financeiro.ver', 'financeiro.criar', 'financeiro.aprovar') || isAdminOrGestor;
+      if (mostraFinanceiro) {
+        html += '<div class="nav-section">Financeiro</div>';
+        html += `<a href="financeiro"><span class="nav-icon"><iconify-icon icon="mdi:currency-usd" width="20" height="20"></iconify-icon></span> Financeiro</a>`;
+        if (temAlgumaPermissao('notas_fiscais.ver') || isAdminOrGestor) {
+          html += `<a href="notas-fiscais"><span class="nav-icon"><iconify-icon icon="mdi:file-document" width="20" height="20"></iconify-icon></span> Notas Fiscais</a>`;
+        }
+      }
+
+      navEl.innerHTML = html;
+    })();
+
+    (function() {
+      const btnNovo = document.getElementById('btn-novo-usuario');
+      if (btnNovo && !temPermissao('usuarios.criar')) btnNovo.style.display = 'none';
+    })();
+
+    let usuarios = [];
+
+    function iniciaisUsuario(nome) {
+      return String(nome || '?').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(parte => parte[0]).join('').toUpperCase() || '?';
+    }
+
+    function atualizarResumoUsuarios() {
+      document.getElementById('resumo-total-usuarios').textContent = usuarios.length;
+      document.getElementById('resumo-tecnicos-usuarios').textContent = usuarios.filter(item => item.perfil === 'tecnico').length;
+      document.getElementById('resumo-setores-usuarios').textContent = new Set(usuarios.map(item => item.setor_id).filter(Boolean)).size;
+    }
+
+    function obterUsuariosFiltrados() {
+      const busca = document.getElementById('filtro-busca-usuarios').value.trim().toLocaleLowerCase('pt-BR');
+      const perfil = document.getElementById('filtro-perfil-usuarios').value;
+      const status = document.getElementById('filtro-status-usuarios').value;
+      return usuarios.filter(item => {
+        const texto = [item.nome, item.email, item.setor_nome].filter(Boolean).join(' ').toLocaleLowerCase('pt-BR');
+        const estaAtivo = Number(item.ativo) === 1;
+        return (!busca || texto.includes(busca)) && (!perfil || item.perfil === perfil) && (!status || (status === 'ativo' ? estaAtivo : !estaAtivo));
+      });
+    }
+
+    function limparFiltrosUsuarios() {
+      document.getElementById('filtro-busca-usuarios').value = '';
+      document.getElementById('filtro-perfil-usuarios').value = '';
+      document.getElementById('filtro-status-usuarios').value = '';
+      renderizarUsuarios();
+    }
+
+    function renderizarUsuarios() {
+      const tabela = document.getElementById('tabela-usuarios');
+      const filtrados = obterUsuariosFiltrados();
+      const podeEditar = temPermissao('usuarios.editar');
+      const podeExcluir = temPermissao('usuarios.excluir');
+      atualizarResumoUsuarios();
+
+      if (!usuarios.length) {
+        tabela.innerHTML = '<tr><td colspan="6"><div class="empty-state usuarios-vazio"><div class="empty-icon"><iconify-icon icon="mdi:account-plus-outline" width="42" height="42"></iconify-icon></div><h3>Nenhum usuário cadastrado</h3><p>Cadastre pessoas para que possam acessar o sistema conforme suas permissões.</p></div></td></tr>';
+        return;
+      }
+      if (!filtrados.length) {
+        tabela.innerHTML = '<tr><td colspan="6"><div class="empty-state usuarios-vazio"><div class="empty-icon"><iconify-icon icon="mdi:magnify-remove-outline" width="42" height="42"></iconify-icon></div><h3>Nenhum resultado encontrado</h3><p>Altere a busca ou os filtros para localizar um usuário.</p><button class="btn btn-outline btn-sm" onclick="limparFiltrosUsuarios()">Limpar filtros</button></div></td></tr>';
+        return;
+      }
+      tabela.innerHTML = filtrados.map(item => {
+        const editar = podeEditar ? `<button class="btn btn-outline btn-sm usuarios-acao" onclick="editarUsuario(${item.id})" title="Editar usuário"><iconify-icon icon="mdi:pencil-outline" width="16" height="16"></iconify-icon><span>Editar</span></button>` : '';
+        const estaAtivo = Number(item.ativo) === 1;
+        const status = podeExcluir ? (estaAtivo ? `<button class="btn btn-warning btn-sm usuarios-acao" onclick="confirmarAlteracaoStatusUsuario(${item.id}, false)" title="Inativar usuário"><iconify-icon icon="mdi:account-off-outline" width="16" height="16"></iconify-icon></button>` : `<button class="btn btn-success btn-sm usuarios-acao" onclick="confirmarAlteracaoStatusUsuario(${item.id}, true)" title="Reativar usuário"><iconify-icon icon="mdi:account-check-outline" width="16" height="16"></iconify-icon></button>`) : '';
+        return `<tr class="${estaAtivo ? '' : 'usuario-inativo'}"><td><div class="usuario-identificacao"><span class="usuario-iniciais">${escapeHTML(iniciaisUsuario(item.nome))}</span><div><strong>${escapeHTML(item.nome)}</strong>${estaAtivo ? '' : '<small class="usuario-status-inativo">Inativo</small>'}</div></div></td><td class="usuario-email">${escapeHTML(item.email)}</td><td>${perfilBadgeHTML(item.perfil)}</td><td>${item.setor_nome ? `<span class="usuario-setor"><iconify-icon icon="mdi:domain" width="14" height="14"></iconify-icon>${escapeHTML(item.setor_nome)}</span>` : '<span class="text-secondary">Sem setor</span>'}</td><td><span class="usuario-data">${formatarData(item.criado_em)}</span></td><td class="usuario-acoes">${[editar, status].filter(Boolean).join('') || '<span class="text-secondary">—</span>'}</td></tr>`;
+      }).join('');
+    }
+
+    // --- CRUD USUÁRIOS ---
+    async function carregarUsuarios() {
+      const tabela = document.getElementById('tabela-usuarios');
+      tabela.innerHTML = '<tr><td colspan="6" class="text-center text-secondary">Carregando usuários...</td></tr>';
+      try {
+        usuarios = await api('/api/usuarios');
+        renderizarUsuarios();
+      } catch (e) {
+        usuarios = [];
+        atualizarResumoUsuarios();
+        tabela.innerHTML = `<tr><td colspan="6"><div class="empty-state usuarios-vazio"><div class="empty-icon"><iconify-icon icon="mdi:alert-circle-outline" width="42" height="42"></iconify-icon></div><h3>Erro ao carregar usuários</h3><p>${escapeHTML(e.message || 'Tente novamente.')}</p><button class="btn btn-outline btn-sm" onclick="carregarUsuarios()"><iconify-icon icon="mdi:refresh" width="16" height="16"></iconify-icon> Tentar novamente</button></div></td></tr>`;
+        showToast('Erro: ' + e.message, 'error');
+      }
+    }
+
+    async function abrirModalCadastroUsuario() {
+      const setores = await api('/api/setores');
+      const optsSetor = setores.length ? '<option value="">Selecione...</option>' + setores.map(s => `<option value="${s.id}">${s.nome}</option>`).join('') : '<option value="">Nenhum setor cadastrado</option>';
+      openModal('➕ Cadastrar Usuário', `<form id="fmu" class="form-grid col-1"><div class="form-group"><label>Nome</label><input id="mu-nome" required></div><div class="form-group"><label>Email</label><input type="email" id="mu-email" required></div><div class="form-group"><label>Senha</label><input type="password" id="mu-senha" required minlength="4"></div><div class="form-group"><label>Perfil</label><select id="mu-perfil" required><option value="">Selecione...</option><option value="tecnico">Técnico</option><option value="usuario">Usuário</option></select></div><div class="form-group"><label>Setor</label><select id="mu-setor">${optsSetor}</select></div></form>`, [{text:'Cancelar',cls:'btn-outline',id:'btn-cancelar-caduser',onClick:closeModal},{text:'💾 Cadastrar',cls:'btn-primary',id:'btn-salvar-u',onClick:salvarUsuarioModal}]);
+    }
+
+    async function salvarUsuarioModal(){ const n=document.getElementById('mu-nome').value.trim(),e=document.getElementById('mu-email').value.trim(),s=document.getElementById('mu-senha').value,p=document.getElementById('mu-perfil').value,setor=document.getElementById('mu-setor').value; if(!p){showToast('Selecione o perfil','error');return} try{const r=await api('/api/usuarios',{method:'POST',body:{nome:n,email:e,senha:s,perfil:p,setor}});showToast(r.mensagem,'success');closeModal();carregarUsuarios();}catch(err){showToast(err.message,'error');} }
+
+    async function editarUsuario(id){
+      const db=await api('/api/usuarios');
+      const setores = await api('/api/setores');
+      const u=db.find(x=>x.id===id);if(!u)return;
+      const optsSetor = setores.length ? '<option value="">Selecione...</option>' + setores.map(s => `<option value="${s.id}" ${u.setor_id===s.id?'selected':''}>${s.nome}</option>`).join('') : '<option value="">Nenhum setor</option>';
+      openModal(`✏️ Editar ${u.nome}`,`<form id="feu" class="form-grid col-1"><div class="form-group"><label>Nome</label><input id="eu-nome" value="${u.nome}" required></div><div class="form-group"><label>Email</label><input type="email" id="eu-email" value="${u.email}" required></div><div class="form-group"><label>Nova senha (branco = manter)</label><input type="password" id="eu-senha" minlength="4"></div><div class="form-group"><label>Perfil</label><select id="eu-perfil" required><option value="tecnico" ${u.perfil==='tecnico'?'selected':''}>Técnico</option><option value="usuario" ${u.perfil==='usuario'?'selected':''}>Usuário</option></select></div><div class="form-group"><label>Setor</label><select id="eu-setor">${optsSetor}</select></div></form>`, [{text:'Cancelar',cls:'btn-outline',id:'btn-cancelar-edtuser',onClick:closeModal},{text:'💾 Salvar',cls:'btn-primary',id:'btn-editar-u',onClick:async()=>{ const n=document.getElementById('eu-nome').value.trim(),em=document.getElementById('eu-email').value.trim(),s=document.getElementById('eu-senha').value,p=document.getElementById('eu-perfil').value,setor=document.getElementById('eu-setor').value; try{const r=await api(`/api/usuarios/${id}`,{method:'PUT',body:{nome:n,email:em,senha:s||undefined,perfil:p,setor}});showToast(r.mensagem,'success');closeModal();carregarUsuarios();}catch(err){showToast(err.message,'error');} }}]);
+    }
+
+    function confirmarAlteracaoStatusUsuario(id, ativar) {
+      const usuario = usuarios.find(item => Number(item.id) === Number(id));
+      if (!usuario) return;
+      const acao = ativar ? 'Reativar' : 'Inativar';
+      const icone = ativar ? 'mdi:account-check-outline' : 'mdi:account-off-outline';
+      const descricao = ativar
+        ? 'O acesso ao sistema será liberado novamente.'
+        : 'O acesso será bloqueado, mas o histórico de chamados e registros será preservado.';
+      openModal(`${acao} usuário`, `<div class="usuario-status-confirmacao"><span><iconify-icon icon="${icone}" width="26" height="26"></iconify-icon></span><div><strong>${acao} “${escapeHTML(usuario.nome)}”?</strong><p>${descricao}</p></div></div>`, [
+        { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-status-usuario', onClick:closeModal },
+        { text:acao, cls:ativar ? 'btn-success' : 'btn-warning', id:'btn-confirmar-status-usuario', onClick:async() => {
+          try {
+            const resposta = await api(`/api/usuarios/${id}/ativo`, { method:'PUT', body:{ ativo:ativar } });
+            showToast(resposta.mensagem, 'success');
+            closeModal();
+            carregarUsuarios();
+          } catch (err) { showToast(err.message, 'error'); }
+        }}
+      ]);
+    }
+
+    function excluirUsuario(id){
+      const usuario = usuarios.find(item => Number(item.id) === Number(id));
+      if (!usuario) return;
+      openModal('🗑️ Excluir Usuário', `<p>Tem certeza que deseja excluir <strong>${escapeHTML(usuario.nome)}</strong>?</p><p class="text-secondary mt-12">Esta ação não pode ser desfeita.</p>`, [
+        { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-deluser', onClick:closeModal },
+        { text:'🗑️ Excluir', cls:'btn-danger', id:'btn-del-u', onClick:async() => {
+          try { const resposta = await api(`/api/usuarios/${id}`, { method:'DELETE' }); showToast(resposta.mensagem, 'success'); closeModal(); carregarUsuarios(); }
+          catch (err) { showToast(err.message, 'error'); }
+        }}
+      ]);
+    }
+
+    // Logout com confirmação
+    document.getElementById('sidebar-logout').addEventListener('click', function(e) {
+      e.preventDefault();
+      openModal('🚪 Sair do Sistema', '<p>Tem certeza que deseja sair?</p>', [
+        { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-logout', onClick: closeModal },
+        { text:'✅ Sair', cls:'btn-danger', id:'btn-confirmar-logout', onClick: () => AppState.logout() }
+      ]);
+    });
+
+    carregarUsuarios();
+  </script>
+</body>
+</html>

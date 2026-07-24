@@ -1,0 +1,60 @@
+{
+  "meta": {
+    "nextIds": {
+      "unidades": 4,
+      "usuarios": 2,
+      "chamados": 1,
+      "categorias": 1,
+      "subcategorias": 1,
+      "fornecedores": 1,
+      "dispositivos": 1,
+      "numeros_dispositivos": 1,
+      "setores": 1,
+      "locais": 1,
+      "computadores": 1,
+      "movimentacoes_bens": 1,
+      "manutencoes": 1,
+      "categorias_servico_manutencao": 1,
+      "subcategorias_servico_manutencao": 1,
+      "checklists_laboratorio": 1,
+      "checklist_laboratorio_itens": 1,
+      "comentarios": 1,
+      "custos_chamado": 1,
+      "orcamentos_chamado": 1,
+      "compras_mensais": 1,
+      "impressoras": 1,
+      "leituras_mensais": 1,
+      "notas_fiscais": 1,
+      "nf_comparativo_mensal": 1,
+      "permissoes": 1,
+      "grupos": 1
+    }
+  },
+  "unidades": [
+    { "id": 1, "nome": "Parnamirim", "cidade": "Parnamirim/RN", "ativo": 1 },
+    { "id": 2, "nome": "Natal Centro", "cidade": "Natal/RN", "ativo": 1 },
+    { "id": 3, "nome": "Natal Zona Norte", "cidade": "Natal/RN", "ativo": 1 }
+  ],
+  "usuarios": [
+    {
+      "id": 1,
+      "nome": "Administrador de demonstração",
+      "email": "admin@local.test",
+      "senha_hash": "$2b$10$.JRVcpwyZK05YK6rMCZJpOnsUr6Edz8/JeoTGSwII.fe1aDaT7kOu",
+      "perfil": "admin",
+      "unidade_id": null,
+      "setor_id": null,
+      "ativo": 1,
+      "criado_em": "2026-01-01T00:00:00.000Z"
+    }
+  ],
+  "chamados": [], "categorias": [], "subcategorias": [], "fornecedores": [],
+  "dispositivos": [], "numeros_dispositivos": [], "setores": [], "locais": [],
+  "computadores": [], "movimentacoes_bens": [], "manutencoes": [],
+  "categorias_servico_manutencao": [], "subcategorias_servico_manutencao": [],
+  "checklists_laboratorio": [], "checklist_laboratorio_itens": [], "comentarios": [],
+  "custos_chamado": [], "orcamentos_chamado": [], "compras_mensais": [],
+  "impressoras": [], "leituras_mensais": [], "parametros_impressao": [],
+  "permissoes": [], "grupos": [], "grupos_permissoes": [], "usuarios_grupos": [],
+  "notas_fiscais": [], "nf_comparativo_mensal": [], "notificacoes_log": []
+}

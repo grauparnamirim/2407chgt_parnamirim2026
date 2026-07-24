@@ -1,0 +1,594 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CHGT — Financeiro</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/iconify-icon@2/dist/iconify-icon.min.js"></script>
+</head>
+<body class="page-financeiro">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><img src="/midia/logo_grau_rn.png" alt="Grau Técnico" style="width:32px;height:32px;border-radius:6px;flex-shrink:0;"><div class="brand-text"><h2>CHGT HelpDesk</h2><span>GRAU TÉCNICO</span></div></div>
+    <nav class="sidebar-nav" id="sidebar-nav"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-avatar" id="sidebar-avatar">U</div>
+      <div class="sidebar-user-info"><div class="user-name" id="sidebar-nome">Usuário</div><div class="user-role" id="sidebar-cargo">perfil</div></div>
+      <button class="sidebar-logout" id="sidebar-logout" title="Sair"><iconify-icon icon="mdi:logout" width="18" height="18"></iconify-icon></button>
+    </div>
+  </aside>
+  <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
+  <div class="main financeiro-main">
+    <div class="top-header">
+      <div class="breadcrumb" id="breadcrumb">Financeiro › <strong>Orçamentos</strong></div>
+      <div class="header-actions">
+        <button class="header-icon-btn" id="btn-tema" title="Selecionar tema" onclick="abrirModalTemas()"><iconify-icon icon="mdi:theme-light-dark" width="20" height="20"></iconify-icon></button>
+        <button class="btn btn-sm btn-outline" onclick="carregarOrcamentos()"><iconify-icon icon="mdi:refresh" width="16" height="16"></iconify-icon> Atualizar</button>
+      </div>
+    </div>
+
+    <div class="tab-panel active financeiro-content" style="display:block">
+      <div class="stats-grid financeiro-stats" id="metricas-financeiras">
+        <div class="stat-card"><div class="stat-icon total"><iconify-icon icon="mdi:currency-usd" width="22" height="22"></iconify-icon></div><div class="stat-data"><div class="stat-num" id="met-orc-total">R$ 0,00</div><div class="stat-lbl">Valor Total dos Orçamentos</div></div></div>
+        <button class="stat-card financeiro-stat-pendente" type="button" onclick="filtrarOrcamentosPendentes()" title="Exibir somente orçamentos pendentes"><div class="stat-icon andamento"><iconify-icon icon="mdi:file-document-clock" width="22" height="22"></iconify-icon></div><div class="stat-data"><div class="stat-num" id="met-orc-pendentes">0</div><div class="stat-lbl">Orçamentos Pendentes</div><span class="financeiro-stat-link">Ver pendentes <iconify-icon icon="mdi:arrow-right" width="14" height="14"></iconify-icon></span></div></button>
+      </div>
+
+      <div id="aba-orcamentos">
+        <div class="card">
+          <div class="card-header financeiro-orcamentos-header">
+            <div><h2><iconify-icon icon="mdi:file-document" width="20" height="20"></iconify-icon> Orçamentos</h2><p>Controle e aprovação das solicitações financeiras.</p></div>
+            <div class="financeiro-orcamentos-actions"><button class="btn btn-outline btn-sm" type="button" onclick="exportarOrcamentosPdf()"><iconify-icon icon="mdi:file-pdf-box" width="18" height="18"></iconify-icon> Exportar PDF</button><button class="btn btn-primary btn-sm" onclick="abrirModalNovoOrcamento()" id="btn-novo-orcamento"><iconify-icon icon="mdi:plus" width="24" height="24"></iconify-icon> Solicitar Orçamento</button></div>
+          </div>
+          <div class="card-body no-padding">
+            <div class="financeiro-inline-filters financeiro-orcamento-filtros">
+              <label class="financeiro-busca-orcamento"><iconify-icon icon="mdi:magnify" width="18" height="18"></iconify-icon><input id="filtro-orc-busca" type="search" placeholder="Buscar orçamento, chamado, avulso, descrição ou fornecedor" aria-label="Buscar orçamentos por número, chamado, tipo, descrição ou fornecedor" oninput="agendarBuscaOrcamentos()"></label>
+              <select id="filtro-orc-status" onchange="carregarOrcamentos()" style="font-size:0.8rem;padding:4px 8px;border-radius:6px;border:1px solid var(--color-border);background:var(--color-bg);color:var(--color-text);flex:1;min-width:120px">
+                <option value="">Todos Status</option>
+                <option value="pendente">Pendente</option>
+                <option value="aprovado">Aprovado</option>
+                <option value="rejeitado">Rejeitado</option>
+              </select>
+              <select id="filtro-orc-mes" onchange="carregarOrcamentos()" style="font-size:0.8rem;padding:4px 8px;border-radius:6px;border:1px solid var(--color-border);background:var(--color-bg);color:var(--color-text);flex:1;min-width:120px">
+                <option value="">Todos Mês</option>
+                <option value="1">Janeiro</option><option value="2">Fevereiro</option><option value="3">Março</option><option value="4">Abril</option><option value="5">Maio</option><option value="6">Junho</option><option value="7">Julho</option><option value="8">Agosto</option><option value="9">Setembro</option><option value="10">Outubro</option><option value="11">Novembro</option><option value="12">Dezembro</option>
+              </select>
+              <input type="number" id="filtro-orc-ano" value="2026" onchange="carregarOrcamentos()" style="font-size:0.8rem;padding:4px 8px;border-radius:6px;border:1px solid var(--color-border);background:var(--color-bg);color:var(--color-text);flex:1;min-width:100px" placeholder="Ano">
+              <select id="filtro-orc-tipo" onchange="carregarOrcamentos()" style="font-size:0.8rem;padding:4px 8px;border-radius:6px;border:1px solid var(--color-border);background:var(--color-bg);color:var(--color-text);flex:1;min-width:120px">
+                <option value="">Todos Tipos</option>
+                <option value="avulso">Avulso</option>
+                <option value="vinculado">Vinculado a Chamado</option>
+              </select>
+              <button class="btn btn-outline btn-sm financeiro-limpar-filtros" type="button" onclick="limparFiltrosOrcamentos()" title="Limpar filtros"><iconify-icon icon="mdi:filter-remove-outline" width="17" height="17"></iconify-icon><span>Limpar</span></button>
+            </div>
+            <div class="table-wrap"><table><thead><tr><th>#</th><th>Chamado</th><th>Descrição</th><th>Fornecedor</th><th>Valor Total</th><th>Status</th><th>Solicitante</th><th>Data</th><th>Ações</th></tr></thead><tbody id="tabela-orcamentos"><tr><td colspan="9" class="text-center text-secondary">Carregando...</td></tr></tbody><tfoot id="footer-orcamentos" style="font-weight:700"><tr><td colspan="4" style="text-align:right">Total:</td><td id="total-orcamentos">R$ 0,00</td><td colspan="4"></td></tr></tfoot></table></div>
+          </div>
+        </div>
+      </div>
+
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); }
+    });
+
+    verificarAutenticacao();
+    const u = AppState.usuario;
+    if (!u) { window.location.href = '/'; }
+    else if (!['admin','gestor','tecnico'].includes(u.perfil) && !temAlgumaPermissao('financeiro.ver','financeiro.criar','financeiro.aprovar')) {
+      window.location.href = u.perfil === 'usuario' ? '/usuario' : '/';
+    }
+
+    configurarSidebar([]);
+    (function() {
+      const navEl = document.getElementById('sidebar-nav');
+      if (!navEl) return;
+      const perfil = AppState.usuario.perfil;
+      const isAdminOrGestor = ['admin','gestor','tecnico'].includes(perfil);
+      let html = '';
+
+      html += '<div class="nav-section">Principal</div>';
+      html += `<a href="painel"><span class="nav-icon"><iconify-icon icon="mdi:view-dashboard" width="20" height="20"></iconify-icon></span> Painel</a>`;
+      if (temAlgumaPermissao('chamados.ver_atribuidos', 'chamados.ver_todos_unidade', 'chamados.ver_proprios')) {
+        html += `<a href="painel"><span class="nav-icon"><iconify-icon icon="mdi:ticket-outline" width="20" height="20"></iconify-icon></span> Chamados</a>`;
+      }
+
+      const mostraCadastros = temAlgumaPermissao('setores.ver', 'categorias.ver', 'usuarios.ver', 'ativos.ver', 'inventario.ver');
+      if (mostraCadastros) {
+        html += '<div class="nav-section">Cadastros</div>';
+        if (temAlgumaPermissao('setores.ver')) html += `<a href="setores"><span class="nav-icon"><iconify-icon icon="mdi:domain" width="20" height="20"></iconify-icon></span> Setores</a>`;
+        if (temAlgumaPermissao('categorias.ver')) html += `<a href="categorias"><span class="nav-icon"><iconify-icon icon="mdi:shape-outline" width="20" height="20"></iconify-icon></span> Categorias</a>`;
+        if (temAlgumaPermissao('ativos.ver') || temAlgumaPermissao('inventario.ver')) html += `<a href="inventario"><span class="nav-icon"><iconify-icon icon="mdi:desktop-tower-monitor" width="20" height="20"></iconify-icon></span> Inventário</a>`;
+        if (temAlgumaPermissao('usuarios.ver')) html += `<a href="usuarios"><span class="nav-icon"><iconify-icon icon="mdi:account-group" width="20" height="20"></iconify-icon></span> Usuários</a>`;
+      }
+
+      const mostraGestao = temAlgumaPermissao('relatorios.ver_dashboard', 'relatorios.ver_tempos', 'impressoras.ver', 'fornecedores.ver', 'dispositivos.ver') || isAdminOrGestor;
+      if (mostraGestao) {
+        html += '<div class="nav-section">Gestão</div>';
+        if (temAlgumaPermissao('relatorios.ver_dashboard', 'relatorios.ver_tempos')) html += `<a href="relatorios"><span class="nav-icon"><iconify-icon icon="mdi:chart-bar" width="20" height="20"></iconify-icon></span> Relatórios</a>`;
+        if (temAlgumaPermissao('impressoras.ver') || isAdminOrGestor) html += `<a href="impressoras"><span class="nav-icon"><iconify-icon icon="mdi:printer" width="20" height="20"></iconify-icon></span> Controle Impressões</a>`;
+        if (temAlgumaPermissao('fornecedores.ver') || isAdminOrGestor) html += `<a href="fornecedores"><span class="nav-icon"><iconify-icon icon="mdi:truck-delivery" width="20" height="20"></iconify-icon></span> Fornecedores</a>`;
+        if (temPermissao('dispositivos.ver')) html += `<a href="dispositivos"><span class="nav-icon"><iconify-icon icon="mdi:cellphone-link" width="20" height="20"></iconify-icon></span> Dispositivos</a>`;
+      }
+
+      const mostraFinanceiro = temAlgumaPermissao('financeiro.ver', 'financeiro.criar', 'financeiro.aprovar') || isAdminOrGestor;
+      if (mostraFinanceiro) {
+        html += '<div class="nav-section">Financeiro</div>';
+        html += `<a href="financeiro" class="active"><span class="nav-icon"><iconify-icon icon="mdi:currency-usd" width="20" height="20"></iconify-icon></span> Financeiro</a>`;
+        if (temAlgumaPermissao('notas_fiscais.ver') || isAdminOrGestor) html += `<a href="notas-fiscais"><span class="nav-icon"><iconify-icon icon="mdi:file-document" width="20" height="20"></iconify-icon></span> Notas Fiscais</a>`;
+      }
+
+      navEl.innerHTML = html;
+    })();
+
+    (function() {
+      const podeCriar = temPermissao('financeiro.criar');
+      if (!podeCriar) {
+        const botaoOrcamento = document.getElementById('btn-novo-orcamento');
+        if (botaoOrcamento) botaoOrcamento.style.display = 'none';
+      }
+    })();
+
+    // Helper
+    function fmtMoney(v) { return 'R$ ' + parseFloat(v||0).toFixed(2).replace('.', ','); }
+
+    async function carregarTudo() {
+      await carregarOrcamentos();
+    }
+
+    // --- CUSTOS ---
+    async function carregarCustos() {
+      try {
+        const custos = await api('/api/custos-chamado');
+        const podeExcluir = temPermissao('financeiro.criar');
+        const tbody = document.getElementById('tabela-custos');
+        if (!custos.length) { tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><h3>Nenhum custo registrado</h3></div></td></tr>'; return; }
+        tbody.innerHTML = custos.map(c => {
+          const btnExcluir = podeExcluir ? `<button class="btn btn-danger btn-sm" onclick="excluirCusto(${c.id})" style="padding:4px 6px;font-size:0.7rem"><iconify-icon icon="mdi:delete" width="14" height="14"></iconify-icon></button>` : '';
+          return `<tr>
+            <td><strong>#${c.id}</strong></td>
+            <td>#${c.chamado_id}</td>
+            <td>${c.descricao}</td>
+            <td><span class="badge badge-andamento">${c.tipo}</span></td>
+            <td><strong>${fmtMoney(c.valor)}</strong></td>
+            <td>${c.fornecedor_nome || '<span class="text-secondary">—</span>'}</td>
+            <td style="font-size:0.82rem">${formatarData(c.criado_em)}</td>
+            <td>${btnExcluir}</td>
+          </tr>`;
+        }).join('');
+      } catch(e) { showToast('Erro: '+e.message, 'error'); }
+    }
+
+    async function abrirModalAdicionarCusto() {
+      const chamados = await api('/api/chamados');
+      const fornecedores = await api('/api/fornecedores');
+      const optsChamados = chamados.map(c => `<option value="${c.id}">#${c.id} — ${c.titulo}</option>`).join('');
+      const optsForn = fornecedores.filter(f => f.status === 'Ativo').map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
+      openModal('💰 Adicionar Custo', `<form id="fcusto" class="form-grid col-1">
+        <div class="form-group"><label>Chamado *</label><select id="custo-chamado"><option value="">Selecione...</option>${optsChamados}</select></div>
+        <div class="form-group"><label>Descrição *</label><input id="custo-desc" placeholder="Ex: Compra de HD"></div>
+        <div class="form-group"><label>Tipo</label><select id="custo-tipo"><option value="peca">Peça</option><option value="servico_terceiro">Serviço Terceiro</option><option value="outro">Outro</option></select></div>
+        <div class="form-group"><label>Valor (R$) *</label><input type="number" id="custo-valor" step="0.01" min="0" placeholder="0,00"></div>
+        <div class="form-group"><label>Fornecedor</label><select id="custo-forn"><option value="">Nenhum</option>${optsForn}</select></div>
+      </form>`, [
+        {text:'Cancelar',cls:'btn-outline',id:'btn-cancelar-custo',onClick:closeModal},
+        {text:'💾 Salvar',cls:'btn-primary',id:'btn-salvar-custo',onClick:async()=>{
+          const g = i => document.getElementById(i).value.trim();
+          if (!g('custo-chamado') || !g('custo-desc') || !g('custo-valor')) { showToast('Preencha chamado, descrição e valor.', 'error'); return; }
+          try { const r = await api('/api/custos-chamado', { method:'POST', body:{ chamado_id: parseInt(g('custo-chamado')), descricao: g('custo-desc'), tipo: g('custo-tipo'), valor: parseFloat(g('custo-valor')), fornecedor_id: g('custo-forn') ? parseInt(g('custo-forn')) : null } }); showToast(r.mensagem, 'success'); closeModal(); carregarCustos(); } catch(err) { showToast(err.message, 'error'); }
+        }}
+      ]);
+    }
+
+    async function excluirCusto(id) {
+      openModal('🗑️ Remover Custo', '<p>Remover este custo?</p>', [
+        {text:'Cancelar',cls:'btn-outline',id:'btn-cancelar-delcusto',onClick:closeModal},
+        {text:'🗑️ Remover',cls:'btn-danger',id:'btn-confirmar-delcusto',onClick:async()=>{
+          try { const r = await api(`/api/custos-chamado/${id}`, { method:'DELETE' }); showToast(r.mensagem, 'success'); closeModal(); carregarCustos(); } catch(err) { showToast(err.message, 'error'); }
+        }}
+      ]);
+    }
+
+    // --- ORÇAMENTOS ---
+    let buscaOrcamentosTimer;
+    let orcamentosVisiveis = [];
+
+    function agendarBuscaOrcamentos() {
+      clearTimeout(buscaOrcamentosTimer);
+      buscaOrcamentosTimer = setTimeout(carregarOrcamentos, 220);
+    }
+
+    function textoItensOrcamento(itens) {
+      if (!itens) return '';
+      if (typeof itens !== 'string') return JSON.stringify(itens);
+      try { return JSON.stringify(JSON.parse(itens)); }
+      catch (_) { return itens; }
+    }
+
+    function filtrarOrcamentosPendentes() {
+      document.getElementById('filtro-orc-status').value = 'pendente';
+      carregarOrcamentos();
+    }
+
+    function limparFiltrosOrcamentos() {
+      document.getElementById('filtro-orc-busca').value = '';
+      document.getElementById('filtro-orc-status').value = '';
+      document.getElementById('filtro-orc-mes').value = '';
+      document.getElementById('filtro-orc-tipo').value = '';
+      document.getElementById('filtro-orc-ano').value = new Date().getFullYear();
+      carregarOrcamentos();
+    }
+
+    async function carregarOrcamentos() {
+      try {
+        const fStatus = document.getElementById('filtro-orc-status').value;
+        const fMes = document.getElementById('filtro-orc-mes').value;
+        const fAno = document.getElementById('filtro-orc-ano').value;
+        const fTipo = document.getElementById('filtro-orc-tipo').value;
+        const termoBusca = document.getElementById('filtro-orc-busca').value.trim().toLocaleLowerCase('pt-BR');
+        let url = '/api/orcamentos-chamado';
+        const params = new URLSearchParams();
+        if (fStatus) params.set('status', fStatus);
+        if (fMes) params.set('mes', fMes);
+        if (fAno) params.set('ano', fAno);
+        if (fTipo) params.set('tipo', fTipo);
+        const qs = params.toString();
+        if (qs) url += '?' + qs;
+        const resultados = await api(url);
+        const orcamentos = termoBusca ? resultados.filter(o => {
+          const tipoBusca = o.chamado_id ? 'vinculado chamado' : 'avulso sem chamado';
+          return [o.id, o.chamado_id, o.chamado_titulo, o.descricao, o.fornecedor_nome, o.solicitante_nome, textoItensOrcamento(o.itens), tipoBusca]
+            .some(valor => String(valor || '').toLocaleLowerCase('pt-BR').includes(termoBusca));
+        }) : resultados;
+        const podeAprovar = temPermissao('financeiro.aprovar');
+        const tbody = document.getElementById('tabela-orcamentos');
+        if (!orcamentos.length) {
+          orcamentosVisiveis = [];
+          tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><h3>Nenhum orçamento</h3></div></td></tr>';
+          document.getElementById('total-orcamentos').textContent = 'R$ 0,00';
+          document.getElementById('met-orc-total').textContent = 'R$ 0,00';
+          document.getElementById('met-orc-pendentes').textContent = '0';
+          return;
+        }
+        orcamentosVisiveis = orcamentos;
+        const podeGerenciarOrcamento = temPermissao('financeiro.criar');
+        tbody.innerHTML = orcamentos.map(o => {
+          const statusBadge = o.status === 'aprovado' ? 'badge-sucesso' : o.status === 'rejeitado' ? 'badge-erro' : 'badge-andamento';
+          const podeEditar = podeGerenciarOrcamento && o.status === 'pendente';
+          const botoesAcao = [];
+          if (podeEditar) botoesAcao.push(`<button class="btn btn-outline btn-sm" style="padding:4px 6px;font-size:0.7rem" onclick="editarOrcamento(${o.id})" title="Editar"><iconify-icon icon="mdi:pencil" width="14" height="14"></iconify-icon></button>`);
+          if (o.status === 'pendente' && podeAprovar) botoesAcao.push(`<button class="btn btn-sm btn-success orcamento-action" onclick="aprovarOrcamento(${o.id})" title="Aprovar orçamento" aria-label="Aprovar orçamento #${o.id}"><iconify-icon icon="mdi:check" width="16" height="16"></iconify-icon></button>`, `<button class="btn btn-sm btn-danger orcamento-action" onclick="rejeitarOrcamento(${o.id})" title="Rejeitar orçamento" aria-label="Rejeitar orçamento #${o.id}"><iconify-icon icon="mdi:close" width="16" height="16"></iconify-icon></button>`);
+          if (podeEditar) botoesAcao.push(`<button class="btn btn-danger btn-sm" style="padding:4px 6px;font-size:0.7rem" onclick="excluirOrcamento(${o.id})" title="Excluir"><iconify-icon icon="mdi:delete" width="14" height="14"></iconify-icon></button>`);
+          const btns = botoesAcao.length ? botoesAcao.join(' ') : '<span class="text-secondary">—</span>';
+          const detalheValor = o.valor_unitario && o.quantidade
+            ? fmtMoney(o.valor_unitario)+' x '+o.quantidade+(o.frete > 0 ? ' + frete '+fmtMoney(o.frete) : '')+' = <strong>'+fmtMoney(o.valor_total)+'</strong>'
+            : '<strong>'+fmtMoney(o.valor_total)+'</strong>';
+          const fornecedor = o.fornecedor_nome
+            ? `<span class="orcamento-fornecedor"><iconify-icon icon="mdi:storefront-outline" width="14" height="14"></iconify-icon>${escapeHTML(o.fornecedor_nome)}</span>`
+            : '<span class="orcamento-sem-fornecedor">Não definido</span>';
+          return `<tr class="${o.status === 'pendente' ? 'orcamento-pendente' : ''}">
+            <td><strong>#${o.id}</strong></td>
+            <td>${o.chamado_id ? '#'+o.chamado_id+' '+(o.chamado_titulo ? '— '+escapeHTML(o.chamado_titulo) : '') : '<span class="badge badge-info">Avulso</span>'}</td>
+            <td class="orcamento-descricao">${escapeHTML(o.descricao)}</td>
+            <td>${fornecedor}</td>
+            <td>${detalheValor}</td>
+            <td><span class="badge ${statusBadge}">${o.status}</span></td>
+            <td>${o.solicitante_nome || '<span class="text-secondary">—</span>'}</td>
+            <td style="font-size:0.82rem">${formatarData(o.criado_em)}</td>
+            <td style="white-space:nowrap">${btns}</td>
+          </tr>`;
+        }).join('');
+        const total = orcamentos.reduce((acc, o) => acc + parseFloat(o.valor_total||0), 0);
+        document.getElementById('total-orcamentos').textContent = fmtMoney(total);
+        document.getElementById('met-orc-total').textContent = fmtMoney(total);
+        document.getElementById('met-orc-pendentes').textContent = String(orcamentos.filter(o => o.status === 'pendente').length);
+      } catch(e) { showToast('Erro: '+e.message, 'error'); }
+    }
+
+    function exportarOrcamentosPdf() {
+      if (!orcamentosVisiveis.length) { showToast('Não há orçamentos para exportar com os filtros atuais.', 'error'); return; }
+      const janela = window.open('', '_blank');
+      if (!janela) { showToast('Permita pop-ups para gerar o PDF.', 'error'); return; }
+
+      const textoFiltro = id => document.getElementById(id).selectedOptions[0]?.textContent.trim() || 'Todos';
+      const periodo = [
+        `Status: ${textoFiltro('filtro-orc-status')}`,
+        `Mês: ${textoFiltro('filtro-orc-mes')}`,
+        `Ano: ${document.getElementById('filtro-orc-ano').value || 'Todos'}`,
+        `Tipo: ${textoFiltro('filtro-orc-tipo')}`
+      ].join(' · ');
+      const total = orcamentosVisiveis.reduce((soma, item) => soma + parseFloat(item.valor_total || 0), 0);
+      const linhas = orcamentosVisiveis.map(item => `
+        <tr>
+          <td>#${item.id}</td>
+          <td>${item.chamado_id ? '#' + item.chamado_id + (item.chamado_titulo ? ' — ' + escapeHTML(item.chamado_titulo) : '') : 'Avulso'}</td>
+          <td>${escapeHTML(item.descricao)}</td>
+          <td>${item.fornecedor_nome ? escapeHTML(item.fornecedor_nome) : 'Não definido'}</td>
+          <td>${item.solicitante_nome ? escapeHTML(item.solicitante_nome) : 'Não informado'}</td>
+          <td class="valor">${fmtMoney(item.valor_total)}</td>
+          <td><span class="status status-${escapeHTML(item.status)}">${escapeHTML(item.status)}</span></td>
+        </tr>`).join('');
+      const emitidoEm = new Intl.DateTimeFormat('pt-BR', { dateStyle: 'long', timeStyle: 'short' }).format(new Date());
+
+      janela.opener = null;
+      janela.document.write(`<!DOCTYPE html><html lang="pt-BR"><head><meta charset="UTF-8"><title>Orçamentos — CHGT</title><style>
+        @page { size: A4 landscape; margin: 13mm; }
+        * { box-sizing: border-box; } body { margin: 0; color: #1a2e10; font-family: Arial, sans-serif; font-size: 10px; }
+        .cabecalho { display: flex; align-items: flex-start; justify-content: space-between; padding-bottom: 14px; border-bottom: 3px solid #43b307; }
+        .marca { color: #358f05; font-size: 18px; font-weight: 800; letter-spacing: -.4px; } .marca small { display: block; margin-top: 3px; color: #5d7a4a; font-size: 8px; letter-spacing: 1px; }
+        h1 { margin: 18px 0 4px; font-size: 20px; } .subtitulo { margin: 0; color: #5d7a4a; } .resumo { display: flex; gap: 18px; margin: 18px 0; padding: 12px 14px; border: 1px solid #dce8d4; border-radius: 8px; background: #f7fbf4; }
+        .resumo strong { display: block; margin-top: 3px; color: #1a2e10; font-size: 15px; } .resumo span { color: #5d7a4a; font-size: 8px; font-weight: 700; letter-spacing: .6px; text-transform: uppercase; }
+        table { width: 100%; border-collapse: collapse; } th { padding: 9px 8px; color: #46633a; font-size: 8px; letter-spacing: .5px; text-align: left; text-transform: uppercase; background: #edf6e8; } td { padding: 9px 8px; border-bottom: 1px solid #e3ecde; vertical-align: top; } tr:nth-child(even) td { background: #fbfdf9; } .valor { font-weight: 700; white-space: nowrap; }
+        .status { display: inline-block; padding: 4px 7px; border-radius: 999px; font-size: 8px; font-weight: 700; text-transform: capitalize; } .status-pendente { color: #855500; background: #fff1cf; } .status-aprovado { color: #176e2e; background: #d9f4df; } .status-rejeitado { color: #9d2424; background: #fde0e0; }
+        .rodape { display: flex; justify-content: space-between; margin-top: 16px; color: #5d7a4a; font-size: 8px; } @media print { .nao-imprimir { display: none; } }
+      </style></head><body><header class="cabecalho"><div class="marca">CHGT HelpDesk<small>GRAU TÉCNICO</small></div><div>Emitido em ${emitidoEm}</div></header><h1>Relatório de Orçamentos</h1><p class="subtitulo">${escapeHTML(periodo)}</p><section class="resumo"><div><span>Orçamentos listados</span><strong>${orcamentosVisiveis.length}</strong></div><div><span>Valor total</span><strong>${fmtMoney(total)}</strong></div></section><table><thead><tr><th>#</th><th>Chamado</th><th>Descrição</th><th>Fornecedor</th><th>Solicitante</th><th>Valor</th><th>Status</th></tr></thead><tbody>${linhas}</tbody></table><footer class="rodape"><span>CHGT HelpDesk — relatório gerado pelo sistema</span><span>${orcamentosVisiveis.length} registro(s)</span></footer><script>window.addEventListener('load', () => setTimeout(() => window.print(), 250));<\/script></body></html>`);
+      janela.document.close();
+    }
+
+    function calcTotalOrcamento() {
+      const vu = parseFloat(document.getElementById('orc-vu').value) || 0;
+      const qtd = parseInt(document.getElementById('orc-qtd').value) || 0;
+      const ft = parseFloat(document.getElementById('orc-frete').value) || 0;
+      const total = (vu * qtd) + ft;
+      document.getElementById('orc-total').textContent = 'R$ ' + total.toFixed(2);
+    }
+
+    async function abrirModalNovoOrcamento() {
+      const [chamados, fornecedores] = await Promise.all([api('/api/chamados'), api('/api/fornecedores')]);
+      const opts = chamados.map(c => `<option value="${c.id}">#${c.id} — ${c.titulo}</option>`).join('');
+      const optsFornecedores = fornecedores.filter(f => f.status === 'Ativo').map(f => `<option value="${f.id}">${escapeHTML(f.nome)}</option>`).join('');
+      openModal('📋 Solicitar Orçamento', `<form id="forc" class="form-grid col-1">
+        <div class="form-group"><label>Chamado (opcional)</label><select id="orc-chamado"><option value="">Nenhum (Avulso)</option>${opts}</select></div>
+        <div class="form-group"><label>Fornecedor</label><select id="orc-fornecedor"><option value="">Não definido</option>${optsFornecedores}</select></div>
+        <div class="form-group"><label>Descrição *</label><textarea id="orc-desc" rows="2" placeholder="Descreva o orçamento"></textarea></div>
+        <div class="form-group"><label>Valor Unitário (R$) *</label><input type="number" id="orc-vu" step="0.01" min="0" placeholder="0,00" oninput="calcTotalOrcamento()"></div>
+        <div class="form-group"><label>Quantidade *</label><input type="number" id="orc-qtd" step="1" min="1" value="1" oninput="calcTotalOrcamento()"></div>
+        <div class="form-group"><label>Frete (R$) *</label><input type="number" id="orc-frete" step="0.01" min="0" placeholder="0,00" oninput="calcTotalOrcamento()"></div>
+        <div class="form-group"><label>Valor Total</label><div style="font-size:1.4rem;font-weight:700;padding:8px 0" id="orc-total">R$ 0,00</div></div>
+      </form>`, [
+        {text:'Cancelar',cls:'btn-outline',id:'btn-cancelar-orc',onClick:closeModal},
+        {text:'📋 Solicitar',cls:'btn-primary',id:'btn-salvar-orc',onClick:async()=>{
+          const g = i => document.getElementById(i).value.trim();
+          if (!g('orc-desc')) { showToast('Preencha a descrição.', 'error'); return; }
+          if (!parseFloat(g('orc-vu')) || !parseInt(g('orc-qtd'))) { showToast('Preencha valor unitário e quantidade.', 'error'); return; }
+          try {
+            const chamadoId = parseInt(g('orc-chamado'));
+            const fornecedorId = parseInt(g('orc-fornecedor'));
+            const vu = parseFloat(g('orc-vu'))||0, qtd = parseInt(g('orc-qtd'))||0, ft = parseFloat(g('orc-frete'))||0;
+            const r = await api('/api/orcamentos-chamado', { method:'POST', body:{ chamado_id: isNaN(chamadoId) ? null : chamadoId, fornecedor_id: isNaN(fornecedorId) ? null : fornecedorId, descricao: g('orc-desc'), valor_unitario: vu, quantidade: qtd, frete: ft } });
+            showToast(r.mensagem, 'success'); closeModal(); carregarOrcamentos();
+          } catch(err) { showToast(err.message, 'error'); }
+        }}
+      ]);
+      setTimeout(calcTotalOrcamento, 50);
+    }
+
+    async function aprovarOrcamento(id) {
+      try { const r = await api(`/api/orcamentos-chamado/${id}/aprovar`, { method:'PUT' }); showToast(r.mensagem, 'success'); carregarOrcamentos(); } catch(err) { showToast(err.message, 'error'); }
+    }
+
+    async function rejeitarOrcamento(id) {
+      openModal('✕ Rejeitar Orçamento', `<form id="frej" class="form-grid col-1"><div class="form-group"><label>Justificativa *</label><textarea id="rej-just" rows="3" placeholder="Por que está rejeitando?"></textarea></div></form>`, [
+        {text:'Cancelar',cls:'btn-outline',id:'btn-cancelar-rej',onClick:closeModal},
+        {text:'✕ Rejeitar',cls:'btn-danger',id:'btn-confirmar-rej',onClick:async()=>{
+          const just = document.getElementById('rej-just').value.trim();
+          if (!just) { showToast('Informe a justificativa.', 'error'); return; }
+          try { const r = await api(`/api/orcamentos-chamado/${id}/rejeitar`, { method:'PUT', body:{ justificativa: just } }); showToast(r.mensagem, 'success'); closeModal(); carregarOrcamentos(); } catch(err) { showToast(err.message, 'error'); }
+        }}
+      ]);
+    }
+
+    // --- EDITAR / EXCLUIR ORÇAMENTO ---
+    async function editarOrcamento(id) {
+      try {
+        const orcamentos = await api('/api/orcamentos-chamado');
+        const o = orcamentos.find(x => x.id === id);
+        if (!o) { showToast('Orçamento não encontrado.', 'error'); return; }
+        const [chamados, fornecedores] = await Promise.all([api('/api/chamados'), api('/api/fornecedores')]);
+        const optsChamados = chamados.map(c => `<option value="${c.id}" ${c.id===o.chamado_id?'selected':''}>#${c.id} — ${c.titulo}</option>`).join('');
+        const optsFornecedores = fornecedores.filter(f => f.status === 'Ativo').map(f => `<option value="${f.id}" ${f.id===o.fornecedor_id?'selected':''}>${escapeHTML(f.nome)}</option>`).join('');
+        openModal('✏️ Editar Orçamento #'+id, `<form id="fedit-orc" class="form-grid col-1">
+          <div class="form-group"><label>Chamado (opcional)</label><select id="edit-orc-chamado"><option value="">Nenhum (Avulso)</option>${optsChamados}</select></div>
+          <div class="form-group"><label>Fornecedor</label><select id="edit-orc-fornecedor"><option value="">Não definido</option>${optsFornecedores}</select></div>
+          <div class="form-group"><label>Descrição *</label><textarea id="edit-orc-desc" rows="2">${escapeHTML(o.descricao)}</textarea></div>
+          <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+            <div class="form-group" style="margin:0"><label>Valor Unitário (R$)</label><input type="number" id="edit-orc-vu" step="0.01" min="0" value="${o.valor_unitario||''}" oninput="calcTotalEditOrcamento()"></div>
+            <div class="form-group" style="margin:0"><label>Quantidade</label><input type="number" id="edit-orc-qtd" step="1" min="1" value="${o.quantidade||1}" oninput="calcTotalEditOrcamento()"></div>
+          </div>
+          <div class="form-group"><label>Frete (R$)</label><input type="number" id="edit-orc-frete" step="0.01" min="0" value="${o.frete||''}" oninput="calcTotalEditOrcamento()"></div>
+          <div class="form-group"><label>Valor Total</label><div style="font-size:1.4rem;font-weight:700;padding:8px 0" id="edit-orc-total">${fmtMoney(o.valor_total)}</div></div>
+        </form>`, [
+          {text:'Cancelar',cls:'btn-outline',id:'btn-cancelar-edit-orc',onClick:closeModal},
+          {text:'💾 Salvar',cls:'btn-primary',id:'btn-salvar-edit-orc',onClick:async()=>{
+            const g = i => document.getElementById(i).value.trim();
+            if (!g('edit-orc-desc')) { showToast('Preencha a descrição.', 'error'); return; }
+            try {
+              const chamadoId = parseInt(g('edit-orc-chamado'));
+              const fornecedorId = parseInt(g('edit-orc-fornecedor'));
+              const r = await api(`/api/orcamentos-chamado/${id}`, { method:'PUT', body:{
+                chamado_id: isNaN(chamadoId) ? null : chamadoId,
+                fornecedor_id: isNaN(fornecedorId) ? null : fornecedorId,
+                descricao: g('edit-orc-desc'),
+                valor_unitario: parseFloat(g('edit-orc-vu'))||0,
+                quantidade: parseInt(g('edit-orc-qtd'))||0,
+                frete: parseFloat(g('edit-orc-frete'))||0
+              }});
+              showToast(r.mensagem, 'success'); closeModal(); carregarOrcamentos();
+            } catch(err) { showToast(err.message, 'error'); }
+          }}
+        ]);
+        setTimeout(calcTotalEditOrcamento, 50);
+      } catch(e) { showToast('Erro: '+e.message, 'error'); }
+    }
+
+    function calcTotalEditOrcamento() {
+      const vu = parseFloat(document.getElementById('edit-orc-vu').value) || 0;
+      const qtd = parseInt(document.getElementById('edit-orc-qtd').value) || 0;
+      const ft = parseFloat(document.getElementById('edit-orc-frete').value) || 0;
+      const total = (vu * qtd) + ft;
+      document.getElementById('edit-orc-total').textContent = 'R$ ' + total.toFixed(2).replace('.', ',');
+    }
+
+    async function excluirOrcamento(id) {
+      openModal('🗑️ Excluir Orçamento #'+id, '<p>Tem certeza que deseja excluir este orçamento?</p>', [
+        {text:'Cancelar',cls:'btn-outline',id:'btn-cancelar-del-orc',onClick:closeModal},
+        {text:'🗑️ Excluir',cls:'btn-danger',id:'btn-confirmar-del-orc',onClick:async()=>{
+          try { const r = await api(`/api/orcamentos-chamado/${id}`, { method:'DELETE' }); showToast(r.mensagem, 'success'); closeModal(); carregarOrcamentos(); } catch(err) { showToast(err.message, 'error'); }
+        }}
+      ]);
+    }
+
+    // --- COMPRAS DO MÊS ---
+    async function carregarCompras() {
+      const mes = document.getElementById('filtro-compras-mes').value;
+      const ano = document.getElementById('filtro-compras-ano').value;
+      try {
+        const compras = await api(`/api/compras-mensais?mes=${mes}&ano=${ano}`);
+        const podeSolicitar = temPermissao('compras.solicitar') || temPermissao('financeiro.criar');
+        const podeAprovar = temPermissao('compras.aprovar') || temPermissao('financeiro.aprovar');
+        const tbody = document.getElementById('tabela-compras');
+        if (!compras.length) { tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><h3>Nenhuma compra neste mês</h3></div></td></tr>'; document.getElementById('total-compras').textContent = 'R$ 0,00'; return; }
+        tbody.innerHTML = compras.map(c => {
+          const statusBadge = c.status === 'aprovado' ? 'badge-sucesso' : c.status === 'comprado' ? 'badge-andamento' : c.status === 'cancelado' ? 'badge-erro' : 'badge-info';
+          const podeEditar = podeSolicitar && c.status === 'pendente';
+          const botoes = [];
+          if (podeEditar) botoes.push(`<button class="btn btn-outline btn-sm" onclick="editarCompra(${c.id})" style="padding:4px 6px;font-size:0.7rem" title="Editar"><iconify-icon icon="mdi:pencil" width="14" height="14"></iconify-icon></button>`);
+          if (c.status === 'pendente' && podeAprovar) botoes.push(`<button class="btn btn-sm btn-success" onclick="alterarStatusCompra(${c.id},'aprovado')" style="padding:4px 6px;font-size:0.7rem">✅ Aprovar</button>`);
+          if (c.status === 'aprovado') botoes.push(`<button class="btn btn-sm btn-outline" onclick="alterarStatusCompra(${c.id},'comprado')" style="padding:4px 6px;font-size:0.7rem">📦 Comprar</button>`);
+          if (c.status === 'pendente' && podeAprovar) botoes.push(`<button class="btn btn-sm btn-danger" onclick="alterarStatusCompra(${c.id},'cancelado')" style="padding:4px 6px;font-size:0.7rem">✕ Cancelar</button>`);
+          if (podeEditar) botoes.push(`<button class="btn btn-danger btn-sm" onclick="excluirCompra(${c.id})" style="padding:4px 6px;font-size:0.7rem"><iconify-icon icon="mdi:delete" width="14" height="14"></iconify-icon></button>`);
+          return `<tr>
+            <td><strong>#${c.id}</strong></td>
+            <td>${c.item}</td>
+            <td>${c.fornecedor_nome || '<span class="text-secondary">—</span>'}</td>
+            <td style="max-width:200px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHTML(c.objetivo||'')}">${c.objetivo ? escapeHTML(c.objetivo) : '<span class="text-secondary">—</span>'}</td>
+            <td><strong>${fmtMoney(c.valor_estimado)}</strong></td>
+            <td><span class="badge ${statusBadge}">${c.status}</span></td>
+            <td style="font-size:0.82rem">${c.solicitante_nome || '<span class="text-secondary">—</span>'}</td>
+            <td style="white-space:nowrap">${botoes.join(' ')}</td>
+          </tr>`;
+        }).join('');
+        const total = compras.reduce((acc, c) => acc + parseFloat(c.valor_estimado||0), 0);
+        document.getElementById('total-compras').textContent = fmtMoney(total);
+      } catch(e) { showToast('Erro: '+e.message, 'error'); }
+    }
+
+    async function abrirModalNovaCompra() {
+      const fornecedores = await api('/api/fornecedores');
+      const optsForn = fornecedores.filter(f => f.status === 'Ativo').map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
+      const hoje = new Date();
+      openModal('🛒 Solicitar Compra', `<form id="fcompra" class="form-grid col-1">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="form-group" style="margin:0"><label>Mês</label><select id="comp-mes">
+            ${[1,2,3,4,5,6,7,8,9,10,11,12].map(m => `<option value="${m}" ${m===hoje.getMonth()+1?'selected':''}>${['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][m-1]}</option>`).join('')}
+          </select></div>
+          <div class="form-group" style="margin:0"><label>Ano</label><input type="number" id="comp-ano" value="${hoje.getFullYear()}"></div>
+        </div>
+        <div class="form-group"><label>Fornecedor</label><select id="comp-fornecedor"><option value="">Selecione...</option>${optsForn}</select></div>
+        <div class="form-group"><label>Item *</label><input id="comp-item" placeholder="Ex: HD 1TB, Toner Xerox"></div>
+        <div class="form-group"><label>Objetivo</label><textarea id="comp-objetivo" rows="2" placeholder="Ex: Reposição de estoque para chamados de impressão"></textarea></div>
+        <div class="form-group"><label>Valor Estimado (R$)</label><input type="number" id="comp-valor" step="0.01" min="0" placeholder="0,00"></div>
+      </form>`, [
+        {text:'Cancelar',cls:'btn-outline',id:'btn-cancelar-compra',onClick:closeModal},
+        {text:'🛒 Solicitar',cls:'btn-primary',id:'btn-salvar-compra',onClick:async()=>{
+          const g = i => document.getElementById(i).value.trim();
+          if (!g('comp-item')) { showToast('Informe o item.', 'error'); return; }
+          try { const r = await api('/api/compras-mensais', { method:'POST', body:{ mes: parseInt(g('comp-mes')), ano: parseInt(g('comp-ano')), fornecedor_id: g('comp-fornecedor') ? parseInt(g('comp-fornecedor')) : null, item: g('comp-item'), objetivo: g('comp-objetivo'), valor_estimado: parseFloat(g('comp-valor'))||0 } }); showToast(r.mensagem, 'success'); closeModal(); carregarCompras(); } catch(err) { showToast(err.message, 'error'); }
+        }}
+      ]);
+    }
+
+    async function editarCompra(id) {
+      const compras = await api('/api/compras-mensais');
+      const c = compras.find(x => x.id === id); if (!c) return;
+      const fornecedores = await api('/api/fornecedores');
+      const optsForn = fornecedores.filter(f => f.status === 'Ativo').map(f => `<option value="${f.id}" ${c.fornecedor_id===f.id?'selected':''}>${f.nome}</option>`).join('');
+      openModal('✏️ Editar Compra', `<form id="fcompra" class="form-grid col-1">
+        <div style="display:grid;grid-template-columns:1fr 1fr;gap:12px">
+          <div class="form-group" style="margin:0"><label>Mês</label><select id="comp-mes">${[1,2,3,4,5,6,7,8,9,10,11,12].map(m => `<option value="${m}" ${m===c.mes?'selected':''}>${['Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'][m-1]}</option>`).join('')}</select></div>
+          <div class="form-group" style="margin:0"><label>Ano</label><input type="number" id="comp-ano" value="${c.ano}"></div>
+        </div>
+        <div class="form-group"><label>Fornecedor</label><select id="comp-fornecedor"><option value="">Selecione...</option>${optsForn}</select></div>
+        <div class="form-group"><label>Item *</label><input id="comp-item" value="${c.item}"></div>
+        <div class="form-group"><label>Objetivo</label><textarea id="comp-objetivo" rows="2">${c.objetivo||''}</textarea></div>
+        <div class="form-group"><label>Valor Estimado (R$)</label><input type="number" id="comp-valor" step="0.01" min="0" value="${c.valor_estimado}"></div>
+      </form>`, [
+        {text:'Cancelar',cls:'btn-outline',id:'btn-cancelar-editcompra',onClick:closeModal},
+        {text:'💾 Salvar',cls:'btn-primary',id:'btn-salvar-editcompra',onClick:async()=>{
+          const g = i => document.getElementById(i).value.trim();
+          try { const r = await api(`/api/compras-mensais/${id}`, { method:'PUT', body:{ mes: parseInt(g('comp-mes')), ano: parseInt(g('comp-ano')), fornecedor_id: g('comp-fornecedor') ? parseInt(g('comp-fornecedor')) : null, item: g('comp-item'), objetivo: g('comp-objetivo'), valor_estimado: parseFloat(g('comp-valor'))||0 } }); showToast(r.mensagem, 'success'); closeModal(); carregarCompras(); } catch(err) { showToast(err.message, 'error'); }
+        }}
+      ]);
+    }
+
+    async function alterarStatusCompra(id, status) {
+      try { const r = await api(`/api/compras-mensais/${id}/status`, { method:'PUT', body:{ status } }); showToast(r.mensagem, 'success'); carregarCompras(); } catch(err) { showToast(err.message, 'error'); }
+    }
+
+    async function excluirCompra(id) {
+      openModal('🗑️ Remover Compra', '<p>Remover esta solicitação de compra?</p>', [
+        {text:'Cancelar',cls:'btn-outline',id:'btn-cancelar-delcompra',onClick:closeModal},
+        {text:'🗑️ Remover',cls:'btn-danger',id:'btn-confirmar-delcompra',onClick:async()=>{ try { const r = await api(`/api/compras-mensais/${id}`, { method:'DELETE' }); showToast(r.mensagem, 'success'); closeModal(); carregarCompras(); } catch(err) { showToast(err.message, 'error'); } }}
+      ]);
+    }
+
+    // --- RELATÓRIO FINANCEIRO ---
+    async function carregarRelatorioFinanceiro() {
+      const mes = document.getElementById('filtro-mes').value;
+      const ano = document.getElementById('filtro-ano').value;
+      const setorId = document.getElementById('filtro-setor').value;
+      try {
+        const params = new URLSearchParams({ mes, ano });
+        if (setorId) params.append('setor_id', setorId);
+        const data = await api('/api/relatorios/financeiros?' + params.toString());
+
+        document.getElementById('met-gasto-total').textContent = fmtMoney(data.totalGasto);
+        document.getElementById('met-orc-pendentes').textContent = data.orcamentosPendentes;
+
+        // Gastos por tipo
+        const tbodyTipo = document.getElementById('tabela-gastos-tipo');
+        const tipos = { peca: 'Peças', servico_terceiro: 'Serviço Terceiro', outro: 'Outros' };
+        if (data.gastosPorTipo.length) {
+          tbodyTipo.innerHTML = data.gastosPorTipo.map(t => `<tr><td>${tipos[t.tipo] || t.tipo}</td><td><strong>${fmtMoney(t.total)}</strong></td></tr>`).join('');
+        } else {
+          tbodyTipo.innerHTML = '<tr><td colspan="2" class="text-center text-secondary">Nenhum gasto no período</td></tr>';
+        }
+
+        // Gastos por setor
+        const tbodySetor = document.getElementById('tabela-gastos-setor');
+        if (data.gastosPorSetor.length) {
+          tbodySetor.innerHTML = data.gastosPorSetor.map(s => `<tr><td>${s.setor || 'Sem setor'}</td><td><strong>${fmtMoney(s.total)}</strong></td></tr>`).join('');
+        } else {
+          tbodySetor.innerHTML = '<tr><td colspan="2" class="text-center text-secondary">Nenhum gasto no período</td></tr>';
+        }
+
+        // Top chamados
+        const tbodyTop = document.getElementById('tabela-top-chamados');
+        if (data.topChamados.length) {
+          tbodyTop.innerHTML = data.topChamados.map((c, i) => `<tr><td>${i+1}°</td><td><a href="painel" style="color:var(--color-primary)">#${c.id} — ${escapeHTML(c.titulo)}</a></td><td><strong>${fmtMoney(c.total_gasto)}</strong></td></tr>`).join('');
+        } else {
+          tbodyTop.innerHTML = '<tr><td colspan="3" class="text-center text-secondary">Nenhum dado</td></tr>';
+        }
+      } catch(e) { showToast('Erro: '+e.message, 'error'); }
+    }
+
+    // Inicializar filtros de orçamento
+    (function() {
+      document.getElementById('filtro-orc-ano').value = new Date().getFullYear();
+    })();
+
+    // Logout
+    document.getElementById('sidebar-logout').addEventListener('click', function(e) {
+      e.preventDefault();
+      openModal('🚪 Sair do Sistema', '<p>Tem certeza que deseja sair?</p>', [
+        { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-logout', onClick: closeModal },
+        { text:'✅ Sair', cls:'btn-danger', id:'btn-confirmar-logout', onClick: () => AppState.logout() }
+      ]);
+    });
+
+    carregarOrcamentos();
+  </script>
+</body>
+</html>

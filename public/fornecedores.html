@@ -1,0 +1,266 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CHGT — Fornecedores</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/iconify-icon@2/dist/iconify-icon.min.js"></script>
+  <style>
+  </style>
+</head>
+<body>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><img src="/midia/logo_grau_rn.png" alt="Grau Técnico" style="width:32px;height:32px;border-radius:6px;flex-shrink:0;"><div class="brand-text"><h2>CHGT HelpDesk</h2><span>GRAU TÉCNICO</span></div></div>
+    <nav class="sidebar-nav" id="sidebar-nav"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-avatar" id="sidebar-avatar">U</div>
+      <div class="sidebar-user-info"><div class="user-name" id="sidebar-nome">Usuário</div><div class="user-role" id="sidebar-cargo">perfil</div></div>
+      <button class="sidebar-logout" id="sidebar-logout" title="Sair"><iconify-icon icon="mdi:logout" width="18" height="18"></iconify-icon></button>
+    </div>
+  </aside>
+  <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
+  <div class="main">
+    <div class="top-header">
+      <div class="breadcrumb" id="breadcrumb">Gestão › <strong>Fornecedores</strong></div>
+      <div class="header-actions">
+        <button class="header-icon-btn" id="btn-tema" title="Selecionar tema" onclick="abrirModalTemas()"><iconify-icon icon="mdi:theme-light-dark" width="20" height="20"></iconify-icon></button>
+        <button class="btn btn-sm btn-outline" onclick="carregarFornecedores()"><iconify-icon icon="mdi:refresh" width="16" height="16"></iconify-icon> Atualizar</button>
+      </div>
+    </div>
+
+    <div class="tab-panel active" style="display:block">
+    <div class="card">
+      <div class="card-header">
+        <h2><iconify-icon icon="mdi:truck-delivery" width="20" height="20"></iconify-icon> Fornecedores</h2>
+        <button class="btn btn-primary btn-sm" id="btn-novo-fornecedor" onclick="abrirModalNovoFornecedor()"><iconify-icon icon="mdi:plus" width="24" height="24"></iconify-icon> Novo Fornecedor</button>
+      </div>
+      <div class="card-body no-padding">
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Nome</th>
+                <th>CNPJ</th>
+                <th>WhatsApp</th>
+                <th>Email</th>
+                <th>Tipo de Serviço</th>
+                <th>Status</th>
+                <th>Ações</th>
+              </tr>
+            </thead>
+            <tbody id="tabela-fornecedores">
+              <tr><td colspan="7" class="text-center text-secondary">Carregando...</td></tr>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); }
+    });
+
+    verificarAutenticacao();
+    const u = AppState.usuario;
+    if (!u) { window.location.href = '/'; }
+    else if (!['admin','gestor','tecnico'].includes(u.perfil) && !temPermissao('fornecedores.ver')) {
+      window.location.href = u.perfil === 'usuario' ? '/usuario' : '/';
+    }
+
+    function mascaraCNPJ(input) {
+      let v = input.value.replace(/[^0-9a-zA-Z]/g, '').slice(0, 14);
+      if (v.length <= 2) { input.value = v; return; }
+      if (v.length <= 5) { input.value = v.slice(0,2) + '.' + v.slice(2); return; }
+      if (v.length <= 8) { input.value = v.slice(0,2) + '.' + v.slice(2,5) + '.' + v.slice(5); return; }
+      if (v.length <= 12) { input.value = v.slice(0,2) + '.' + v.slice(2,5) + '.' + v.slice(5,8) + '/' + v.slice(8); return; }
+      input.value = v.slice(0,2) + '.' + v.slice(2,5) + '.' + v.slice(5,8) + '/' + v.slice(8,12) + '-' + v.slice(12);
+    }
+
+    configurarSidebar([]);
+    (function() {
+      const navEl = document.getElementById('sidebar-nav');
+      if (!navEl) return;
+      const perfil = AppState.usuario.perfil;
+      const isAdminOrGestor = ['admin','gestor','tecnico'].includes(perfil);
+      let html = '';
+
+      html += '<div class="nav-section">Principal</div>';
+      html += `<a href="painel"><span class="nav-icon"><iconify-icon icon="mdi:view-dashboard" width="20" height="20"></iconify-icon></span> Painel</a>`;
+      if (temAlgumaPermissao('chamados.ver_atribuidos', 'chamados.ver_todos_unidade', 'chamados.ver_proprios')) {
+        html += `<a href="painel"><span class="nav-icon"><iconify-icon icon="mdi:ticket-outline" width="20" height="20"></iconify-icon></span> Chamados</a>`;
+      }
+
+      const mostraCadastros = temAlgumaPermissao('setores.ver', 'categorias.ver', 'usuarios.ver', 'inventario.ver', 'ativos.ver');
+      if (mostraCadastros) {
+        html += '<div class="nav-section">Cadastros</div>';
+        if (temAlgumaPermissao('setores.ver')) {
+          html += `<a href="setores"><span class="nav-icon"><iconify-icon icon="mdi:domain" width="20" height="20"></iconify-icon></span> Setores</a>`;
+        }
+        if (temAlgumaPermissao('categorias.ver')) {
+          html += `<a href="categorias"><span class="nav-icon"><iconify-icon icon="mdi:shape-outline" width="20" height="20"></iconify-icon></span> Categorias</a>`;
+        }
+        if (temAlgumaPermissao('inventario.ver')) {
+          html += `<a href="inventario"><span class="nav-icon"><iconify-icon icon="mdi:desktop-tower-monitor" width="20" height="20"></iconify-icon></span> Inventário</a>`;
+        }
+        if (temAlgumaPermissao('usuarios.ver')) {
+          html += `<a href="usuarios"><span class="nav-icon"><iconify-icon icon="mdi:account-group" width="20" height="20"></iconify-icon></span> Usuários</a>`;
+        }
+      }
+
+      const mostraGestao = temAlgumaPermissao('relatorios.ver_dashboard', 'relatorios.ver_tempos', 'impressoras.ver', 'fornecedores.ver', 'dispositivos.ver') || isAdminOrGestor;
+      if (mostraGestao) {
+        html += '<div class="nav-section">Gestão</div>';
+        if (temAlgumaPermissao('relatorios.ver_dashboard', 'relatorios.ver_tempos')) {
+          html += `<a href="relatorios"><span class="nav-icon"><iconify-icon icon="mdi:chart-bar" width="20" height="20"></iconify-icon></span> Relatórios</a>`;
+        }
+        if (temAlgumaPermissao('impressoras.ver') || isAdminOrGestor) {
+          html += `<a href="impressoras"><span class="nav-icon"><iconify-icon icon="mdi:printer" width="20" height="20"></iconify-icon></span> Controle Impressões</a>`;
+        }
+        if (temAlgumaPermissao('fornecedores.ver') || isAdminOrGestor) {
+          html += `<a href="fornecedores" class="active"><span class="nav-icon"><iconify-icon icon="mdi:truck-delivery" width="20" height="20"></iconify-icon></span> Fornecedores</a>`;
+        }
+        if (temPermissao('dispositivos.ver')) {
+          html += `<a href="dispositivos"><span class="nav-icon"><iconify-icon icon="mdi:cellphone-link" width="20" height="20"></iconify-icon></span> Dispositivos</a>`;
+        }
+      }
+
+      const mostraFinanceiro = temAlgumaPermissao('financeiro.ver', 'financeiro.criar', 'financeiro.aprovar') || isAdminOrGestor;
+      if (mostraFinanceiro) {
+        html += '<div class="nav-section">Financeiro</div>';
+        html += `<a href="financeiro"><span class="nav-icon"><iconify-icon icon="mdi:currency-usd" width="20" height="20"></iconify-icon></span> Financeiro</a>`;
+        if (temAlgumaPermissao('notas_fiscais.ver') || isAdminOrGestor) {
+          html += `<a href="notas-fiscais"><span class="nav-icon"><iconify-icon icon="mdi:file-document" width="20" height="20"></iconify-icon></span> Notas Fiscais</a>`;
+        }
+      }
+
+      navEl.innerHTML = html;
+    })();
+
+    // Esconder botões sem permissão
+    (function() {
+      const btnNovo = document.getElementById('btn-novo-fornecedor');
+      if (btnNovo && !temPermissao('fornecedores.criar')) btnNovo.style.display = 'none';
+    })();
+
+    // --- CRUD FORNECEDORES ---
+    async function carregarFornecedores() {
+      try {
+        const f = await api('/api/fornecedores');
+        const podeEditar = temPermissao('fornecedores.editar');
+        const podeExcluir = temPermissao('fornecedores.excluir');
+        const tbody = document.getElementById('tabela-fornecedores');
+        if (!f.length) { tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><h3>Nenhum fornecedor cadastrado</h3></div></td></tr>'; return; }
+        tbody.innerHTML = f.map(i => {
+          const btnEditar = podeEditar ? `<button class="btn btn-outline btn-sm" onclick="abrirModalEditarFornecedor(${i.id})" style="padding:4px 8px;font-size:0.7rem"><iconify-icon icon="mdi:pencil" width="14" height="14"></iconify-icon></button>` : '';
+          const btnExcluir = podeExcluir ? `<button class="btn btn-danger btn-sm" onclick="excluirFornecedor(${i.id},'${escapeHTML(i.nome)}')" style="padding:4px 8px;font-size:0.7rem"><iconify-icon icon="mdi:delete" width="14" height="14"></iconify-icon></button>` : '';
+          const acoes = [btnEditar, btnExcluir].filter(Boolean).join(' ') || '<span class="text-secondary">—</span>';
+          return `<tr>
+          <td>${escapeHTML(i.nome)}</td>
+          <td>${escapeHTML(i.cnpj)}</td>
+          <td>${i.whatsapp ? escapeHTML(i.whatsapp) : '<span class="text-secondary">—</span>'}</td>
+          <td>${i.email ? escapeHTML(i.email) : '<span class="text-secondary">—</span>'}</td>
+          <td>${i.tipo_servico ? escapeHTML(i.tipo_servico) : '<span class="text-secondary">—</span>'}</td>
+          <td>${i.status === 'Ativo' ? '<span class="badge" style="background:#d4edda;color:#155724">Ativo</span>' : '<span class="badge" style="background:#f8d7da;color:#721c24">Inativo</span>'}</td>
+          <td style="white-space:nowrap">${acoes}</td>
+        </tr>`;
+        }).join('');
+      } catch (e) { showToast('Erro: '+e.message, 'error'); }
+    }
+
+    function abrirModalNovoFornecedor() {
+      openModal('📦 Novo Fornecedor', `<form id="fnf" class="form-grid col-2">
+        <div class="form-group"><label>Nome / Razão Social *</label><input id="fnf-nome" placeholder="Ex: Tech Supplies Ltda" required></div>
+        <div class="form-group"><label>CNPJ *</label><input id="fnf-cnpj" placeholder="00.000.000/0000-00" oninput="mascaraCNPJ(this)" required></div>
+        <div class="form-group"><label>WhatsApp</label><input id="fnf-whatsapp" placeholder="(00) 00000-0000"></div>
+        <div class="form-group"><label>Email</label><input type="email" id="fnf-email" placeholder="contato@fornecedor.com"></div>
+        <div class="form-group col-span-2"><label>Endereço</label><input id="fnf-endereco" placeholder="Rua, número, bairro, cidade, estado"></div>
+        <div class="form-group"><label>Tipo de Serviço</label><input id="fnf-tipo_servico" placeholder="Ex: Suprimentos, Manutenção"></div>
+        <div class="form-group"><label>Status</label><select id="fnf-status"><option value="Ativo">Ativo</option><option value="Inativo">Inativo</option></select></div>
+        <div class="form-group col-span-2"><label>Observações</label><textarea id="fnf-observacoes" rows="3" placeholder="Observações adicionais..."></textarea></div>
+      </form>`, [
+        { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-fnf', onClick: closeModal },
+        { text:'💾 Salvar', cls:'btn-primary', id:'btn-salvar-fnf', onClick: async () => {
+          const nome = document.getElementById('fnf-nome').value.trim();
+          const cnpj = document.getElementById('fnf-cnpj').value.trim();
+          if (!nome) { showToast('Nome é obrigatório.', 'error'); return; }
+          if (!cnpj) { showToast('CNPJ é obrigatório.', 'error'); return; }
+          try {
+            const r = await api('/api/fornecedores', { method:'POST', body:{
+              nome, cnpj,
+              whatsapp: document.getElementById('fnf-whatsapp').value.trim() || null,
+              email: document.getElementById('fnf-email').value.trim() || null,
+              endereco: document.getElementById('fnf-endereco').value.trim() || null,
+              status: document.getElementById('fnf-status').value,
+              tipo_servico: document.getElementById('fnf-tipo_servico').value.trim() || null,
+              observacoes: document.getElementById('fnf-observacoes').value.trim() || null
+            }});
+            showToast(r.mensagem, 'success'); closeModal(); carregarFornecedores();
+          } catch(err) { showToast(err.message, 'error'); }
+        }}
+      ]);
+    }
+
+    function abrirModalEditarFornecedor(id) {
+      api('/api/fornecedores').then(f => {
+        const i = f.find(x => x.id === id);
+        if (!i) return;
+        openModal('✏️ Editar Fornecedor', `<form id="fef" class="form-grid col-2">
+          <div class="form-group"><label>Nome / Razão Social *</label><input id="fef-nome" value="${escapeHTML(i.nome)}" required></div>
+          <div class="form-group"><label>CNPJ *</label><input id="fef-cnpj" value="${escapeHTML(i.cnpj)}" oninput="mascaraCNPJ(this)" required></div>
+          <div class="form-group"><label>WhatsApp</label><input id="fef-whatsapp" value="${i.whatsapp ? escapeHTML(i.whatsapp) : ''}"></div>
+          <div class="form-group"><label>Email</label><input type="email" id="fef-email" value="${i.email ? escapeHTML(i.email) : ''}"></div>
+          <div class="form-group col-span-2"><label>Endereço</label><input id="fef-endereco" value="${i.endereco ? escapeHTML(i.endereco) : ''}"></div>
+          <div class="form-group"><label>Tipo de Serviço</label><input id="fef-tipo_servico" value="${i.tipo_servico ? escapeHTML(i.tipo_servico) : ''}"></div>
+          <div class="form-group"><label>Status</label><select id="fef-status"><option value="Ativo" ${i.status==='Ativo'?'selected':''}>Ativo</option><option value="Inativo" ${i.status==='Inativo'?'selected':''}>Inativo</option></select></div>
+          <div class="form-group col-span-2"><label>Observações</label><textarea id="fef-observacoes" rows="3">${i.observacoes ? escapeHTML(i.observacoes) : ''}</textarea></div>
+        </form>`, [
+          { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-fef', onClick: closeModal },
+          { text:'💾 Salvar', cls:'btn-primary', id:'btn-salvar-fef', onClick: async () => {
+            const nome = document.getElementById('fef-nome').value.trim();
+            const cnpj = document.getElementById('fef-cnpj').value.trim();
+            if (!nome) { showToast('Nome é obrigatório.', 'error'); return; }
+            if (!cnpj) { showToast('CNPJ é obrigatório.', 'error'); return; }
+            try {
+              const r = await api('/api/fornecedores/' + id, { method:'PUT', body:{
+                nome, cnpj,
+                whatsapp: document.getElementById('fef-whatsapp').value.trim() || null,
+                email: document.getElementById('fef-email').value.trim() || null,
+                endereco: document.getElementById('fef-endereco').value.trim() || null,
+                status: document.getElementById('fef-status').value,
+                tipo_servico: document.getElementById('fef-tipo_servico').value.trim() || null,
+                observacoes: document.getElementById('fef-observacoes').value.trim() || null
+              }});
+              showToast(r.mensagem, 'success'); closeModal(); carregarFornecedores();
+            } catch(err) { showToast(err.message, 'error'); }
+          }}
+        ]);
+      });
+    }
+
+    function excluirFornecedor(id, nome) {
+      openModal('🗑️ Excluir Fornecedor', `<p>Excluir <strong>${escapeHTML(nome)}</strong>?</p>`, [
+        { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-delf', onClick: closeModal },
+        { text:'🗑️ Excluir', cls:'btn-danger', id:'btn-confirmar-delf', onClick: async () => {
+          try { const r = await api('/api/fornecedores/' + id, { method:'DELETE' }); showToast(r.mensagem, 'success'); closeModal(); carregarFornecedores(); } catch(err) { showToast(err.message, 'error'); }
+        }}
+      ]);
+    }
+
+    // Logout com confirmação
+    document.getElementById('sidebar-logout').addEventListener('click', function(e) {
+      e.preventDefault();
+      openModal('🚪 Sair do Sistema', '<p>Tem certeza que deseja sair?</p>', [
+        { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-logout', onClick: closeModal },
+        { text:'✅ Sair', cls:'btn-danger', id:'btn-confirmar-logout', onClick: () => AppState.logout() }
+      ]);
+    });
+
+    carregarFornecedores();
+  </script>
+</body>
+</html>

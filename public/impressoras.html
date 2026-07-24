@@ -1,0 +1,902 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CHGT — Controle de Impressões</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/iconify-icon@2/dist/iconify-icon.min.js"></script>
+  <style>
+    .filter-bar-imp {
+      display: flex;
+      gap: 16px;
+      align-items: center;
+      flex-wrap: wrap;
+      margin-bottom: 20px;
+      background: var(--color-surface);
+      border-radius: var(--radius);
+      padding: 16px 20px;
+      border: 1px solid var(--color-border);
+      box-shadow: var(--shadow);
+    }
+    .filter-bar-imp label {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--color-text);
+    }
+    .filter-bar-imp select {
+      padding: 8px 13px;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      font-size: 0.9rem;
+      font-family: inherit;
+      background: #f9fafb;
+      min-width: 140px;
+    }
+    .filter-bar-imp select:focus {
+      outline: none;
+      border-color: var(--color-primary);
+      box-shadow: 0 0 0 3px rgba(67, 179, 7, 0.12);
+      background: white;
+    }
+    .param-grid {
+      display: grid;
+      grid-template-columns: 1fr 1fr;
+      gap: 16px;
+    }
+    .param-field {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+    }
+    .param-field label {
+      font-size: 0.82rem;
+      font-weight: 600;
+      color: var(--color-text);
+    }
+    .param-field input {
+      padding: 10px 13px;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      font-size: 0.9rem;
+      font-family: inherit;
+      transition: border-color 0.15s, box-shadow 0.15s;
+      background: #f9fafb;
+    }
+    .param-field input:focus {
+      outline: none;
+      border-color: var(--color-primary);
+      box-shadow: 0 0 0 3px rgba(67, 179, 7, 0.12);
+      background: white;
+    }
+    .faturamento-grid {
+      display: grid;
+      grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+      gap: 12px;
+      margin-top: 16px;
+    }
+    .faturamento-card {
+      background: var(--color-surface);
+      border-radius: var(--radius);
+      padding: 16px 18px;
+      border: 1px solid var(--color-border);
+      text-align: center;
+    }
+    .faturamento-card .fc-value {
+      font-size: 1.6rem;
+      font-weight: 700;
+      color: var(--color-text);
+    }
+    .faturamento-card .fc-label {
+      font-size: 0.75rem;
+      color: var(--color-text-secondary);
+      margin-top: 4px;
+    }
+    .faturamento-card.destaque {
+      border-color: var(--color-primary);
+      background: #f0fae8;
+    }
+    html[data-theme="escuro"] .faturamento-card.destaque {
+      background: #1a2e10;
+    }
+    .contagem-input {
+      width: 100px;
+      padding: 6px 8px;
+      border: 1px solid var(--color-border);
+      border-radius: 4px;
+      font-size: 0.85rem;
+      font-family: inherit;
+      text-align: center;
+      background: #f9fafb;
+      transition: border-color 0.15s;
+    }
+    .contagem-input:focus {
+      outline: none;
+      border-color: var(--color-primary);
+      box-shadow: 0 0 0 2px rgba(67, 179, 7, 0.12);
+      background: white;
+    }
+    .contagem-input.saved {
+      border-color: var(--color-primary);
+      background: #f0fae8;
+    }
+    .total-impressoes {
+      font-weight: 700;
+      color: var(--color-primary);
+    }
+    .total-impressoes.zero {
+      color: var(--color-text-secondary);
+    }
+    .tab-cadastro-hidden { display: none !important; }
+
+    .alert-verde .fc-value { color: var(--color-primary) !important; }
+    .alert-verde { border-color: var(--color-primary); background: #f0fae8; }
+    html[data-theme="escuro"] .alert-verde { background: #1a2e10; }
+
+    .alert-laranja .fc-value { color: #c27803 !important; }
+    .alert-laranja { border-color: #c27803; background: #fff8e1; }
+    html[data-theme="escuro"] .alert-laranja { background: #2a2000; }
+
+    .alert-vermelho .fc-value { color: #c81e1e !important; }
+    .alert-vermelho { border-color: #c81e1e; background: #fef2f2; }
+    html[data-theme="escuro"] .alert-vermelho { background: #2a0a0a; }
+
+    tr.inativa { opacity: 0.5; }
+    tr.inativa td { color: var(--color-text-secondary); }
+    .badge-inativa { background: #fee2e2; color: #991b1b; font-size: 0.7rem; padding: 2px 8px; border-radius: 9999px; font-weight: 600; }
+    html[data-theme="escuro"] .badge-inativa { background: #3b1111; color: #fca5a5; }
+    .btn-toggle-status { padding: 4px 8px; font-size: 0.7rem; }
+
+    .filter-bar-imp .btn-imprimir-relatorio { margin-left: auto; }
+    .controle-impressao-print-header { display: none; }
+    .impressao-opcao-financeira {
+      display: flex;
+      align-items: flex-start;
+      gap: 12px;
+      padding: 14px;
+      border: 1px solid var(--color-border);
+      border-radius: var(--radius-sm);
+      background: var(--color-bg);
+      cursor: pointer;
+    }
+    .impressao-opcao-financeira input { margin-top: 3px; accent-color: var(--color-primary); }
+    .impressao-opcao-financeira > span { display: grid; gap: 3px; }
+    .impressao-opcao-financeira strong { color: var(--color-text); font-size: .88rem; }
+    .impressao-opcao-financeira small { color: var(--color-text-secondary); font-size: .75rem; line-height: 1.45; }
+    .impressao-opcao-aviso { display: flex; align-items: flex-start; gap: 7px; margin: 12px 0 0; color: var(--color-text-secondary); font-size: .72rem; line-height: 1.45; }
+
+    @media (max-width: 640px) {
+      .filter-bar-imp .btn-imprimir-relatorio { width: 100%; margin-left: 0; justify-content: center; }
+    }
+
+    @page { size: A4 landscape; margin: 10mm; }
+
+    @media print {
+      html,
+      body {
+        width: auto !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
+        color: #17210f !important;
+        font-size: 9pt !important;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+      }
+      .sidebar,
+      .sidebar-toggle,
+      .top-header,
+      #tabs-container,
+      .filter-bar-imp,
+      #tab-cadastro,
+      #tab-parametros,
+      .modal-overlay,
+      .app-loading-overlay,
+      .toast { display: none !important; }
+      .main {
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+      }
+      #tab-mensal,
+      #mensal-content { display: block !important; }
+      .controle-impressao-print-header {
+        display: flex !important;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin: 0 0 7mm;
+        padding: 0 0 4mm;
+        border-bottom: 2px solid #43b307;
+      }
+      .controle-impressao-print-marca { display: flex; align-items: center; gap: 10px; }
+      .controle-impressao-print-marca img { width: 38px; height: 38px; border-radius: 7px; object-fit: contain; }
+      .controle-impressao-print-marca > div,
+      .controle-impressao-print-periodo { display: grid; gap: 2px; }
+      .controle-impressao-print-header h1 { margin: 0; color: #17210f; font-size: 15pt; line-height: 1.1; }
+      .controle-impressao-print-header p,
+      .controle-impressao-print-header span { margin: 0; color: #526047; font-size: 8pt; }
+      .controle-impressao-print-periodo { text-align: right; }
+      .controle-impressao-print-periodo strong { color: #28780d; font-size: 11pt; }
+      .faturamento-grid {
+        grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+        gap: 5px !important;
+        margin: 0 0 5mm !important;
+      }
+      body.impressao-incluir-faturamento .faturamento-grid { grid-template-columns: repeat(6, minmax(0, 1fr)) !important; }
+      body:not(.impressao-incluir-faturamento) .faturamento-card-faturamento { display: none !important; }
+      .faturamento-card {
+        min-width: 0 !important;
+        padding: 8px 6px !important;
+        border: 1px solid #cbd5c3 !important;
+        border-radius: 5px !important;
+        background: #fff !important;
+        box-shadow: none !important;
+        break-inside: avoid;
+      }
+      .faturamento-card .fc-value { color: #17210f !important; font-size: 12pt !important; }
+      .faturamento-card .fc-label { color: #526047 !important; font-size: 6.8pt !important; }
+      #mensal-content > .card {
+        margin: 0 !important;
+        border: 0 !important;
+        box-shadow: none !important;
+        background: #fff !important;
+      }
+      #mensal-content > .card .card-header {
+        min-height: 0 !important;
+        padding: 0 0 3mm !important;
+        border: 0 !important;
+        background: #fff !important;
+      }
+      #mensal-content > .card .card-header h2 { color: #17210f !important; font-size: 10pt !important; }
+      #mensal-content .card-body { padding: 0 !important; }
+      #mensal-content .table-wrap { overflow: visible !important; }
+      #mensal-content table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        table-layout: fixed;
+        background: #fff !important;
+      }
+      #mensal-content thead { display: table-header-group; }
+      #mensal-content tr { break-inside: avoid; }
+      #mensal-content th,
+      #mensal-content td {
+        padding: 5px 4px !important;
+        border: 1px solid #cbd5c3 !important;
+        color: #17210f !important;
+        background: #fff !important;
+        font-size: 7pt !important;
+        line-height: 1.25;
+        word-break: break-word;
+      }
+      #mensal-content th { background: #edf5e9 !important; font-weight: 700; }
+      #mensal-content .badge { border: 0 !important; color: #17210f !important; background: transparent !important; padding: 0 !important; }
+      #mensal-content .contagem-input {
+        width: 100% !important;
+        min-width: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        color: #17210f !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        font: inherit !important;
+      }
+      #mensal-content .total-impressoes { color: #17210f !important; }
+      iconify-icon { display: none !important; }
+    }
+  </style>
+</head>
+<body>
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><img src="/midia/logo_grau_rn.png" alt="Grau Técnico" style="width:32px;height:32px;border-radius:6px;flex-shrink:0;"><div class="brand-text"><h2>CHGT HelpDesk</h2><span>GRAU TÉCNICO</span></div></div>
+    <nav class="sidebar-nav" id="sidebar-nav"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-avatar" id="sidebar-avatar">U</div>
+      <div class="sidebar-user-info"><div class="user-name" id="sidebar-nome">Usuário</div><div class="user-role" id="sidebar-cargo">perfil</div></div>
+      <button class="sidebar-logout" id="sidebar-logout" title="Sair"><iconify-icon icon="mdi:logout" width="18" height="18"></iconify-icon></button>
+    </div>
+  </aside>
+  <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
+  <div class="main">
+    <div class="top-header">
+      <div class="breadcrumb" id="breadcrumb">Impressoras › <strong>Controle Mensal</strong></div>
+      <div class="header-actions">
+        <button class="header-icon-btn" id="btn-tema" title="Selecionar tema" onclick="abrirModalTemas()"><iconify-icon icon="mdi:theme-light-dark" width="20" height="20"></iconify-icon></button>
+        <button class="btn btn-sm btn-outline" onclick="carregarTudo()"><iconify-icon icon="mdi:refresh" width="16" height="16"></iconify-icon> Atualizar</button>
+      </div>
+    </div>
+
+    <div class="tabs" id="tabs-container">
+      <button class="tab-btn active" data-tab="mensal" onclick="ativarTab('mensal');ultimoCacheKey=null;carregarMes()">
+        <iconify-icon icon="mdi:calendar-month" width="18" height="18"></iconify-icon> Mensal
+      </button>
+      <button class="tab-btn" data-tab="cadastro" id="tab-btn-cadastro" onclick="ativarTab('cadastro')">
+        <iconify-icon icon="mdi:printer-plus" width="18" height="18"></iconify-icon> Cadastro
+      </button>
+      <button class="tab-btn" data-tab="parametros" onclick="ativarTab('parametros');carregarParametros()">
+        <iconify-icon icon="mdi:cog" width="18" height="18"></iconify-icon> Parâmetros
+      </button>
+    </div>
+
+    <!-- ABA MENSAL (com dropdowns) -->
+    <div class="tab-panel active" id="tab-mensal">
+      <div class="filter-bar-imp">
+        <label>Ano:</label>
+        <select id="select-ano" onchange="onAnoChange()">
+          <option value="2026">2026</option>
+          <option value="2027">2027</option>
+          <option value="2028">2028</option>
+        </select>
+        <label>Mês:</label>
+        <select id="select-mes" onchange="onMesChange()"></select>
+        <label>Status:</label>
+        <select id="select-status" onchange="onStatusChange()">
+          <option value="ativos" selected>Ativas</option>
+          <option value="inativos">Inativas</option>
+          <option value="todos">Todas</option>
+        </select>
+        <button type="button" class="btn btn-primary btn-sm btn-imprimir-relatorio" onclick="abrirOpcoesImpressao()"><iconify-icon icon="mdi:printer-outline" width="17" height="17"></iconify-icon> Imprimir relatório</button>
+      </div>
+      <header class="controle-impressao-print-header" aria-hidden="true">
+        <div class="controle-impressao-print-marca"><img src="/midia/logo_grau_rn.png" alt=""><div><h1>Controle mensal de impressões</h1><p id="impressao-unidade">Unidade atual</p></div></div>
+        <div class="controle-impressao-print-periodo"><strong id="impressao-periodo"></strong><span id="impressao-status"></span><span id="impressao-emissao"></span></div>
+      </header>
+      <div id="mensal-content"></div>
+    </div>
+
+    <!-- ABA CADASTRO -->
+    <div class="tab-panel" id="tab-cadastro">
+      <div class="stats-grid" style="margin-bottom:20px">
+        <div class="stat-card"><div class="stat-icon total"><iconify-icon icon="mdi:printer" width="22" height="22"></iconify-icon></div><div class="stat-data"><div class="stat-num" id="stat-total-impressoras">0</div><div class="stat-lbl">Impressoras Cadastradas</div></div></div>
+        <div class="stat-card"><div class="stat-icon abertos"><iconify-icon icon="mdi:material-ui" width="22" height="22"></iconify-icon></div><div class="stat-data"><div class="stat-num" id="stat-tonner">0</div><div class="stat-lbl">TONNER</div></div></div>
+        <div class="stat-card"><div class="stat-icon andamento"><iconify-icon icon="mdi:palette" width="22" height="22"></iconify-icon></div><div class="stat-data"><div class="stat-num" id="stat-colorida">0</div><div class="stat-lbl">COLORIDA</div></div></div>
+      </div>
+      <div class="card">
+        <div class="card-header">
+          <h2><iconify-icon icon="mdi:printer-list" width="20" height="20"></iconify-icon> Impressoras Cadastradas</h2>
+          <button class="btn btn-primary btn-sm" id="btn-nova-impressora" onclick="abrirModalCadastroImpressora()"><iconify-icon icon="mdi:plus" width="24" height="24"></iconify-icon> Nova Impressora</button>
+        </div>
+        <div class="card-body no-padding">
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>MAC</th>
+                  <th>IP</th>
+                  <th>Impressora</th>
+                  <th>Setor</th>
+                  <th>Tipo</th>
+                  <th>Contagem Atual</th>
+                  <th>Ações</th>
+                </tr>
+              </thead>
+              <tbody id="tabela-impressoras">
+                <tr><td colspan="7" class="text-center text-secondary">Carregando...</td></tr>
+              </tbody>
+            </table>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <!-- ABA PARÂMETROS -->
+    <div class="tab-panel" id="tab-parametros">
+      <div class="card">
+        <div class="card-header">
+          <h2><iconify-icon icon="mdi:cog" width="20" height="20"></iconify-icon> Parâmetros de Faturamento</h2>
+          <button class="btn btn-primary btn-sm" onclick="salvarParametros()"><iconify-icon icon="mdi:content-save" width="16" height="16"></iconify-icon> Salvar Parâmetros</button>
+        </div>
+        <div class="card-body">
+          <p class="text-secondary mb-20" style="font-size:0.85rem">Defina os valores de franquia, excedente e faturamento base.</p>
+          <div class="param-grid">
+            <div class="param-field">
+              <label>Franquia Mensal TONNER (páginas)</label>
+              <input type="number" id="param-franquia_tonner" min="0" step="1">
+            </div>
+            <div class="param-field">
+              <label>Franquia Mensal COLORIDA (páginas)</label>
+              <input type="number" id="param-franquia_colorida" min="0" step="1">
+            </div>
+            <div class="param-field">
+              <label>Valor por página excedente TONNER (R$)</label>
+              <input type="number" id="param-valor_excedente_tonner" min="0" step="0.01">
+            </div>
+            <div class="param-field">
+              <label>Valor por página excedente COLORIDA (R$)</label>
+              <input type="number" id="param-valor_excedente_colorida" min="0" step="0.01">
+            </div>
+            <div class="param-field">
+              <label>Valor fixo de faturamento base (R$)</label>
+              <input type="number" id="param-valor_fixo_base" min="0" step="0.01">
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+  <script src="app.js"></script>
+  <script>
+    document.addEventListener('keydown', function(e) {
+      if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); }
+    });
+
+    verificarAutenticacao();
+    const u = AppState.usuario;
+    if (!u) { window.location.href = '/'; }
+    else if (!['admin','gestor','tecnico'].includes(u.perfil) && !temPermissao('impressoras.ver')) {
+      window.location.href = u.perfil === 'usuario' ? '/usuario' : '/';
+    }
+    const usuario = AppState.usuario;
+
+    const NOMES_MESES = ['', 'JANEIRO','FEVEREIRO','MARÇO','ABRIL','MAIO','JUNHO','JULHO','AGOSTO','SETEMBRO','OUTUBRO','NOVEMBRO','DEZEMBRO'];
+
+    configurarSidebar([]);
+    (function() {
+      const navEl = document.getElementById('sidebar-nav');
+      if (!navEl) return;
+      const perfil = AppState.usuario.perfil;
+      const isAdminOrGestor = ['admin','gestor','tecnico'].includes(perfil);
+      let html = '';
+
+      html += '<div class="nav-section">Principal</div>';
+      html += `<a href="painel"><span class="nav-icon"><iconify-icon icon="mdi:view-dashboard" width="20" height="20"></iconify-icon></span> Painel</a>`;
+      if (temAlgumaPermissao('chamados.ver_atribuidos', 'chamados.ver_todos_unidade', 'chamados.ver_proprios')) {
+        html += `<a href="painel"><span class="nav-icon"><iconify-icon icon="mdi:ticket-outline" width="20" height="20"></iconify-icon></span> Chamados</a>`;
+      }
+
+      const mostraCadastros = temAlgumaPermissao('setores.ver', 'categorias.ver', 'usuarios.ver', 'inventario.ver', 'ativos.ver');
+      if (mostraCadastros) {
+        html += '<div class="nav-section">Cadastros</div>';
+        if (temAlgumaPermissao('setores.ver')) {
+          html += `<a href="setores"><span class="nav-icon"><iconify-icon icon="mdi:domain" width="20" height="20"></iconify-icon></span> Setores</a>`;
+        }
+        if (temAlgumaPermissao('categorias.ver')) {
+          html += `<a href="categorias"><span class="nav-icon"><iconify-icon icon="mdi:shape-outline" width="20" height="20"></iconify-icon></span> Categorias</a>`;
+        }
+        if (temAlgumaPermissao('inventario.ver')) {
+          html += `<a href="inventario"><span class="nav-icon"><iconify-icon icon="mdi:desktop-tower-monitor" width="20" height="20"></iconify-icon></span> Inventário</a>`;
+        }
+        if (temAlgumaPermissao('usuarios.ver')) {
+          html += `<a href="usuarios"><span class="nav-icon"><iconify-icon icon="mdi:account-group" width="20" height="20"></iconify-icon></span> Usuários</a>`;
+        }
+      }
+
+      const mostraGestao = temAlgumaPermissao('relatorios.ver_dashboard', 'relatorios.ver_tempos', 'impressoras.ver', 'fornecedores.ver', 'dispositivos.ver') || isAdminOrGestor;
+      if (mostraGestao) {
+        html += '<div class="nav-section">Gestão</div>';
+        if (temAlgumaPermissao('relatorios.ver_dashboard', 'relatorios.ver_tempos')) {
+          html += `<a href="relatorios"><span class="nav-icon"><iconify-icon icon="mdi:chart-bar" width="20" height="20"></iconify-icon></span> Relatórios</a>`;
+        }
+        if (temAlgumaPermissao('impressoras.ver') || isAdminOrGestor) {
+          html += `<a href="impressoras" class="active"><span class="nav-icon"><iconify-icon icon="mdi:printer" width="20" height="20"></iconify-icon></span> Controle Impressões</a>`;
+        }
+        if (temAlgumaPermissao('fornecedores.ver') || isAdminOrGestor) {
+          html += `<a href="fornecedores"><span class="nav-icon"><iconify-icon icon="mdi:truck-delivery" width="20" height="20"></iconify-icon></span> Fornecedores</a>`;
+        }
+        if (temPermissao('dispositivos.ver')) {
+          html += `<a href="dispositivos"><span class="nav-icon"><iconify-icon icon="mdi:cellphone-link" width="20" height="20"></iconify-icon></span> Dispositivos</a>`;
+        }
+      }
+
+      const mostraFinanceiro = temAlgumaPermissao('financeiro.ver', 'financeiro.criar', 'financeiro.aprovar') || isAdminOrGestor;
+      if (mostraFinanceiro) {
+        html += '<div class="nav-section">Financeiro</div>';
+        html += `<a href="financeiro"><span class="nav-icon"><iconify-icon icon="mdi:currency-usd" width="20" height="20"></iconify-icon></span> Financeiro</a>`;
+        if (temAlgumaPermissao('notas_fiscais.ver') || isAdminOrGestor) {
+          html += `<a href="notas-fiscais"><span class="nav-icon"><iconify-icon icon="mdi:file-document" width="20" height="20"></iconify-icon></span> Notas Fiscais</a>`;
+        }
+      }
+
+      navEl.innerHTML = html;
+    })();
+
+    // ============================================================
+    // INICIALIZAÇÃO
+    // ============================================================
+    function getMesesDisponiveis(ano) {
+      if (ano == 2026) return [4,5,6,7,8,9,10,11,12];
+      return [1,2,3,4,5,6,7,8,9,10,11,12];
+    }
+
+    function popularSelectMes(ano) {
+      const select = document.getElementById('select-mes');
+      const meses = getMesesDisponiveis(ano);
+      const current = select.value;
+      select.innerHTML = meses.map(m => `<option value="${m}">${NOMES_MESES[m]}</option>`).join('');
+      if (current && meses.includes(parseInt(current))) {
+        select.value = current;
+      } else {
+        select.value = meses[0];
+      }
+    }
+
+    function onAnoChange() {
+      const ano = parseInt(document.getElementById('select-ano').value);
+      popularSelectMes(ano);
+
+      // Mostra/esconde aba Cadastro
+      const btn = document.getElementById('tab-btn-cadastro');
+      btn.classList.toggle('tab-cadastro-hidden', ano !== 2026);
+
+      ultimoCacheKey = null;
+      carregarMes();
+    }
+
+    function onMesChange() {
+      ultimoCacheKey = null;
+      carregarMes();
+    }
+
+    function onStatusChange() {
+      ultimoCacheKey = null;
+      carregarMes();
+    }
+
+    // ============================================================
+    // IMPRESSÃO DO RELATÓRIO MENSAL
+    // ============================================================
+    let nomeUnidadeImpressao = usuario?.unidade_id ? `Unidade #${usuario.unidade_id}` : 'Todas as unidades';
+
+    async function carregarNomeUnidadeImpressao() {
+      try {
+        const unidades = await api('/api/unidades');
+        const unidade = unidades.find(item => Number(item.id) === Number(usuario?.unidade_id));
+        if (unidade) nomeUnidadeImpressao = unidade.cidade ? `${unidade.nome} — ${unidade.cidade}` : unidade.nome;
+      } catch (_) {
+        // O identificador da unidade permanece como fallback no cabeçalho.
+      }
+      atualizarCabecalhoImpressao();
+    }
+
+    function atualizarCabecalhoImpressao() {
+      const mes = Number(document.getElementById('select-mes')?.value);
+      const ano = document.getElementById('select-ano')?.value || '';
+      const statusCampo = document.getElementById('select-status');
+      const unidadeEl = document.getElementById('impressao-unidade');
+      const periodoEl = document.getElementById('impressao-periodo');
+      const statusEl = document.getElementById('impressao-status');
+      const emissaoEl = document.getElementById('impressao-emissao');
+      if (unidadeEl) unidadeEl.textContent = nomeUnidadeImpressao;
+      if (periodoEl) periodoEl.textContent = `${NOMES_MESES[mes] || ''} / ${ano}`;
+      if (statusEl) statusEl.textContent = `Impressoras: ${statusCampo?.options[statusCampo.selectedIndex]?.text || 'Todas'}`;
+      if (emissaoEl) emissaoEl.textContent = `Emitido em ${new Intl.DateTimeFormat('pt-BR', { dateStyle:'short', timeStyle:'short' }).format(new Date())}`;
+    }
+
+    function limparEstadoImpressao() {
+      document.body.classList.remove('impressao-incluir-faturamento');
+    }
+
+    function abrirOpcoesImpressao() {
+      if (!document.querySelector('#mensal-content .faturamento-grid')) {
+        showToast('Aguarde o relatório mensal terminar de carregar.', 'info');
+        return;
+      }
+      limparEstadoImpressao();
+      openModal('🖨️ Imprimir controle mensal', `<div><label class="impressao-opcao-financeira" for="impressao-incluir-faturamento"><input type="checkbox" id="impressao-incluir-faturamento"><span><strong>Incluir faturamento do mês</strong><small>Desmarcado por padrão. O Total Excedente em reais continuará aparecendo no documento.</small></span></label><p class="impressao-opcao-aviso"><iconify-icon icon="mdi:information-outline" width="16" height="16"></iconify-icon> O relatório será preparado em A4 paisagem com os filtros atualmente selecionados.</p></div>`, [
+        { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-impressao', onClick:()=>{ limparEstadoImpressao(); closeModal(); } },
+        { text:'Imprimir', cls:'btn-primary', id:'btn-confirmar-impressao', onClick:imprimirRelatorioMensal }
+      ]);
+    }
+
+    async function imprimirRelatorioMensal() {
+      const incluirFaturamento = Boolean(document.getElementById('impressao-incluir-faturamento')?.checked);
+      document.body.classList.toggle('impressao-incluir-faturamento', incluirFaturamento);
+      atualizarCabecalhoImpressao();
+      closeModal();
+      await new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve)));
+      try {
+        window.print();
+      } finally {
+        setTimeout(limparEstadoImpressao, 500);
+      }
+    }
+
+    window.addEventListener('beforeprint', atualizarCabecalhoImpressao);
+    window.addEventListener('afterprint', limparEstadoImpressao);
+
+    // ============================================================
+    // CARREGAR DADOS DO MÊS
+    // ============================================================
+    let ultimoCacheKey = null;
+
+    function corFaturamento(valor) {
+      if (valor >= 1000) return 'alert-vermelho';
+      if (valor > 840) return 'alert-laranja';
+      return 'alert-verde';
+    }
+
+    function corTotal(valor, limite) {
+      if (valor >= limite) return 'alert-laranja';
+      return 'alert-verde';
+    }
+
+    async function carregarMes() {
+      const mes = parseInt(document.getElementById('select-mes').value);
+      const ano = parseInt(document.getElementById('select-ano').value);
+      const status = document.getElementById('select-status').value;
+      const container = document.getElementById('mensal-content');
+
+      const cacheKey = mes + '-' + ano + '-' + status;
+      if (ultimoCacheKey === cacheKey) return;
+      ultimoCacheKey = cacheKey;
+
+      container.innerHTML = '<p class="text-secondary">Carregando...</p>';
+
+      try {
+        const [leituras, relatorio] = await Promise.all([
+          api('/api/leituras?mes=' + mes + '&ano=' + ano + '&status=' + status),
+          api('/api/relatorios/impressao/mensal?mes=' + mes + '&ano=' + ano + '&status=' + status)
+        ]);
+
+        const franquiaTonner = relatorio.parametros?.franquia_tonner || 9000;
+        const franquiaColorida = relatorio.parametros?.franquia_colorida || 1000;
+        const valorFixoBase = relatorio.parametros?.valor_fixo_base || 840;
+
+        let html = '';
+
+        // Totais e faturamento com alerta de cor
+        html += '<div class="faturamento-grid">';
+        html += '<div class="faturamento-card ' + corTotal(relatorio.total_tonner, franquiaTonner) + '"><div class="fc-value">' + relatorio.total_tonner + '</div><div class="fc-label">Total TONNER (pág)</div><div class="fc-label" style="font-size:0.7rem;margin-top:4px">Franquia: ' + franquiaTonner + '</div></div>';
+        html += '<div class="faturamento-card ' + corTotal(relatorio.total_colorida, franquiaColorida) + '"><div class="fc-value">' + relatorio.total_colorida + '</div><div class="fc-label">Total COLORIDA (pág)</div><div class="fc-label" style="font-size:0.7rem;margin-top:4px">Franquia: ' + franquiaColorida + '</div></div>';
+        html += '<div class="faturamento-card"><div class="fc-value">' + relatorio.excedente_tonner + '</div><div class="fc-label">Excedente TONNER (pág)</div></div>';
+        html += '<div class="faturamento-card"><div class="fc-value">' + relatorio.excedente_colorida + '</div><div class="fc-label">Excedente COLORIDA (pág)</div></div>';
+        html += '<div class="faturamento-card"><div class="fc-value">R$ ' + relatorio.total_excedente_reais.toFixed(2) + '</div><div class="fc-label">Total Excedente (R$)</div></div>';
+        html += '<div class="faturamento-card faturamento-card-faturamento ' + corFaturamento(relatorio.faturamento) + '"><div class="fc-value">R$ ' + relatorio.faturamento.toFixed(2) + '</div><div class="fc-label"><strong>FATURAMENTO DO MÊS</strong></div></div>';
+        html += '</div>';
+
+        // Tabela de leituras
+        html += '<div class="card mt-20"><div class="card-header"><h2><iconify-icon icon="mdi:calendar-text" width="20" height="20"></iconify-icon> ' + NOMES_MESES[mes] + ' / ' + ano + ' — Leituras</h2></div><div class="card-body no-padding"><div class="table-wrap"><table><thead><tr><th>MAC</th><th>IP</th><th>Impressora</th><th>Setor</th><th>Tipo</th><th>Contagem Anterior</th><th>Contag. Atual</th><th>Total Impressões</th></tr></thead><tbody>';
+
+        if (!leituras.length) {
+          html += '<tr><td colspan="8" class="text-center text-secondary">Nenhuma impressora cadastrada.</td></tr>';
+        } else {
+          for (const leitura of leituras) {
+            const contagem_leitura = leitura.contagem_leitura !== null ? leitura.contagem_leitura : '';
+            const contagem_anterior = leitura.contagem_anterior !== null ? leitura.contagem_anterior : leitura.contagem_atual;
+            const total_imp = contagem_leitura !== '' ? Math.max(0, parseInt(contagem_leitura) - parseInt(contagem_anterior)) : 0;
+
+            html += '<tr>';
+            html += '<td>' + (leitura.mac || '<span class="text-secondary">—</span>') + '</td>';
+            html += '<td>' + leitura.ip + '</td>';
+            html += '<td><strong>' + escapeHTML(leitura.impressora_nome) + '</strong></td>';
+            html += '<td>' + (leitura.setor_nome || '<span class="text-secondary">—</span>') + '</td>';
+            html += '<td>' + (leitura.tipo === 'TONNER' ? '<span class="badge badge-aberto">TONNER</span>' : '<span class="badge badge-andamento">COLORIDA</span>') + '</td>';
+            html += '<td class="text-center"><strong>' + contagem_anterior + '</strong></td>';
+            html += '<td class="text-center"><input type="number" class="contagem-input ' + (contagem_leitura !== '' ? 'saved' : '') + '" id="contagem-' + mes + '-' + leitura.impressora_id + '" value="' + (contagem_leitura !== '' ? contagem_leitura : '') + '" min="0" placeholder="0000" onchange="salvarLeitura(' + mes + ',' + ano + ',' + leitura.impressora_id + ',this)"></td>';
+            html += '<td class="text-center"><span class="total-impressoes ' + (total_imp === 0 ? 'zero' : '') + '">' + total_imp + '</span></td>';
+            html += '</tr>';
+          }
+        }
+
+        html += '</tbody></table></div></div></div>';
+        container.innerHTML = html;
+      } catch (e) {
+        container.innerHTML = '<div class="card"><div class="card-body"><p class="text-secondary">Erro ao carregar dados: ' + e.message + '</p></div></div>';
+        showToast('Erro: ' + e.message, 'error');
+      }
+    }
+
+    async function salvarLeitura(mes, ano, impressora_id, input) {
+      const contagem_leitura = parseInt(input.value);
+      if (isNaN(contagem_leitura) || contagem_leitura < 0) {
+        showToast('Informe uma contagem válida (número positivo).', 'error');
+        input.value = '';
+        input.classList.remove('saved');
+        return;
+      }
+      try {
+        const r = await api('/api/leituras', {
+          method:'POST',
+          body:{ impressora_id, mes: parseInt(mes), ano: parseInt(ano), contagem_leitura }
+        });
+        input.classList.add('saved');
+        ultimoCacheKey = null;
+        carregarMes();
+        showToast(r.mensagem, 'success');
+      } catch (err) {
+        showToast(err.message, 'error');
+      }
+    }
+
+    // ============================================================
+    // IMPRESSORAS (CADASTRO)
+    // ============================================================
+    async function carregarTudo() {
+      ultimoCacheKey = null;
+      await carregarImpressoras();
+    }
+
+    // Esconder botões sem permissão
+    (function() {
+      const btnNovo = document.getElementById('btn-nova-impressora');
+      if (btnNovo && !temPermissao('impressoras.criar')) btnNovo.style.display = 'none';
+      // Esconder aba Parâmetros se não puder editar
+      if (!temPermissao('impressoras.editar') && !['admin','gestor','tecnico'].includes(usuario.perfil)) {
+        const tabParam = document.querySelector('[data-tab="parametros"]');
+        if (tabParam) tabParam.style.display = 'none';
+      }
+    })();
+
+    async function carregarImpressoras() {
+      try {
+        const imp = await api('/api/impressoras');
+        document.getElementById('stat-total-impressoras').textContent = imp.length;
+        document.getElementById('stat-tonner').textContent = imp.filter(i => i.tipo === 'TONNER').length;
+        document.getElementById('stat-colorida').textContent = imp.filter(i => i.tipo === 'COLORIDA').length;
+
+        const podeEditar = temPermissao('impressoras.editar');
+        const podeExcluir = temPermissao('impressoras.excluir');
+        const tbody = document.getElementById('tabela-impressoras');
+        if (!imp.length) {
+          tbody.innerHTML = '<tr><td colspan="7"><div class="empty-state"><h3>Nenhuma impressora cadastrada</h3></div></td></tr>';
+          return;
+        }
+        tbody.innerHTML = imp.map(i => {
+          const isInativo = i.ativo === 0;
+          const btnEditar = podeEditar ? `<button class="btn btn-outline btn-sm" onclick="editarImpressora(${i.id})" style="padding:4px 8px;font-size:0.7rem"><iconify-icon icon="mdi:pencil" width="14" height="14"></iconify-icon></button>` : '';
+          const btnExcluir = podeExcluir ? `<button class="btn btn-danger btn-sm" onclick="excluirImpressora(${i.id},'${escapeHTML(i.nome)}')" style="padding:4px 8px;font-size:0.7rem"><iconify-icon icon="mdi:delete" width="14" height="14"></iconify-icon></button>` : '';
+          const btnToggle = podeEditar
+            ? `<button class="btn btn-sm btn-toggle-status ${isInativo ? 'btn-primary' : 'btn-outline'}" onclick="toggleStatusImpressora(${i.id}, ${i.ativo})" style="padding:4px 8px;font-size:0.7rem" title="${isInativo ? 'Reativar' : 'Inativar'}"><iconify-icon icon="${isInativo ? 'mdi:play-circle' : 'mdi:pause-circle'}" width="14" height="14"></iconify-icon></button>`
+            : '';
+          const acoes = [btnEditar, btnToggle, btnExcluir].filter(Boolean).join(' ') || '<span class="text-secondary">—</span>';
+          const statusBadge = isInativo ? ' <span class="badge-inativa">Inativa</span>' : '';
+          return `<tr class="${isInativo ? 'inativa' : ''}">
+            <td>${i.mac || '<span class="text-secondary">—</span>'}</td>
+            <td>${i.ip}</td>
+            <td><strong>${escapeHTML(i.nome)}</strong>${statusBadge}</td>
+            <td>${i.setor_nome || '<span class="text-secondary">—</span>'}</td>
+            <td>${i.tipo === 'TONNER' ? '<span class="badge badge-aberto">TONNER</span>' : '<span class="badge badge-andamento">COLORIDA</span>'}</td>
+            <td class="text-center"><strong>${i.contagem_atual}</strong></td>
+            <td style="white-space:nowrap">${acoes}</td>
+          </tr>`;
+        }).join('');
+      } catch (e) { showToast('Erro: ' + e.message, 'error'); }
+    }
+
+    async function abrirModalCadastroImpressora() {
+      const setores = await api('/api/setores');
+      const optsSetor = setores.length
+        ? '<option value="">Selecione...</option>' + setores.map(s => `<option value="${s.id}">${escapeHTML(s.nome)}</option>`).join('')
+        : '<option value="">Nenhum setor cadastrado</option>';
+      openModal(
+        '➕ Nova Impressora',
+        `<form id="fmi" class="form-grid">
+          <div class="form-group"><label>MAC (endereço físico)</label><input id="mi-mac" placeholder="Ex: AA:BB:CC:DD:EE:FF"></div>
+          <div class="form-group"><label>IP *</label><input id="mi-ip" placeholder="Ex: 10.2.200.1" required></div>
+          <div class="form-group"><label>Nome / Número *</label><input id="mi-nome" placeholder="Ex: Impressora 01" required></div>
+          <div class="form-group"><label>Setor</label><select id="mi-setor">${optsSetor}</select></div>
+          <div class="form-group"><label>Tipo *</label><select id="mi-tipo"><option value="TONNER">TONNER</option><option value="COLORIDA">COLORIDA</option></select></div>
+          <div class="form-group"><label>Contagem Atual</label><input type="number" id="mi-contagem" value="0" min="0"></div>
+        </form>`,
+        [{text:'Cancelar',cls:'btn-outline',id:'btn-cancelar-imp',onClick:closeModal},{text:'💾 Cadastrar',cls:'btn-primary',id:'btn-salvar-imp',onClick:salvarImpressoraModal}]
+      );
+    }
+
+    async function salvarImpressoraModal() {
+      const mac = document.getElementById('mi-mac').value.trim();
+      const ip = document.getElementById('mi-ip').value.trim();
+      const nome = document.getElementById('mi-nome').value.trim();
+      const setor_id = document.getElementById('mi-setor').value;
+      const tipo = document.getElementById('mi-tipo').value;
+      const contagem_atual = parseInt(document.getElementById('mi-contagem').value) || 0;
+      if (!ip || !nome || !tipo || !setor_id) { showToast('Preencha IP, nome, tipo e setor.', 'error'); return; }
+      try {
+        const r = await api('/api/impressoras', { method:'POST', body:{ mac, ip, nome, setor_id: parseInt(setor_id), tipo, contagem_atual } });
+        showToast(r.mensagem, 'success');
+        closeModal();
+        carregarImpressoras();
+      } catch (err) { showToast(err.message, 'error'); }
+    }
+
+    async function editarImpressora(id) {
+      const imp = await api('/api/impressoras');
+      const i = imp.find(x => x.id === id);
+      if (!i) return;
+      const setores = await api('/api/setores');
+      const optsSetor = setores.length
+        ? '<option value="">Selecione...</option>' + setores.map(s => `<option value="${s.id}" ${i.setor_id === s.id ? 'selected' : ''}>${escapeHTML(s.nome)}</option>`).join('')
+        : '<option value="">Nenhum setor</option>';
+      openModal(
+        '✏️ Editar ' + escapeHTML(i.nome),
+        `<form id="fei" class="form-grid">
+          <div class="form-group"><label>MAC</label><input id="ei-mac" value="${escapeHTML(i.mac || '')}"></div>
+          <div class="form-group"><label>IP</label><input id="ei-ip" value="${escapeHTML(i.ip)}" required></div>
+          <div class="form-group"><label>Nome</label><input id="ei-nome" value="${escapeHTML(i.nome)}" required></div>
+          <div class="form-group"><label>Setor</label><select id="ei-setor">${optsSetor}</select></div>
+          <div class="form-group"><label>Tipo</label><select id="ei-tipo"><option value="TONNER" ${i.tipo === 'TONNER' ? 'selected' : ''}>TONNER</option><option value="COLORIDA" ${i.tipo === 'COLORIDA' ? 'selected' : ''}>COLORIDA</option></select></div>
+          <div class="form-group"><label>Contagem Atual</label><input type="number" id="ei-contagem" value="${i.contagem_atual}" min="0"></div>
+        </form>`,
+        [{text:'Cancelar',cls:'btn-outline',id:'btn-cancelar-editimp',onClick:closeModal},{text:'💾 Salvar',cls:'btn-primary',id:'btn-editar-imp',onClick:async()=>{
+          const mac = document.getElementById('ei-mac').value.trim();
+          const ip = document.getElementById('ei-ip').value.trim();
+          const nome = document.getElementById('ei-nome').value.trim();
+          const setor_id = document.getElementById('ei-setor').value;
+          const tipo = document.getElementById('ei-tipo').value;
+          const contagem_atual = parseInt(document.getElementById('ei-contagem').value) || 0;
+          try {
+            const r = await api('/api/impressoras/' + id, { method:'PUT', body:{ mac, ip, nome, setor_id: setor_id ? parseInt(setor_id) : null, tipo, contagem_atual } });
+            showToast(r.mensagem, 'success');
+            closeModal();
+            carregarImpressoras();
+          } catch(err) { showToast(err.message, 'error'); }
+        }}]
+      );
+    }
+
+    function excluirImpressora(id, nome) {
+      openModal('🗑️ Excluir Impressora', `<p>Tem certeza que deseja excluir <strong>${escapeHTML(nome)}</strong>?</p><p class="text-secondary mt-12">Todas as leituras desta impressora também serão removidas.</p>`,
+        [{text:'Cancelar',cls:'btn-outline',id:'btn-cancelar-delimp',onClick:closeModal},{text:'🗑️ Excluir',cls:'btn-danger',id:'btn-del-imp',onClick:async()=>{
+          try { const r = await api('/api/impressoras/' + id, { method:'DELETE' }); showToast(r.mensagem, 'success'); closeModal(); carregarImpressoras(); } catch(err) { showToast(err.message, 'error'); }
+        }}]
+      );
+    }
+
+    async function toggleStatusImpressora(id, statusAtual) {
+      const novoStatus = statusAtual === 1 ? 0 : 1;
+      const acao = novoStatus === 0 ? 'inativar' : 'reativar';
+      openModal(
+        (novoStatus === 0 ? '⏸️' : '▶️') + ' ' + (novoStatus === 0 ? 'Inativar' : 'Reativar') + ' Impressora',
+        `<p>Tem certeza que deseja <strong>${acao}</strong> esta impressora?</p>`,
+        [
+          { text: 'Cancelar', cls: 'btn-outline', id: 'btn-cancelar-toggle-imp', onClick: closeModal },
+          {
+            text: (novoStatus === 0 ? '⏸️ Inativar' : '▶️ Reativar'),
+            cls: novoStatus === 0 ? 'btn-danger' : 'btn-primary',
+            id: 'btn-toggle-imp',
+            onClick: async () => {
+              try {
+                const r = await api('/api/impressoras/' + id + '/status', { method: 'PUT', body: { ativo: novoStatus } });
+                showToast(r.mensagem, 'success');
+                closeModal();
+                carregarImpressoras();
+              } catch (err) { showToast(err.message, 'error'); }
+            }
+          }
+        ]
+      );
+    }
+
+    // ============================================================
+    // PARÂMETROS
+    // ============================================================
+    async function carregarParametros() {
+      try {
+        const p = await api('/api/parametros-impressao');
+        document.getElementById('param-franquia_tonner').value = p.franquia_tonner?.valor || 9000;
+        document.getElementById('param-franquia_colorida').value = p.franquia_colorida?.valor || 1000;
+        document.getElementById('param-valor_excedente_tonner').value = p.valor_excedente_tonner?.valor || 0.24;
+        document.getElementById('param-valor_excedente_colorida').value = p.valor_excedente_colorida?.valor || 0.05;
+        document.getElementById('param-valor_fixo_base').value = p.valor_fixo_base?.valor || 840;
+      } catch (e) { showToast('Erro: ' + e.message, 'error'); }
+    }
+
+    async function salvarParametros() {
+      const body = {
+        franquia_tonner: parseFloat(document.getElementById('param-franquia_tonner').value) || 0,
+        franquia_colorida: parseFloat(document.getElementById('param-franquia_colorida').value) || 0,
+        valor_excedente_tonner: parseFloat(document.getElementById('param-valor_excedente_tonner').value) || 0,
+        valor_excedente_colorida: parseFloat(document.getElementById('param-valor_excedente_colorida').value) || 0,
+        valor_fixo_base: parseFloat(document.getElementById('param-valor_fixo_base').value) || 0
+      };
+      try {
+        const r = await api('/api/parametros-impressao', { method:'PUT', body });
+        showToast(r.mensagem, 'success');
+        ultimoCacheKey = null;
+      } catch (err) { showToast(err.message, 'error'); }
+    }
+
+    // ============================================================
+    // INIT
+    // ============================================================
+    const anoAtual = parseInt(document.getElementById('select-ano').value);
+    if (anoAtual !== 2026) {
+      document.getElementById('tab-btn-cadastro').classList.add('tab-cadastro-hidden');
+    }
+    popularSelectMes(anoAtual);
+    carregarNomeUnidadeImpressao();
+    carregarMes();
+    carregarTudo();
+  </script>
+</body>
+</html>

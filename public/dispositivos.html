@@ -1,0 +1,403 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CHGT — Dispositivos</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/iconify-icon@2/dist/iconify-icon.min.js"></script>
+</head>
+<body class="page-dispositivos">
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><img src="/midia/logo_grau_rn.png" alt="Grau Técnico" style="width:32px;height:32px;border-radius:6px;flex-shrink:0;"><div class="brand-text"><h2>CHGT HelpDesk</h2><span>GRAU TÉCNICO</span></div></div>
+    <nav class="sidebar-nav" id="sidebar-nav"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-avatar" id="sidebar-avatar">U</div>
+      <div class="sidebar-user-info"><div class="user-name" id="sidebar-nome">Usuário</div><div class="user-role" id="sidebar-cargo">perfil</div></div>
+      <button class="sidebar-logout" id="sidebar-logout" title="Sair"><iconify-icon icon="mdi:logout" width="18" height="18"></iconify-icon></button>
+    </div>
+  </aside>
+  <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
+
+  <div class="main">
+    <div class="top-header">
+      <div class="breadcrumb">Gestão › <strong>Dispositivos</strong></div>
+      <div class="header-actions"><button class="header-icon-btn" id="btn-tema" title="Selecionar tema" onclick="abrirModalTemas()"><iconify-icon icon="mdi:theme-light-dark" width="20" height="20"></iconify-icon></button></div>
+    </div>
+
+    <main class="dispositivos-page-content">
+      <section class="dispositivos-hero" aria-labelledby="dispositivos-titulo">
+        <span class="dispositivos-hero-icone"><iconify-icon icon="mdi:cellphone-link" width="30" height="30"></iconify-icon></span>
+        <div>
+          <span class="dispositivos-eyebrow">Gestão de telefonia</span>
+          <h1 id="dispositivos-titulo">Dispositivos e números</h1>
+          <p>Cadastre aparelhos e mantenha os números organizados por setor.</p>
+        </div>
+        <button class="btn btn-primary" id="btn-novo-dispositivo" onclick="abrirModalNovoDispositivo()"><iconify-icon icon="mdi:plus" width="19" height="19"></iconify-icon> Novo dispositivo</button>
+      </section>
+
+      <section class="dispositivos-resumo" aria-label="Resumo de dispositivos">
+        <article><span><iconify-icon icon="mdi:devices" width="21" height="21"></iconify-icon></span><div><strong id="resumo-total-dispositivos">0</strong><small>dispositivos</small></div></article>
+        <article><span class="ativo"><iconify-icon icon="mdi:check-circle-outline" width="21" height="21"></iconify-icon></span><div><strong id="resumo-ativos-dispositivos">0</strong><small>ativos</small></div></article>
+        <article><span class="numeros"><iconify-icon icon="mdi:phone-outline" width="21" height="21"></iconify-icon></span><div><strong id="resumo-numeros-dispositivos">0</strong><small>números vinculados</small></div></article>
+      </section>
+
+      <section class="card dispositivos-lista-card">
+        <div class="card-header dispositivos-lista-cabecalho">
+          <div><h2><iconify-icon icon="mdi:format-list-bulleted" width="20" height="20"></iconify-icon> Dispositivos cadastrados</h2><p id="dispositivos-contagem">Carregando...</p></div>
+          <div class="dispositivos-filtros">
+            <label class="dispositivos-busca"><iconify-icon icon="mdi:magnify" width="19" height="19"></iconify-icon><input id="filtro-busca-dispositivos" type="search" autocomplete="off" placeholder="Buscar nome, modelo ou fabricante" oninput="renderizarDispositivos()" aria-label="Buscar dispositivos"></label>
+            <select id="filtro-status-dispositivos" onchange="renderizarDispositivos()" aria-label="Filtrar por status"><option value="">Todos os status</option><option value="Ativo">Ativos</option><option value="Inativo">Inativos</option></select>
+            <button class="btn btn-outline btn-sm dispositivos-exportar-pdf" type="button" onclick="exportarDispositivosPdf()" title="Exportar relatório em PDF"><iconify-icon icon="mdi:file-pdf-box" width="17" height="17"></iconify-icon><span>Exportar PDF</span></button>
+            <button class="btn btn-outline btn-sm" onclick="carregarDispositivos()" title="Atualizar lista"><iconify-icon icon="mdi:refresh" width="17" height="17"></iconify-icon><span>Atualizar</span></button>
+          </div>
+        </div>
+        <div class="card-body no-padding"><div class="table-wrap"><table class="dispositivos-tabela"><thead><tr><th>Dispositivo</th><th>Status</th><th>Números</th><th>Unidade</th><th class="dispositivos-coluna-acoes">Ações</th></tr></thead><tbody id="tabela-dispositivos"><tr><td colspan="5" class="text-center text-secondary">Carregando...</td></tr></tbody></table></div></div>
+      </section>
+    </main>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    verificarAutenticacao();
+    const usuarioDispositivos = AppState.usuario;
+    if (!usuarioDispositivos) window.location.href = '/';
+    else if (!temPermissao('dispositivos.ver')) window.location.href = usuarioDispositivos.perfil === 'usuario' ? '/usuario' : '/painel';
+
+    configurarSidebar([]);
+    (function() {
+      const navEl = document.getElementById('sidebar-nav');
+      if (!navEl || !AppState.usuario) return;
+      const perfil = AppState.usuario.perfil;
+      const isAdminOrGestor = ['admin', 'gestor', 'tecnico'].includes(perfil);
+      let html = '<div class="nav-section">Principal</div>';
+      html += `<a href="painel"><span class="nav-icon"><iconify-icon icon="mdi:view-dashboard" width="20" height="20"></iconify-icon></span> Painel</a>`;
+      if (temAlgumaPermissao('chamados.ver_atribuidos', 'chamados.ver_todos_unidade', 'chamados.ver_proprios')) html += `<a href="painel"><span class="nav-icon"><iconify-icon icon="mdi:ticket-outline" width="20" height="20"></iconify-icon></span> Chamados</a>`;
+
+      const mostraCadastros = temAlgumaPermissao('setores.ver', 'categorias.ver', 'usuarios.ver', 'inventario.ver', 'ativos.ver');
+      if (mostraCadastros) {
+        html += '<div class="nav-section">Cadastros</div>';
+        if (temPermissao('setores.ver')) html += `<a href="setores"><span class="nav-icon"><iconify-icon icon="mdi:domain" width="20" height="20"></iconify-icon></span> Setores</a>`;
+        if (temPermissao('categorias.ver')) html += `<a href="categorias"><span class="nav-icon"><iconify-icon icon="mdi:shape-outline" width="20" height="20"></iconify-icon></span> Categorias</a>`;
+        if (temPermissao('inventario.ver') || temPermissao('ativos.ver')) html += `<a href="inventario"><span class="nav-icon"><iconify-icon icon="mdi:desktop-tower-monitor" width="20" height="20"></iconify-icon></span> Inventário</a>`;
+        if (temPermissao('usuarios.ver')) html += `<a href="usuarios"><span class="nav-icon"><iconify-icon icon="mdi:account-group" width="20" height="20"></iconify-icon></span> Usuários</a>`;
+      }
+
+      const mostraGestao = temAlgumaPermissao('relatorios.ver_dashboard', 'relatorios.ver_tempos', 'impressoras.ver', 'fornecedores.ver', 'dispositivos.ver') || isAdminOrGestor;
+      if (mostraGestao) {
+        html += '<div class="nav-section">Gestão</div>';
+        if (temAlgumaPermissao('relatorios.ver_dashboard', 'relatorios.ver_tempos')) html += `<a href="relatorios"><span class="nav-icon"><iconify-icon icon="mdi:chart-bar" width="20" height="20"></iconify-icon></span> Relatórios</a>`;
+        if (temPermissao('impressoras.ver') || isAdminOrGestor) html += `<a href="impressoras"><span class="nav-icon"><iconify-icon icon="mdi:printer" width="20" height="20"></iconify-icon></span> Controle Impressões</a>`;
+        if (temPermissao('fornecedores.ver') || isAdminOrGestor) html += `<a href="fornecedores"><span class="nav-icon"><iconify-icon icon="mdi:truck-delivery" width="20" height="20"></iconify-icon></span> Fornecedores</a>`;
+        if (temPermissao('dispositivos.ver')) html += `<a href="dispositivos" class="active"><span class="nav-icon"><iconify-icon icon="mdi:cellphone-link" width="20" height="20"></iconify-icon></span> Dispositivos</a>`;
+      }
+
+      const mostraFinanceiro = temAlgumaPermissao('financeiro.ver', 'financeiro.criar', 'financeiro.aprovar') || isAdminOrGestor;
+      if (mostraFinanceiro) {
+        html += '<div class="nav-section">Financeiro</div><a href="financeiro"><span class="nav-icon"><iconify-icon icon="mdi:currency-usd" width="20" height="20"></iconify-icon></span> Financeiro</a>';
+        if (temAlgumaPermissao('notas_fiscais.ver') || isAdminOrGestor) html += `<a href="notas-fiscais"><span class="nav-icon"><iconify-icon icon="mdi:file-document" width="20" height="20"></iconify-icon></span> Notas Fiscais</a>`;
+      }
+      navEl.innerHTML = html;
+    })();
+
+    let dispositivos = [];
+    let numerosDispositivo = [];
+    let setoresNumero = [];
+    let dispositivoAbertoId = null;
+
+    const podeCriarDispositivo = () => temPermissao('dispositivos.criar');
+    const podeEditarDispositivo = () => temPermissao('dispositivos.editar');
+    const podeExcluirDispositivo = () => temPermissao('dispositivos.excluir');
+
+    (function() {
+      const botao = document.getElementById('btn-novo-dispositivo');
+      if (botao && !podeCriarDispositivo()) botao.style.display = 'none';
+    })();
+
+    function escapeAttr(valor) { return escapeHTML(valor || ''); }
+    function formatarDataAquisicao(valor) { return valor ? new Date(`${String(valor).slice(0, 10)}T12:00:00`).toLocaleDateString('pt-BR') : 'Não informada'; }
+    function badgeStatusDispositivo(status) { return `<span class="badge ${status === 'Ativo' ? 'badge-sucesso' : 'badge-erro'}">${escapeHTML(status)}</span>`; }
+
+    function atualizarResumoDispositivos() {
+      document.getElementById('resumo-total-dispositivos').textContent = dispositivos.length;
+      document.getElementById('resumo-ativos-dispositivos').textContent = dispositivos.filter(item => item.status === 'Ativo').length;
+      document.getElementById('resumo-numeros-dispositivos').textContent = dispositivos.reduce((total, item) => total + Number(item.total_numeros || 0), 0);
+    }
+
+    function obterDispositivosFiltrados() {
+      const busca = document.getElementById('filtro-busca-dispositivos').value.trim().toLocaleLowerCase('pt-BR');
+      const status = document.getElementById('filtro-status-dispositivos').value;
+      return dispositivos.filter(item => {
+        const texto = [item.nome, item.modelo, item.fabricante, item.unidade_nome].filter(Boolean).join(' ').toLocaleLowerCase('pt-BR');
+        return (!busca || texto.includes(busca)) && (!status || item.status === status);
+      });
+    }
+
+    function renderizarDispositivos() {
+      const tbody = document.getElementById('tabela-dispositivos');
+      const busca = document.getElementById('filtro-busca-dispositivos').value.trim().toLocaleLowerCase('pt-BR');
+      const status = document.getElementById('filtro-status-dispositivos').value;
+      const filtrados = obterDispositivosFiltrados();
+      atualizarResumoDispositivos();
+      document.getElementById('dispositivos-contagem').textContent = busca || status ? `${filtrados.length} de ${dispositivos.length} dispositivos` : `${dispositivos.length} ${dispositivos.length === 1 ? 'dispositivo cadastrado' : 'dispositivos cadastrados'}`;
+
+      if (!dispositivos.length) {
+        tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state dispositivos-vazio"><div class="empty-icon"><iconify-icon icon="mdi:cellphone-plus" width="42" height="42"></iconify-icon></div><h3>Nenhum dispositivo cadastrado</h3><p>Cadastre o primeiro aparelho para vincular seus números de telefone.</p>${podeCriarDispositivo() ? '<button class="btn btn-primary btn-sm" onclick="abrirModalNovoDispositivo()"><iconify-icon icon="mdi:plus" width="17" height="17"></iconify-icon> Novo dispositivo</button>' : ''}</div></td></tr>`;
+        return;
+      }
+      if (!filtrados.length) {
+        tbody.innerHTML = '<tr><td colspan="5"><div class="empty-state dispositivos-vazio"><div class="empty-icon"><iconify-icon icon="mdi:magnify-remove-outline" width="42" height="42"></iconify-icon></div><h3>Nenhum resultado encontrado</h3><p>Ajuste a busca ou os filtros.</p><button class="btn btn-outline btn-sm" onclick="limparFiltrosDispositivos()">Limpar filtros</button></div></td></tr>';
+        return;
+      }
+      tbody.innerHTML = filtrados.map(item => {
+        const abrirTexto = podeEditarDispositivo() ? 'Editar' : 'Visualizar';
+        const editar = `<button class="btn btn-outline btn-sm" onclick="abrirModalDispositivo(${item.id})" title="${abrirTexto} dispositivo"><iconify-icon icon="${podeEditarDispositivo() ? 'mdi:pencil-outline' : 'mdi:eye-outline'}" width="15" height="15"></iconify-icon><span>${abrirTexto}</span></button>`;
+        const numeros = `<button class="btn btn-outline btn-sm" onclick="abrirModalDispositivo(${item.id}, 'numeros')" title="Gerenciar números"><iconify-icon icon="mdi:phone-outline" width="15" height="15"></iconify-icon><span>Números</span></button>`;
+        const excluir = podeExcluirDispositivo() ? `<button class="btn btn-danger btn-sm" onclick="confirmarExcluirDispositivo(${item.id})" title="Excluir dispositivo"><iconify-icon icon="mdi:delete-outline" width="15" height="15"></iconify-icon></button>` : '';
+        return `<tr>
+          <td><div class="dispositivo-identificacao"><span><iconify-icon icon="mdi:cellphone-link" width="19" height="19"></iconify-icon></span><div><strong>${escapeHTML(item.nome)}</strong><small>${escapeHTML([item.fabricante, item.modelo].filter(Boolean).join(' · ') || 'Modelo não informado')}</small></div></div></td>
+          <td>${badgeStatusDispositivo(item.status)}</td>
+          <td><span class="dispositivo-numero-contagem"><iconify-icon icon="mdi:phone-outline" width="15" height="15"></iconify-icon>${item.total_numeros || 0}</span></td>
+          <td>${usuarioDispositivos.perfil === 'admin' ? `<span class="dispositivo-unidade">${escapeHTML(item.unidade_nome)}</span>` : '<span class="text-secondary">Unidade ativa</span>'}</td>
+          <td class="dispositivo-acoes">${editar}${numeros}${excluir}</td>
+        </tr>`;
+      }).join('');
+    }
+
+    function limparFiltrosDispositivos() {
+      document.getElementById('filtro-busca-dispositivos').value = '';
+      document.getElementById('filtro-status-dispositivos').value = '';
+      renderizarDispositivos();
+    }
+
+    function textoFiltroStatusDispositivos() {
+      const status = document.getElementById('filtro-status-dispositivos').value;
+      return status || 'Todos os status';
+    }
+
+    function montarRelatorioDispositivosPdf(itens, filtros) {
+      const totalNumeros = itens.reduce((total, item) => total + item.numeros.length, 0);
+      const totalAtivos = itens.filter(item => item.status === 'Ativo').length;
+      const mostrarUnidade = usuarioDispositivos.perfil === 'admin';
+      const linhas = itens.map(item => {
+        const detalhes = [item.fabricante, item.modelo].filter(Boolean).join(' · ') || 'Fabricante e modelo não informados';
+        const numeros = item.numeros.length ? `<table class="numeros"><thead><tr><th>Número</th><th>Setor</th><th>Observações</th></tr></thead><tbody>${item.numeros.map(numero => `<tr><td><strong>${escapeHTML(numero.numero)}</strong></td><td>${escapeHTML(numero.setor_nome)}</td><td>${numero.observacoes ? escapeHTML(numero.observacoes) : '—'}</td></tr>`).join('')}</tbody></table>` : '<p class="sem-numeros">Nenhum número vinculado a este dispositivo.</p>';
+        return `<section class="dispositivo"><div class="dispositivo-topo"><div><h2>${escapeHTML(item.nome)}</h2><p>${escapeHTML(detalhes)}</p></div><span class="status ${item.status === 'Ativo' ? 'ativo' : 'inativo'}">${escapeHTML(item.status)}</span></div><dl><div><dt>Data de aquisição</dt><dd>${escapeHTML(formatarDataAquisicao(item.data_aquisicao))}</dd></div>${mostrarUnidade ? `<div><dt>Unidade</dt><dd>${escapeHTML(item.unidade_nome || 'Não informada')}</dd></div>` : ''}<div><dt>Números vinculados</dt><dd>${item.numeros.length}</dd></div></dl>${item.observacoes ? `<div class="observacoes"><strong>Observações:</strong> ${escapeHTML(item.observacoes)}</div>` : ''}<h3>Números de telefone</h3>${numeros}</section>`;
+      }).join('');
+      return `<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Relatório de dispositivos</title><style>@page{size:A4 portrait;margin:12mm}*{box-sizing:border-box}body{font-family:Arial,Helvetica,sans-serif;color:#183129;background:#fff;font-size:11px;line-height:1.4;margin:0}.cabecalho{border-bottom:3px solid #008c55;padding-bottom:12px;display:flex;gap:14px;align-items:center}.cabecalho img{width:42px;height:42px;object-fit:contain}.cabecalho h1{font-size:19px;margin:0;color:#075c3d}.cabecalho p{margin:2px 0 0;color:#567065}.metadados{display:flex;justify-content:space-between;gap:12px;margin:10px 0 14px;color:#456056}.filtros,.resumo{display:flex;gap:8px;flex-wrap:wrap;margin:0 0 12px}.filtros span,.resumo span{border:1px solid #d7e7df;border-radius:5px;padding:5px 8px;background:#f5fbf8}.resumo strong{color:#075c3d}.dispositivo{border:1px solid #d5e2dc;border-radius:7px;padding:12px;margin:0 0 12px;break-inside:avoid}.dispositivo-topo{display:flex;justify-content:space-between;gap:12px;align-items:flex-start;border-bottom:1px solid #e7efeb;padding-bottom:8px}.dispositivo h2{font-size:14px;margin:0;color:#123b2d}.dispositivo-topo p{margin:2px 0 0;color:#5e756b}.status{font-weight:bold;padding:3px 7px;border-radius:12px;font-size:10px}.status.ativo{background:#dff5e8;color:#097341}.status.inativo{background:#f8e3e3;color:#a52a2a}dl{display:flex;gap:26px;flex-wrap:wrap;margin:9px 0}dt{font-size:9px;text-transform:uppercase;letter-spacing:.35px;color:#63786f}dd{font-weight:bold;margin:1px 0 0}.observacoes{background:#f6faf8;border-left:3px solid #60b88b;padding:6px 8px;margin:8px 0;color:#385348}.dispositivo h3{font-size:11px;color:#075c3d;margin:11px 0 5px}table{width:100%;border-collapse:collapse}th{background:#eaf5ef;color:#174633;text-align:left;font-size:9px;text-transform:uppercase;letter-spacing:.3px;padding:6px}td{border-bottom:1px solid #e2ece7;padding:6px;vertical-align:top}.sem-numeros{color:#6b8076;font-style:italic;margin:6px 0}.rodape{border-top:1px solid #d7e7df;margin-top:16px;padding-top:7px;text-align:center;color:#698077;font-size:9px}@media print{body{-webkit-print-color-adjust:exact;print-color-adjust:exact}}</style></head><body><header class="cabecalho"><img src="${window.location.origin}/midia/logo_grau_rn.png" alt="Grau Técnico"><div><h1>Relatório de dispositivos e números</h1><p>${mostrarUnidade ? 'Visão de todas as unidades autorizadas' : 'Unidade ativa'}</p></div></header><div class="metadados"><span>Emitido em ${escapeHTML(new Date().toLocaleString('pt-BR'))}</span><span>${itens.length} ${itens.length === 1 ? 'dispositivo listado' : 'dispositivos listados'}</span></div><div class="filtros"><span><strong>Busca:</strong> ${escapeHTML(filtros.busca || 'Sem filtro')}</span><span><strong>Status:</strong> ${escapeHTML(filtros.status)}</span></div><div class="resumo"><span><strong>${totalAtivos}</strong> ativos</span><span><strong>${totalNumeros}</strong> números vinculados</span></div>${linhas}<footer class="rodape">CHGT HelpDesk · Relatório gerado em ${escapeHTML(new Date().toLocaleDateString('pt-BR'))}</footer></body></html>`;
+    }
+
+    async function exportarDispositivosPdf() {
+      const filtrados = obterDispositivosFiltrados();
+      if (!filtrados.length) { showToast('Não há dispositivos nos filtros atuais para exportar.', 'error'); return; }
+      const janela = window.open('', '_blank');
+      if (!janela) { showToast('O navegador bloqueou a janela do relatório. Libere pop-ups para este site e tente novamente.', 'error'); return; }
+      janela.opener = null;
+      janela.document.write('<!doctype html><html lang="pt-BR"><head><meta charset="utf-8"><title>Preparando relatório</title></head><body style="font-family:Arial,sans-serif;padding:32px;color:#075c3d">Preparando relatório de dispositivos…</body></html>');
+      janela.document.close();
+      try {
+        const relatorio = await api('/api/dispositivos/relatorio', { loadingText:'Preparando relatório em PDF...' });
+        const idsFiltrados = new Set(filtrados.map(item => Number(item.id)));
+        const itens = (relatorio.dispositivos || []).filter(item => idsFiltrados.has(Number(item.id)));
+        janela.document.open();
+        janela.document.write(montarRelatorioDispositivosPdf(itens, {
+          busca: document.getElementById('filtro-busca-dispositivos').value.trim(),
+          status: textoFiltroStatusDispositivos()
+        }));
+        janela.document.close();
+        janela.onafterprint = () => janela.close();
+        let impressaoIniciada = false;
+        const imprimir = () => {
+          if (impressaoIniciada || janela.closed) return;
+          impressaoIniciada = true;
+          janela.focus();
+          janela.print();
+        };
+        const logo = janela.document.images[0];
+        if (logo && !logo.complete) {
+          logo.addEventListener('load', imprimir, { once:true });
+          logo.addEventListener('error', imprimir, { once:true });
+          setTimeout(imprimir, 1200);
+        } else setTimeout(imprimir, 250);
+      } catch (err) {
+        janela.close();
+        showToast(err.message || 'Não foi possível preparar o relatório em PDF.', 'error');
+      }
+    }
+
+    async function carregarDispositivos() {
+      const tbody = document.getElementById('tabela-dispositivos');
+      tbody.innerHTML = '<tr><td colspan="5" class="text-center text-secondary">Carregando dispositivos...</td></tr>';
+      try {
+        dispositivos = await api('/api/dispositivos');
+        renderizarDispositivos();
+      } catch (err) {
+        dispositivos = [];
+        atualizarResumoDispositivos();
+        document.getElementById('dispositivos-contagem').textContent = 'Não foi possível carregar os dispositivos.';
+        tbody.innerHTML = `<tr><td colspan="5"><div class="empty-state dispositivos-vazio"><div class="empty-icon"><iconify-icon icon="mdi:alert-circle-outline" width="42" height="42"></iconify-icon></div><h3>Erro ao carregar dispositivos</h3><p>${escapeHTML(err.message || 'Tente novamente.')}</p><button class="btn btn-outline btn-sm" onclick="carregarDispositivos()"><iconify-icon icon="mdi:refresh" width="16" height="16"></iconify-icon> Tentar novamente</button></div></td></tr>`;
+      }
+    }
+
+    function camposDispositivo(dados = {}, somenteLeitura = false) {
+      const desabilitado = somenteLeitura ? 'disabled' : '';
+      return `<div class="form-grid col-2 dispositivo-formulario">
+        <div class="form-group"><label>Nome do dispositivo *</label><input id="dispositivo-nome" maxlength="150" value="${escapeAttr(dados.nome)}" placeholder="Ex: iPhone da recepção" ${desabilitado} required></div>
+        <div class="form-group"><label>Status</label><select id="dispositivo-status" ${desabilitado}><option value="Ativo" ${(dados.status || 'Ativo') === 'Ativo' ? 'selected' : ''}>Ativo</option><option value="Inativo" ${dados.status === 'Inativo' ? 'selected' : ''}>Inativo</option></select></div>
+        <div class="form-group"><label>Fabricante</label><input id="dispositivo-fabricante" maxlength="150" value="${escapeAttr(dados.fabricante)}" placeholder="Ex: Apple, Motorola" ${desabilitado}></div>
+        <div class="form-group"><label>Modelo</label><input id="dispositivo-modelo" maxlength="150" value="${escapeAttr(dados.modelo)}" placeholder="Ex: iPhone 13" ${desabilitado}></div>
+        <div class="form-group"><label>Data de aquisição</label><input id="dispositivo-data-aquisicao" type="date" value="${dados.data_aquisicao ? String(dados.data_aquisicao).slice(0, 10) : ''}" ${desabilitado}></div>
+        <div class="form-group dispositivo-data-info"><label>Cadastro</label><span>${dados.criado_em ? formatarData(dados.criado_em) : 'Será registrado ao salvar'}</span></div>
+        <div class="form-group col-span-2"><label>Observações</label><textarea id="dispositivo-observacoes" rows="3" maxlength="5000" placeholder="Informações adicionais sobre o aparelho" ${desabilitado}>${escapeHTML(dados.observacoes || '')}</textarea></div>
+      </div>`;
+    }
+
+    function abrirModalNovoDispositivo() {
+      openModal('Novo dispositivo', `<div class="dispositivo-modal-intro"><span><iconify-icon icon="mdi:cellphone-plus" width="25" height="25"></iconify-icon></span><div><strong>Cadastre o aparelho</strong><p>Após salvar, use a aba Números para vincular as linhas telefônicas.</p></div></div>${camposDispositivo()}`, [
+        { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-dispositivo', onClick:closeModal },
+        { text:'Salvar dispositivo', cls:'btn-primary', id:'btn-salvar-dispositivo', onClick:salvarNovoDispositivo }
+      ], 'modal-dispositivo');
+    }
+
+    async function salvarNovoDispositivo() {
+      const nome = document.getElementById('dispositivo-nome').value.trim();
+      if (!nome) { showToast('Informe o nome do dispositivo.', 'error'); return; }
+      try {
+        const resposta = await api('/api/dispositivos', { method:'POST', body:obterDadosFormularioDispositivo() });
+        showToast(resposta.mensagem, 'success');
+        closeModal();
+        await carregarDispositivos();
+        abrirModalDispositivo(resposta.id, 'numeros');
+      } catch (err) { showToast(err.message, 'error'); }
+    }
+
+    function obterDadosFormularioDispositivo() {
+      return {
+        nome:document.getElementById('dispositivo-nome').value.trim(),
+        status:document.getElementById('dispositivo-status').value,
+        fabricante:document.getElementById('dispositivo-fabricante').value.trim() || null,
+        modelo:document.getElementById('dispositivo-modelo').value.trim() || null,
+        data_aquisicao:document.getElementById('dispositivo-data-aquisicao').value || null,
+        observacoes:document.getElementById('dispositivo-observacoes').value.trim() || null
+      };
+    }
+
+    function abrirModalDispositivo(id, aba = 'dados') {
+      const dispositivo = dispositivos.find(item => Number(item.id) === Number(id));
+      if (!dispositivo) return;
+      dispositivoAbertoId = Number(id);
+      const somenteLeitura = !podeEditarDispositivo();
+      openModal(`${somenteLeitura ? 'Visualizar' : 'Gerenciar'} dispositivo`, `<section class="dispositivo-modal-cabecalho"><span><iconify-icon icon="mdi:cellphone-link" width="25" height="25"></iconify-icon></span><div><strong>${escapeHTML(dispositivo.nome)}</strong><small>${escapeHTML([dispositivo.fabricante, dispositivo.modelo].filter(Boolean).join(' · ') || 'Dispositivo')}</small></div>${badgeStatusDispositivo(dispositivo.status)}</section><div class="tabs dispositivo-tabs"><button class="tab-btn ${aba === 'dados' ? 'active' : ''}" data-dispositivo-aba="dados" onclick="alternarAbaDispositivo('dados')"><iconify-icon icon="mdi:cellphone-cog" width="16" height="16"></iconify-icon> Dados</button><button class="tab-btn ${aba === 'numeros' ? 'active' : ''}" data-dispositivo-aba="numeros" onclick="alternarAbaDispositivo('numeros')"><iconify-icon icon="mdi:phone-outline" width="16" height="16"></iconify-icon> Números <span class="dispositivo-tab-contagem">${dispositivo.total_numeros || 0}</span></button></div><div id="dispositivo-aba-dados" style="display:${aba === 'dados' ? 'block' : 'none'}"><div class="dispositivo-modal-intro compacta"><span><iconify-icon icon="mdi:information-outline" width="22" height="22"></iconify-icon></span><div><strong>Dados do aparelho</strong><p>Nome é obrigatório; os demais campos podem ser preenchidos quando disponíveis.</p></div></div>${camposDispositivo(dispositivo, somenteLeitura)}${somenteLeitura ? '' : '<div class="dispositivo-form-acoes"><button class="btn btn-primary" onclick="salvarEdicaoDispositivo()"><iconify-icon icon="mdi:content-save-outline" width="17" height="17"></iconify-icon> Salvar alterações</button></div>'}</div><div id="dispositivo-aba-numeros" style="display:${aba === 'numeros' ? 'block' : 'none'}"><div id="painel-numeros-dispositivo" class="dispositivo-numeros-painel">Carregando números...</div></div>`, [
+        { text:'Fechar', cls:'btn-outline', id:'btn-fechar-dispositivo', onClick:closeModal }
+      ], 'modal-dispositivo modal-dispositivo-gerenciar');
+      if (aba === 'numeros') carregarNumerosDispositivo();
+    }
+
+    async function salvarEdicaoDispositivo() {
+      const nome = document.getElementById('dispositivo-nome').value.trim();
+      if (!nome) { showToast('Informe o nome do dispositivo.', 'error'); return; }
+      try {
+        const resposta = await api(`/api/dispositivos/${dispositivoAbertoId}`, { method:'PUT', body:obterDadosFormularioDispositivo() });
+        showToast(resposta.mensagem, 'success');
+        closeModal();
+        carregarDispositivos();
+      } catch (err) { showToast(err.message, 'error'); }
+    }
+
+    function alternarAbaDispositivo(aba) {
+      document.querySelectorAll('[data-dispositivo-aba]').forEach(botao => botao.classList.toggle('active', botao.dataset.dispositivoAba === aba));
+      document.getElementById('dispositivo-aba-dados').style.display = aba === 'dados' ? 'block' : 'none';
+      document.getElementById('dispositivo-aba-numeros').style.display = aba === 'numeros' ? 'block' : 'none';
+      if (aba === 'numeros') carregarNumerosDispositivo();
+    }
+
+    async function carregarNumerosDispositivo() {
+      const painel = document.getElementById('painel-numeros-dispositivo');
+      if (!painel || !dispositivoAbertoId) return;
+      painel.innerHTML = '<div class="text-center text-secondary">Carregando números...</div>';
+      try {
+        const [dados, setores] = await Promise.all([api(`/api/dispositivos/${dispositivoAbertoId}/numeros`), api('/api/setores')]);
+        numerosDispositivo = dados.numeros || [];
+        setoresNumero = setores || [];
+        renderizarNumerosDispositivo();
+      } catch (err) {
+        painel.innerHTML = `<div class="text-center text-secondary">${escapeHTML(err.message || 'Não foi possível carregar os números.')}</div>`;
+      }
+    }
+
+    function renderizarNumerosDispositivo() {
+      const painel = document.getElementById('painel-numeros-dispositivo');
+      if (!painel) return;
+      const adicionar = podeEditarDispositivo() ? '<button class="btn btn-primary btn-sm" onclick="mostrarFormularioNumero()"><iconify-icon icon="mdi:phone-plus-outline" width="17" height="17"></iconify-icon> Adicionar número</button>' : '';
+      const lista = numerosDispositivo.length ? `<div class="table-wrap"><table class="dispositivo-numeros-tabela"><thead><tr><th>Número</th><th>Setor</th><th>Observações</th><th class="dispositivo-coluna-acoes">Ações</th></tr></thead><tbody>${numerosDispositivo.map(numero => `<tr><td><strong>${escapeHTML(numero.numero)}</strong></td><td><span class="dispositivo-setor"><iconify-icon icon="mdi:domain" width="14" height="14"></iconify-icon>${escapeHTML(numero.setor_nome)}</span></td><td>${numero.observacoes ? escapeHTML(numero.observacoes) : '<span class="text-secondary">—</span>'}</td><td class="dispositivo-acoes">${podeEditarDispositivo() ? `<button class="btn btn-outline btn-sm" onclick="mostrarFormularioNumero(${numero.id})" title="Editar número"><iconify-icon icon="mdi:pencil-outline" width="15" height="15"></iconify-icon></button>` : ''}${podeExcluirDispositivo() ? `<button class="btn btn-danger btn-sm" onclick="confirmarExcluirNumero(${numero.id})" title="Excluir número"><iconify-icon icon="mdi:delete-outline" width="15" height="15"></iconify-icon></button>` : ''}${!podeEditarDispositivo() && !podeExcluirDispositivo() ? '<span class="text-secondary">—</span>' : ''}</td></tr>`).join('')}</tbody></table></div>` : `<div class="empty-state dispositivos-numeros-vazio"><div class="empty-icon"><iconify-icon icon="mdi:phone-plus-outline" width="34" height="34"></iconify-icon></div><h3>Nenhum número vinculado</h3><p>Vincule a primeira linha telefônica a este dispositivo.</p></div>`;
+      painel.innerHTML = `<div class="dispositivo-numeros-cabecalho"><div><strong>Números vinculados</strong><span>${numerosDispositivo.length} ${numerosDispositivo.length === 1 ? 'número' : 'números'}</span></div>${adicionar}</div>${lista}`;
+    }
+
+    function mascaraTelefoneDispositivo(input) {
+      const digitos = input.value.replace(/\D/g, '').slice(0, 15);
+      if (digitos.length <= 10) {
+        input.value = digitos.length > 6 ? `(${digitos.slice(0, 2)}) ${digitos.slice(2, 6)}-${digitos.slice(6)}` : digitos.length > 2 ? `(${digitos.slice(0, 2)}) ${digitos.slice(2)}` : digitos;
+      } else if (digitos.length === 11) {
+        input.value = `(${digitos.slice(0, 2)}) ${digitos.slice(2, 7)}-${digitos.slice(7)}`;
+      } else input.value = digitos;
+    }
+
+    function mostrarFormularioNumero(numeroId = null) {
+      const painel = document.getElementById('painel-numeros-dispositivo');
+      const numero = numeroId ? numerosDispositivo.find(item => Number(item.id) === Number(numeroId)) : null;
+      if (!painel) return;
+      if (!setoresNumero.length) {
+        painel.innerHTML = '<div class="empty-state dispositivos-numeros-vazio"><h3>Nenhum setor disponível</h3><p>Cadastre um setor antes de vincular números.</p><button class="btn btn-outline btn-sm" onclick="carregarNumerosDispositivo()">Voltar</button></div>';
+        return;
+      }
+      const opcoesSetor = '<option value="">Selecione...</option>' + setoresNumero.map(setor => `<option value="${setor.id}" ${Number(numero?.setor_id) === Number(setor.id) ? 'selected' : ''}>${escapeHTML(setor.nome)}</option>`).join('');
+      painel.innerHTML = `<section class="dispositivo-numero-form"><div class="dispositivo-numeros-cabecalho"><div><strong>${numero ? 'Editar número' : 'Adicionar número'}</strong><span>O mesmo telefone não pode ser vinculado a outro dispositivo.</span></div><button class="btn btn-outline btn-sm" onclick="renderizarNumerosDispositivo()">Voltar</button></div><div class="form-grid col-2"><div class="form-group"><label>Telefone *</label><input id="numero-dispositivo-telefone" value="${escapeAttr(numero?.numero)}" maxlength="30" oninput="mascaraTelefoneDispositivo(this)" placeholder="(84) 99999-9999" required></div><div class="form-group"><label>Setor *</label><select id="numero-dispositivo-setor">${opcoesSetor}</select></div><div class="form-group col-span-2"><label>Observações</label><textarea id="numero-dispositivo-observacoes" rows="3" maxlength="5000" placeholder="Ex: linha da recepção">${escapeHTML(numero?.observacoes || '')}</textarea></div></div><div class="dispositivo-form-acoes"><button class="btn btn-primary" onclick="salvarNumeroDispositivo(${numero ? numero.id : 'null'})"><iconify-icon icon="mdi:content-save-outline" width="17" height="17"></iconify-icon> ${numero ? 'Salvar número' : 'Vincular número'}</button></div></section>`;
+    }
+
+    async function salvarNumeroDispositivo(numeroId) {
+      const numero = document.getElementById('numero-dispositivo-telefone').value.trim();
+      const setorId = Number(document.getElementById('numero-dispositivo-setor').value);
+      if (!numero || !setorId) { showToast('Telefone e setor são obrigatórios.', 'error'); return; }
+      const body = { numero, setor_id:setorId, observacoes:document.getElementById('numero-dispositivo-observacoes').value.trim() || null };
+      try {
+        const resposta = await api(numeroId ? `/api/dispositivos/${dispositivoAbertoId}/numeros/${numeroId}` : `/api/dispositivos/${dispositivoAbertoId}/numeros`, { method:numeroId ? 'PUT' : 'POST', body });
+        showToast(resposta.mensagem, 'success');
+        await carregarDispositivos();
+        await carregarNumerosDispositivo();
+      } catch (err) { showToast(err.message, 'error'); }
+    }
+
+    function confirmarExcluirNumero(numeroId) {
+      const numero = numerosDispositivo.find(item => Number(item.id) === Number(numeroId));
+      if (!numero) return;
+      openModal('Remover número', `<p>Remover o número <strong>${escapeHTML(numero.numero)}</strong> deste dispositivo?</p><p class="text-secondary">O dispositivo continuará cadastrado.</p>`, [
+        { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-excluir-numero', onClick:() => abrirModalDispositivo(dispositivoAbertoId, 'numeros') },
+        { text:'Remover número', cls:'btn-danger', id:'btn-excluir-numero', onClick:async() => {
+          try { const resposta = await api(`/api/dispositivos/${dispositivoAbertoId}/numeros/${numeroId}`, { method:'DELETE' }); showToast(resposta.mensagem, 'success'); await carregarDispositivos(); abrirModalDispositivo(dispositivoAbertoId, 'numeros'); } catch (err) { showToast(err.message, 'error'); }
+        }}
+      ]);
+    }
+
+    function confirmarExcluirDispositivo(id) {
+      const dispositivo = dispositivos.find(item => Number(item.id) === Number(id));
+      if (!dispositivo) return;
+      openModal('Excluir dispositivo', `<div class="dispositivo-excluir-aviso"><span><iconify-icon icon="mdi:alert-outline" width="24" height="24"></iconify-icon></span><div><strong>Excluir “${escapeHTML(dispositivo.nome)}”?</strong><p>${Number(dispositivo.total_numeros || 0) ? `Este dispositivo possui ${dispositivo.total_numeros} número(s) vinculado(s) e não poderá ser excluído até removê-los.` : 'Esta ação não pode ser desfeita.'}</p></div></div>`, [
+        { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-excluir-dispositivo', onClick:closeModal },
+        { text:'Excluir dispositivo', cls:'btn-danger', id:'btn-excluir-dispositivo', onClick:async() => {
+          try { const resposta = await api(`/api/dispositivos/${id}`, { method:'DELETE' }); showToast(resposta.mensagem, 'success'); closeModal(); carregarDispositivos(); } catch (err) { showToast(err.message, 'error'); }
+        }}
+      ]);
+    }
+
+    document.getElementById('sidebar-logout').addEventListener('click', event => {
+      event.preventDefault();
+      openModal('Sair do sistema', '<p>Tem certeza que deseja sair?</p>', [
+        { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-logout', onClick:closeModal },
+        { text:'Sair', cls:'btn-danger', id:'btn-confirmar-logout', onClick:() => AppState.logout() }
+      ]);
+    });
+
+    carregarDispositivos();
+  </script>
+</body>
+</html>

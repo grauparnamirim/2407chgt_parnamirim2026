@@ -1,0 +1,127 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CHGT HelpDesk — Login</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/iconify-icon@2/dist/iconify-icon.min.js"></script>
+  <link rel="manifest" href="manifest.json">
+</head>
+<body class="login-body">
+  <button class="header-icon-btn login-theme-toggle" title="Selecionar tema" onclick="abrirModalTemas()"><iconify-icon icon="mdi:theme-light-dark" width="20" height="20"></iconify-icon></button>
+
+  <div class="login-left">
+    <div class="login-left-content">
+      <img src="/midia/logo_grau_rn.png" alt="Grau Técnico" class="login-logo-img">
+      <p class="login-subtitle">Central de HelpDesk Grau T&eacute;cnico</p>
+    </div>
+    <div class="login-left-footer">Desenvolvido por Wesly &mdash; Unidade Parnamirim/RN</div>
+  </div>
+
+  <div class="login-right">
+    <div class="login-form-wrapper">
+      <div class="login-form-header">
+        <h2>Acessar o Sistema</h2>
+        <p>Fa&ccedil;a login com suas credenciais</p>
+      </div>
+
+      <form id="login-form">
+        <div class="form-group mb-12">
+          <label for="unidade">Unidade</label>
+          <select id="unidade" required>
+            <option value="">Selecione a unidade...</option>
+          </select>
+          <small class="text-secondary" id="unidade-hint" style="font-size:0.7rem;"></small>
+        </div>
+
+        <div class="login-field">
+          <span class="login-field-icon">&#9993;&#65039;</span>
+          <input type="email" id="email" placeholder="Email corporativo" required autocomplete="email">
+        </div>
+
+        <div class="login-field">
+          <span class="login-field-icon">&#128274;</span>
+          <input type="password" id="senha" placeholder="Senha" required autocomplete="current-password">
+        </div>
+
+        <button type="submit" class="btn btn-primary btn-block btn-lg">
+          Entrar no Sistema &nbsp;&rarr;
+        </button>
+      </form>
+
+      <p class="login-error" id="login-msg"></p>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+  <script>
+    let unidades = [];
+
+    (async function carregarUnidades() {
+      try {
+        unidades = await api('/api/unidades', { loadingText: 'Preparando acesso...' });
+        const select = document.getElementById('unidade');
+        if (!unidades.length) {
+          select.innerHTML = '<option value="">Nenhuma unidade cadastrada</option>';
+          return;
+        }
+        select.innerHTML = '<option value="">Selecione a unidade...</option>' +
+          unidades.map(u => `<option value="${u.id}">${u.nome}${u.cidade ? ' — ' + u.cidade : ''}</option>`).join('');
+      } catch (err) {
+        console.error('Erro ao carregar unidades:', err);
+      }
+    })();
+
+    // Dropdown: admin, gestor e tecnico podem escolher livremente; demais são travados
+    document.getElementById('email').addEventListener('blur', function() {
+      const email = this.value.trim().toLowerCase();
+      const select = document.getElementById('unidade');
+      const hint = document.getElementById('unidade-hint');
+      if (!email || !unidades.length) return;
+
+      if (email.includes('admin') || email.includes('gestor') || email.includes('tecnico')) {
+        select.disabled = false;
+        hint.textContent = 'Selecione a unidade que deseja gerenciar';
+      } else {
+        select.disabled = true;
+        if (unidades.length === 1) select.value = unidades[0].id;
+        hint.textContent = 'Unidade vinculada automaticamente';
+      }
+    });
+
+    // Login
+    document.getElementById('login-form').addEventListener('submit', async (e) => {
+      e.preventDefault();
+      const email = document.getElementById('email').value.trim();
+      const senha = document.getElementById('senha').value;
+      const unidade_id = document.getElementById('unidade').value;
+      const msgEl = document.getElementById('login-msg');
+      msgEl.textContent = '';
+
+      if (!unidade_id) {
+        msgEl.textContent = 'Selecione uma unidade.';
+        return;
+      }
+
+      try {
+        const data = await api('/api/login', {
+          method: 'POST',
+          body: { email, senha, unidade_id: parseInt(unidade_id) },
+          loadingText: 'Entrando no sistema...'
+        });
+
+        if (!data.sucesso) throw new Error(data.erro || 'Erro no login.');
+
+        AppState.token = data.token;
+        AppState.usuario = data.usuario;
+        const paginas = { admin: 'painel', gestor: 'painel', tecnico: 'painel', usuario: 'usuario' };
+        window.location.href = paginas[data.usuario.perfil] || 'index';
+      } catch (err) {
+        msgEl.textContent = err.message || 'Erro ao fazer login.';
+      }
+    });
+  </script>
+
+</body>
+</html>
