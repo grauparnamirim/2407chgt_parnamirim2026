@@ -1,10 +1,13 @@
 # Credenciais e configurações sensíveis
 .env
+.env.*
 
 # Banco de dados
 *.db
 *.sqlite
-helpdesk.json
+
+# Backups gerados pelo sistema (POST /api/backup)
+backups/
 
 # Node
 node_modules/
@@ -12,7 +15,13 @@ npm-debug.log*
 
 # Dados locais gerados a partir do template público
 data/local.json
+data/local.db
+data/local.db-wal
+data/local.db-shm
 data/*.tmp
+
+# Logs
+*.log
 
 # Sistema operacional
 Thumbs.db
