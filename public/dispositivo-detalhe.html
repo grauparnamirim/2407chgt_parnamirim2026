@@ -1,0 +1,54 @@
+<!DOCTYPE html>
+<!-- PÁGINA: Detalhes do Aparelho — CHGT HelpDesk -->
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Detalhes do Aparelho</title>
+  <style>
+    * { margin: 0; padding: 0; box-sizing: border-box; }
+    body { font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif; background: #f5f5f5; color: #222; display: flex; justify-content: center; padding: 40px 16px; }
+    .card { background: #fff; border-radius: 16px; box-shadow: 0 4px 24px rgba(0,0,0,.08); max-width: 480px; width: 100%; padding: 32px; }
+    .header { text-align: center; margin-bottom: 24px; }
+    .header strong { font-size: 1.6rem; display: block; letter-spacing: .5px; }
+    .header small { color: #888; font-size: .85rem; }
+    .linha { display: flex; justify-content: space-between; padding: 10px 0; border-bottom: 1px solid #eee; font-size: .9rem; }
+    .linha:last-child { border: none; }
+    .rotulo { color: #888; }
+    .valor { font-weight: 500; text-align: right; max-width: 60%; word-break: break-word; }
+    .loading { text-align: center; color: #888; padding: 40px 0; }
+    .erro { text-align: center; color: #c00; padding: 40px 0; }
+  </style>
+</head>
+<body>
+  <!-- Card de detalhes do aparelho -->
+  <div class="card" id="root">
+    <div class="loading">Carregando informações do aparelho...</div>
+  </div>
+  <!-- Scripts da página de detalhes -->
+  <script>
+    // Busca o ID do aparelho na URL e carrega os dados da API
+    (async () => {
+      const id = location.pathname.split('/').pop();
+      if (!id) { document.getElementById('root').innerHTML = '<div class="erro">ID inválido.</div>'; return; }
+      try {
+        const r = await fetch('/api/ativos/' + id, { headers: { 'Authorization': 'Bearer ' + (sessionStorage.getItem('token') || '') } });
+        if (!r.ok) throw new Error('Não encontrado');
+        const d = await r.json();
+        const tipo = d.tipo || 'aparelho';
+        const icone = { gabinete: '🖥', monitor: '🖥', projetor: '📽', 'caixa de som': '🔊', fones: '🎧' };
+        // Renderiza os dados no card
+        document.getElementById('root').innerHTML =
+          '<div class="header"><div style="font-size:3rem;margin-bottom:8px">' + (icone[tipo] || '📦') + '</div><strong>' + (d.patrimonio || '—') + '</strong><small>' + (tipo.charAt(0).toUpperCase() + tipo.slice(1)) + '</small></div>' +
+          '<div class="linha"><span class="rotulo">Modelo</span><span class="valor">' + (d.modelo || '—') + '</span></div>' +
+          '<div class="linha"><span class="rotulo">Fabricante</span><span class="valor">' + (d.fabricante || '—') + '</span></div>' +
+          '<div class="linha"><span class="rotulo">Nº Série</span><span class="valor">' + (d.num_serie || '—') + '</span></div>' +
+          '<div class="linha"><span class="rotulo">Local</span><span class="valor">' + (d.local_nome || '—') + '</span></div>' +
+          '<div class="linha"><span class="rotulo">Status</span><span class="valor">' + (d.status || '—') + '</span></div>';
+      } catch (e) {
+        document.getElementById('root').innerHTML = '<div class="erro">Aparelho não encontrado.</div>';
+      }
+    })();
+  </script>
+</body>
+</html>
