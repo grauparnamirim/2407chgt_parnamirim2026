@@ -107,6 +107,11 @@
         html += '<div class="nav-section">Financeiro</div><a href="financeiro"><span class="nav-icon"><iconify-icon icon="mdi:currency-usd" width="20" height="20"></iconify-icon></span> Financeiro</a>';
         if (temAlgumaPermissao('notas_fiscais.ver') || isAdminOrGestor) html += `<a href="notas-fiscais"><span class="nav-icon"><iconify-icon icon="mdi:file-document" width="20" height="20"></iconify-icon></span> Notas Fiscais</a>`;
       }
+      if (AppState.usuario.perfil === 'admin') {
+        html += '<div class="nav-section">Sistema</div>';
+        html += '<a href="avancado"><span class="nav-icon"><iconify-icon icon="mdi:cog-outline" width="20" height="20"></iconify-icon></span> Avançado</a>';
+      }
+
       navEl.innerHTML = html;
     })();
 

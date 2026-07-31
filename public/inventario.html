@@ -260,6 +260,11 @@
         }
       }
 
+      if (AppState.usuario.perfil === 'admin') {
+        html += '<div class="nav-section">Sistema</div>';
+        html += '<a href="avancado"><span class="nav-icon"><iconify-icon icon="mdi:cog-outline" width="20" height="20"></iconify-icon></span> Avançado</a>';
+      }
+
       navEl.innerHTML = html;
     })();
 
@@ -363,7 +368,9 @@
           ranking.innerHTML = '<div class="inventario-grafico-vazio">Nenhuma manutenção registrada no período.</div>';
           return;
         }
-        ranking.innerHTML = ativosRecorrentesManutencao.map((ativo, indice) => `<div class="inventario-recorrencia-item"><span class="inventario-recorrencia-posicao">${indice + 1}</span><div><strong>${escapeHTML(ativo.patrimonio)}</strong><small>${escapeHTML([ativo.tipo, ativo.fabricante, ativo.modelo].filter(Boolean).join(' · ') || 'Bem patrimonial')}</small></div><span class="inventario-recorrencia-total">${ativo.total}<small>${ativo.total === 1 ? 'manutenção' : 'manutenções'}</small></span><button class="btn btn-outline btn-sm inventario-recorrencia-ver" type="button" onclick="verServicosAtivoRecorrente(${ativo.id})" title="Ver serviços deste bem" aria-label="Ver serviços do bem ${escapeHTML(ativo.patrimonio)}"><iconify-icon icon="mdi:eye-outline" width="16" height="16"></iconify-icon></button></div>`).join('');
+        ranking.innerHTML = ativosRecorrentesManutencao.map((ativo, indice) => {
+          return `<div class="inventario-recorrencia-item"><span class="inventario-recorrencia-posicao">${indice + 1}</span><div><strong>${escapeHTML(ativo.patrimonio)}</strong><small>${escapeHTML([ativo.tipo, ativo.fabricante, ativo.modelo].filter(Boolean).join(' · ') || 'Bem patrimonial')}</small></div><span class="inventario-recorrencia-total">${ativo.total}<small>${ativo.total === 1 ? 'manutenção' : 'manutenções'}</small></span><button class="btn btn-outline btn-sm inventario-recorrencia-ver" type="button" onclick="verServicosAtivoRecorrente(${ativo.id})" title="Ver serviços deste bem" aria-label="Ver serviços do bem ${escapeHTML(ativo.patrimonio)}"><iconify-icon icon="mdi:eye-outline" width="16" height="16"></iconify-icon></button></div>`;
+        }).join('');
       } catch (e) {
         document.getElementById('grafico-manutencoes').innerHTML = '<div class="inventario-grafico-vazio">Não foi possível carregar o gráfico.</div>';
         document.getElementById('ranking-recorrencias').innerHTML = '<div class="inventario-grafico-vazio">Não foi possível carregar o ranking.</div>';
