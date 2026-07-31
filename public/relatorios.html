@@ -120,6 +120,11 @@
         }
       }
 
+      if (AppState.usuario.perfil === 'admin') {
+        html += '<div class="nav-section">Sistema</div>';
+        html += '<a href="avancado"><span class="nav-icon"><iconify-icon icon="mdi:cog-outline" width="20" height="20"></iconify-icon></span> Avançado</a>';
+      }
+
       navEl.innerHTML = html;
     })();
 
