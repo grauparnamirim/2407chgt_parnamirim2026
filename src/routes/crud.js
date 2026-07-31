@@ -1,0 +1,68 @@
+const { Router } = require('express');
+const { getDb } = require('../db');
+const { autenticar, operational, now, id, validId, currentUnit, unitScope, validTable, validColumns } = require('../middleware');
+
+// Gera rotas CRUD automáticas (GET, POST, PUT, DELETE) para uma tabela
+// Parâmetros:
+//   path    - caminho da rota (ex: "locais")
+//   table   - nome da tabela no banco
+//   fields  - array de campos permitidos (opcional)
+//   unit    - se true, aplica filtro por unidade do usuário
+//   message - nome amigável para mensagens de resposta
+function createCrudRoutes({ path, table, fields, unit, message }) {
+  validTable(table);
+  const router = Router();
+  const manage = operational;
+
+  router.get(`/${path}`, autenticar, (req, res) => {
+    const db = getDb();
+    let rows;
+    if (unit && req.usuario.perfil !== 'admin') {
+      rows = db.prepare(`SELECT * FROM ${validTable(table)} WHERE unidade_id = ?`).all(req.usuario.unidade_id);
+    } else {
+      rows = db.prepare(`SELECT * FROM ${validTable(table)}`).all();
+    }
+    if (table === 'locais' && !req.query.incluir_inativos) rows = rows.filter(x => x.ativo !== 0);
+    res.json(rows);
+  });
+
+  router.post(`/${path}`, autenticar, manage, (req, res) => {
+    const db = getDb();
+    let unidadeId;
+    if (unit) { unidadeId = currentUnit(req, res); if (!unidadeId) return; }
+    const body = fields ? Object.fromEntries(fields.filter(k => req.body[k] !== undefined).map(k => [k, req.body[k]])) : { ...req.body };
+    if (body.nome !== undefined && !String(body.nome).trim()) return res.status(400).json({ erro: 'Nome é obrigatório.' });
+    const cols = [...Object.keys(body), ...(unit ? ['unidade_id'] : []), 'criado_em', 'atualizado_em'];
+    validColumns(cols, [...(fields || Object.keys(body)), ...(unit ? ['unidade_id'] : []), 'criado_em', 'atualizado_em']);
+    const vals = [...Object.values(body), ...(unit ? [unidadeId] : []), now(), now()];
+    const placeholders = cols.map(() => '?').join(', ');
+    const result = db.prepare(`INSERT INTO ${validTable(table)} (${cols.join(', ')}) VALUES (${placeholders})`).run(...vals);
+    res.status(201).json({ sucesso: true, id: result.lastInsertRowid, mensagem: `${message} criado!` });
+  });
+
+  router.put(`/${path}/:id`, autenticar, manage, (req, res) => {
+    const db = getDb();
+    const existing = db.prepare(`SELECT * FROM ${validTable(table)} WHERE id = ?`).get(id(req.params.id));
+    if (!existing) return res.status(404).json({ erro: `${message} não encontrado.` });
+    if (unit && !unitScope(req, existing)) return res.status(403).json({ erro: 'Acesso negado.' });
+    const body = fields ? Object.fromEntries(fields.filter(k => req.body[k] !== undefined).map(k => [k, req.body[k]])) : { ...req.body };
+    const allowed = [...(fields || Object.keys(body)), 'atualizado_em'];
+    const sets = Object.keys(body).map(k => { validColumns([k], allowed); return `${k} = ?`; });
+    const vals = Object.values(body);
+    if (sets.length) { sets.push('atualizado_em = ?'); vals.push(now()); vals.push(id(req.params.id)); db.prepare(`UPDATE ${validTable(table)} SET ${sets.join(', ')} WHERE id = ?`).run(...vals); }
+    res.json({ sucesso: true, mensagem: `${message} atualizado!` });
+  });
+
+  router.delete(`/${path}/:id`, autenticar, manage, (req, res) => {
+    const db = getDb();
+    const existing = db.prepare(`SELECT * FROM ${validTable(table)} WHERE id = ?`).get(id(req.params.id));
+    if (!existing) return res.status(404).json({ erro: `${message} não encontrado.` });
+    if (unit && !unitScope(req, existing)) return res.status(403).json({ erro: 'Acesso negado.' });
+    db.prepare(`DELETE FROM ${validTable(table)} WHERE id = ?`).run(id(req.params.id));
+    res.json({ sucesso: true, mensagem: `${message} removido!` });
+  });
+
+  return router;
+}
+
+module.exports = { createCrudRoutes };
