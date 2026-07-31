@@ -12,12 +12,14 @@ const AppState = {
     return data ? JSON.parse(data) : null;
   },
   set usuario(user) { sessionStorage.setItem('usuario', JSON.stringify(user)); },
-  logout() {
+  async logout() {
+    try { await fetch('/api/logout', { method: 'POST' }); } catch (_) {}
     sessionStorage.clear();
     window.location.href = '/';
   }
 };
 
+// Aplica o tema salvo no localStorage ao carregar a página
 function aplicarTemaSalvo() {
   let tema = localStorage.getItem('tema');
   if (tema === 'dark') { tema = 'escuro'; localStorage.setItem('tema', 'escuro'); }
@@ -25,12 +27,14 @@ function aplicarTemaSalvo() {
   document.documentElement.setAttribute('data-theme', tema);
 }
 
+// Aplica um tema específico e salva a preferência do usuário
 function aplicarTema(tema) {
   document.documentElement.setAttribute('data-theme', tema);
   localStorage.setItem('tema', tema);
   closeModal();
 }
 
+// Abre modal com opções de temas visuais para o usuário escolher
 function abrirModalTemas() {
   const atual = document.documentElement.getAttribute('data-theme') || 'tecnico';
   const temas = [
@@ -68,6 +72,7 @@ const appLoading = (() => {
   let timerExibir = null;
   let timerOcultar = null;
 
+  // Cria o overlay de carregamento se ainda não existir no DOM
   function criar() {
     if (overlay) return;
     overlay = document.createElement('div');
@@ -88,6 +93,7 @@ const appLoading = (() => {
     document.body.appendChild(overlay);
   }
 
+  // Cancela o timer de exibição do loading se estiver ativo
   function limparTimerExibir() {
     if (timerExibir) {
       clearTimeout(timerExibir);
@@ -95,6 +101,7 @@ const appLoading = (() => {
     }
   }
 
+  // Cancela o timer de ocultação do loading se estiver ativo
   function limparTimerOcultar() {
     if (timerOcultar) {
       clearTimeout(timerOcultar);
@@ -102,6 +109,7 @@ const appLoading = (() => {
     }
   }
 
+  // Exibe o overlay de carregamento com uma mensagem opcional
   function mostrar(texto = 'Carregando...') {
     criar();
     limparTimerOcultar();
@@ -113,6 +121,7 @@ const appLoading = (() => {
     }
   }
 
+  // Agenda a ocultação do overlay após o tempo mínimo de exibição
   function ocultarQuandoPossivel() {
     if (carregamentoInicial || pendentes > 0 || !overlay || !overlay.classList.contains('is-visible')) return;
     limparTimerOcultar();
@@ -124,6 +133,7 @@ const appLoading = (() => {
     }, restante);
   }
 
+  // Agenda a exibição do loading com atraso para evitar flashes rápidos
   function agendarExibicao(texto) {
     if (carregamentoInicial || (overlay && overlay.classList.contains('is-visible')) || timerExibir) return;
     timerExibir = setTimeout(() => {
@@ -132,12 +142,14 @@ const appLoading = (() => {
     }, DELAY_MS);
   }
 
+  // Incrementa o contador de operações pendentes e ativa o loading
   function iniciar(texto = 'Carregando...') {
     pendentes += 1;
     if (carregamentoInicial) mostrar(texto);
     else agendarExibicao(texto);
   }
 
+  // Decrementa o contador de operações e oculta o loading se todas concluírem
   function concluir() {
     pendentes = Math.max(0, pendentes - 1);
     if (pendentes === 0) {
@@ -146,6 +158,7 @@ const appLoading = (() => {
     }
   }
 
+  // Finaliza o estado de carregamento inicial da página
   function concluirCarregamentoInicial() {
     carregamentoInicial = false;
     if (pendentes === 0) ocultarQuandoPossivel();
@@ -165,6 +178,7 @@ const appLoading = (() => {
 // ============================================================
 // FUNÇÕES DE PERMISSÃO (RBAC)
 // ============================================================
+// Verifica se o usuário possui uma permissão específica
 function temPermissao(chave) {
   const usuario = AppState.usuario;
   if (!usuario || !usuario.permissoes) return false;
@@ -172,6 +186,7 @@ function temPermissao(chave) {
   return usuario.permissoes.includes(chave);
 }
 
+// Verifica se o usuário possui ao menos uma das permissões informadas
 function temAlgumaPermissao(...chaves) {
   return chaves.some(chave => temPermissao(chave));
 }
@@ -181,6 +196,7 @@ const PERMISSOES_USUARIO_PADRAO = [
   'chamados.comentar', 'notificacoes.receber'
 ];
 
+// Verifica se o usuário possui permissões além do conjunto padrão de usuário
 function temPermissoesAvancadas() {
   const usuario = AppState.usuario;
   if (!usuario || !usuario.permissoes) return false;
@@ -189,13 +205,29 @@ function temPermissoesAvancadas() {
 }
 
 // ============================================================
+// TOKEN EXPIRADO — verificação local do JWT
+// ============================================================
+// Verifica se o token JWT está expirado analisando o payload
+function tokenEstaExpirado() {
+  const token = AppState.token;
+  if (!token) return true;
+  try {
+    const payload = JSON.parse(atob(token.split('.')[1]));
+    return payload.exp * 1000 < Date.now();
+  } catch (_) {
+    return true;
+  }
+}
+
+// ============================================================
 // VERIFICAÇÃO DE AUTENTICAÇÃO
 // ============================================================
+// Verifica autenticação e perfil de acesso, redireciona se necessário
 function verificarAutenticacao(...perfisEsperados) {
   const usuario = AppState.usuario;
   const token = AppState.token;
-  if (!usuario || !token) {
-    window.location.href = '/';
+  if (!usuario || !token || tokenEstaExpirado()) {
+    AppState.logout();
     return false;
   }
   // Admin pode acessar qualquer página
@@ -215,6 +247,7 @@ function verificarAutenticacao(...perfisEsperados) {
 // ============================================================
 // API HELPER — Com token JWT no header
 // ============================================================
+// Faz requisições à API com token JWT, loading e tratamento de erros
 async function api(url, options = {}) {
   const baseURL = window.location.origin;
   const token = AppState.token;
@@ -232,6 +265,11 @@ async function api(url, options = {}) {
   appLoading.iniciar(loadingText || 'Carregando...');
   try {
     const response = await fetch(baseURL + url, config);
+    // Se 401, token expirou — força logout
+    if (response.status === 401) {
+      AppState.logout();
+      throw new Error('Sessão expirada. Faça login novamente.');
+    }
     // ✅ VALIDAR response.ok ANTES de fazer parse JSON
     let data;
     try {
@@ -253,6 +291,7 @@ async function api(url, options = {}) {
 // ============================================================
 // ESCAPE HTML — Proteção contra XSS
 // ============================================================
+// Escapa caracteres HTML para prevenir ataques XSS
 function escapeHTML(str) {
   if (str === null || str === undefined) return '';
   str = String(str);
@@ -269,6 +308,7 @@ function escapeHTML(str) {
 // ============================================================
 // TOAST — Feedback visual
 // ============================================================
+// Exibe uma notificação toast temporária na tela
 function showToast(mensagem, tipo = 'info') {
   const existente = document.querySelector('.toast');
   if (existente) existente.remove();
@@ -285,12 +325,14 @@ function showToast(mensagem, tipo = 'info') {
 // ============================================================
 // FORMATAÇÃO
 // ============================================================
+// Formata data ISO no padrão brasileiro (dd/mm/aaaa hh:mm)
 function formatarData(dataString) {
   if (!dataString) return '-';
   const data = new Date(dataString);
   return data.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: 'numeric', hour: '2-digit', minute: '2-digit' });
 }
 
+// Converte milissegundos em duração legível (ex: 2h 30min)
 function formatarDuracao(ms) {
   if (!Number.isFinite(ms) || ms < 0) ms = 0;
   const totalMinutos = Math.floor(ms / 60000);
@@ -304,6 +346,7 @@ function formatarDuracao(ms) {
   return horasRestantes ? `${dias}d ${horasRestantes}h` : `${dias}d`;
 }
 
+// Gera texto descritivo do tempo de resposta de um chamado
 function textoTempoResposta(inicio, fim = null, tempoEsperaMs = 0) {
   const dataInicio = new Date(inicio);
   if (Number.isNaN(dataInicio.getTime())) return '-';
@@ -315,6 +358,7 @@ function textoTempoResposta(inicio, fim = null, tempoEsperaMs = 0) {
   return fim ? `Aguardou ${duracaoUtil}${pausado}` : `Aguardando há ${duracaoUtil}${pausado}`;
 }
 
+// Gera HTML do timer de resposta com status ativo ou finalizado
 function tempoRespostaHTML(chamado) {
   const resolvido = chamado.status === 'Resolvido';
   const aguardandoFornecedor = chamado.status === 'Aguardando Fornecedor';
@@ -325,6 +369,7 @@ function tempoRespostaHTML(chamado) {
   return `<span class="timer-resposta ${resolvido ? 'finalizado' : 'ativo'}" data-inicio="${chamado.criado_em || ''}" data-fim="${fim}" data-tempo-espera="${tempoEspera}">${texto}</span>`;
 }
 
+// Atualiza em tempo real todos os timers de resposta na página
 function atualizarTimersResposta() {
   document.querySelectorAll('.timer-resposta.ativo').forEach(el => {
     const tempoEspera = Number(el.dataset.tempoEspera) || 0;
@@ -332,6 +377,7 @@ function atualizarTimersResposta() {
   });
 }
 
+// Gera HTML do badge de status do chamado com cor e indicador
 function statusBadgeHTML(status) {
   const map = { 'Aberto': { cls: 'badge-aberto' }, 'Em andamento': { cls: 'badge-andamento' }, 'Aguardando Fornecedor': { cls: 'badge-aguardando' }, 'Resolvido': { cls: 'badge-resolvido' } };
   const m = map[status] || { cls: '' };
@@ -360,6 +406,7 @@ const icons = {
   newTicket:   '<iconify-icon icon="mdi:plus-circle" width="18" height="18"></iconify-icon>'
 };
 
+// Gera HTML do badge de perfil do usuário (gestor, técnico, usuário)
 function perfilBadgeHTML(perfil) {
   const map = { gestor: 'badge-perfil-gestor', tecnico: 'badge-perfil-tecnico', usuario: 'badge-perfil-usuario' };
   return `<span class="badge ${map[perfil] || ''}">${perfil}</span>`;
@@ -368,6 +415,7 @@ function perfilBadgeHTML(perfil) {
 // ============================================================
 // SIDEBAR + TABS
 // ============================================================
+// Configura a sidebar com dados do usuário, navegação e eventos
 function configurarSidebar(navItems = []) {
   const usuario = AppState.usuario;
   if (!usuario) return;
@@ -400,6 +448,7 @@ function configurarSidebar(navItems = []) {
   if (toggleBtn && sidebar) toggleBtn.addEventListener('click', () => sidebar.classList.toggle('open'));
 }
 
+// Ativa uma aba específica na sidebar e no painel de conteúdo
 function ativarTab(tabId) {
   document.querySelectorAll('#sidebar-nav a').forEach(a => a.classList.toggle('active', a.dataset.tab === tabId));
   document.querySelectorAll('.tab-btn').forEach(btn => btn.classList.toggle('active', btn.dataset.tab === tabId));
@@ -409,6 +458,7 @@ function ativarTab(tabId) {
   if (sidebar && window.innerWidth <= 768) sidebar.classList.remove('open');
 }
 
+// Atualiza o breadcrumb no topo da página conforme a aba ativa
 function atualizarBreadcrumb() {
   const bc = document.getElementById('breadcrumb');
   if (!bc) return;
@@ -428,6 +478,7 @@ function atualizarBreadcrumb() {
 // ============================================================
 // MODAL
 // ============================================================
+// Abre um modal com título, conteúdo HTML e botões no rodapé
 function openModal(title, bodyHTML, footerButtons = [], extraClass = '') {
   closeModal();
   const overlay = document.createElement('div');
@@ -442,19 +493,23 @@ function openModal(title, bodyHTML, footerButtons = [], extraClass = '') {
   footerButtons.forEach(b => { if (b.onClick && b.id) { const btn = overlay.querySelector(`#${b.id}`); if (btn) btn.addEventListener('click', b.onClick); } });
   overlay.classList.remove('hidden');
 }
+// Remove o modal do DOM
 function closeModal() { const o = document.getElementById('modal-overlay'); if (o) o.remove(); }
 
 // ============================================================
 // PESQUISA GLOBAL
 // ============================================================
+// Verifica se o perfil do usuário pode usar a pesquisa global
 function podeUsarPesquisaGlobal() {
   return ['admin', 'gestor', 'tecnico'].includes(AppState.usuario?.perfil);
 }
 
+// Remove o overlay da pesquisa global do DOM
 function fecharPesquisaGlobal() {
   document.getElementById('global-search-overlay')?.remove();
 }
 
+// Abre a pesquisa global com campo de busca, debounce e exibição de resultados
 function abrirPesquisaGlobal() {
   if (!podeUsarPesquisaGlobal() || document.getElementById('global-search-overlay')) return;
 
