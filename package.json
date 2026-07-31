@@ -1,8 +1,8 @@
 {
   "name": "chgt-helpdesk",
-  "version": "2.0.0",
-  "description": "Central de HelpDesk local com JSON e JWT",
-  "main": "server.js",
+  "version": "1.0.0",
+  "description": "Central de HelpDesk local para gerenciamento de chamados e equipamentos",
+  "main": "src/index.js",
   "scripts": {
     "start": "node server.js",
     "reset-local-data": "node reset-local-data.js",
