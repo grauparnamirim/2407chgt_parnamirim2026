@@ -649,13 +649,14 @@
         let html = '';
 
         // Totais e faturamento com alerta de cor
+        const r = relatorio || {};
         html += '<div class="faturamento-grid">';
-        html += '<div class="faturamento-card ' + corTotal(relatorio.total_tonner, franquiaTonner) + '"><div class="fc-value">' + relatorio.total_tonner + '</div><div class="fc-label">Total TONNER (pág)</div><div class="fc-label" style="font-size:0.7rem;margin-top:4px">Franquia: ' + franquiaTonner + '</div></div>';
-        html += '<div class="faturamento-card ' + corTotal(relatorio.total_colorida, franquiaColorida) + '"><div class="fc-value">' + relatorio.total_colorida + '</div><div class="fc-label">Total COLORIDA (pág)</div><div class="fc-label" style="font-size:0.7rem;margin-top:4px">Franquia: ' + franquiaColorida + '</div></div>';
-        html += '<div class="faturamento-card"><div class="fc-value">' + relatorio.excedente_tonner + '</div><div class="fc-label">Excedente TONNER (pág)</div></div>';
-        html += '<div class="faturamento-card"><div class="fc-value">' + relatorio.excedente_colorida + '</div><div class="fc-label">Excedente COLORIDA (pág)</div></div>';
-        html += '<div class="faturamento-card"><div class="fc-value">R$ ' + relatorio.total_excedente_reais.toFixed(2) + '</div><div class="fc-label">Total Excedente (R$)</div></div>';
-        html += '<div class="faturamento-card faturamento-card-faturamento ' + corFaturamento(relatorio.faturamento) + '"><div class="fc-value">R$ ' + relatorio.faturamento.toFixed(2) + '</div><div class="fc-label"><strong>FATURAMENTO DO MÊS</strong></div></div>';
+        html += '<div class="faturamento-card ' + corTotal(r.total_tonner, franquiaTonner) + '"><div class="fc-value">' + (r.total_tonner ?? '—') + '</div><div class="fc-label">Total TONNER (pág)</div><div class="fc-label" style="font-size:0.7rem;margin-top:4px">Franquia: ' + franquiaTonner + '</div></div>';
+        html += '<div class="faturamento-card ' + corTotal(r.total_colorida, franquiaColorida) + '"><div class="fc-value">' + (r.total_colorida ?? '—') + '</div><div class="fc-label">Total COLORIDA (pág)</div><div class="fc-label" style="font-size:0.7rem;margin-top:4px">Franquia: ' + franquiaColorida + '</div></div>';
+        html += '<div class="faturamento-card"><div class="fc-value">' + (r.excedente_tonner ?? '—') + '</div><div class="fc-label">Excedente TONNER (pág)</div></div>';
+        html += '<div class="faturamento-card"><div class="fc-value">' + (r.excedente_colorida ?? '—') + '</div><div class="fc-label">Excedente COLORIDA (pág)</div></div>';
+        html += '<div class="faturamento-card"><div class="fc-value">R$ ' + (r.total_excedente_reais || 0).toFixed(2) + '</div><div class="fc-label">Total Excedente (R$)</div></div>';
+        html += '<div class="faturamento-card faturamento-card-faturamento ' + corFaturamento(r.faturamento) + '"><div class="fc-value">R$ ' + (r.faturamento || 0).toFixed(2) + '</div><div class="fc-label"><strong>FATURAMENTO DO MÊS</strong></div></div>';
         html += '</div>';
 
         // Tabela de leituras
