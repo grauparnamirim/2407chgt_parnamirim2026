@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- PÁGINA: Login — CHGT HelpDesk -->
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
@@ -9,8 +10,10 @@
   <link rel="manifest" href="manifest.json">
 </head>
 <body class="login-body">
+  <!-- Botão de alternância de tema -->
   <button class="header-icon-btn login-theme-toggle" title="Selecionar tema" onclick="abrirModalTemas()"><iconify-icon icon="mdi:theme-light-dark" width="20" height="20"></iconify-icon></button>
 
+  <!-- Lado esquerdo: logotipo e créditos -->
   <div class="login-left">
     <div class="login-left-content">
       <img src="/midia/logo_grau_rn.png" alt="Grau Técnico" class="login-logo-img">
@@ -19,6 +22,7 @@
     <div class="login-left-footer">Desenvolvido por Wesly &mdash; Unidade Parnamirim/RN</div>
   </div>
 
+  <!-- Lado direito: formulário de login -->
   <div class="login-right">
     <div class="login-form-wrapper">
       <div class="login-form-header">
@@ -26,7 +30,9 @@
         <p>Fa&ccedil;a login com suas credenciais</p>
       </div>
 
+      <!-- Formulário de login -->
       <form id="login-form">
+        <!-- Seleção de unidade -->
         <div class="form-group mb-12">
           <label for="unidade">Unidade</label>
           <select id="unidade" required>
@@ -35,29 +41,36 @@
           <small class="text-secondary" id="unidade-hint" style="font-size:0.7rem;"></small>
         </div>
 
+        <!-- Campo de email -->
         <div class="login-field">
           <span class="login-field-icon">&#9993;&#65039;</span>
           <input type="email" id="email" placeholder="Email corporativo" required autocomplete="email">
         </div>
 
+        <!-- Campo de senha -->
         <div class="login-field">
           <span class="login-field-icon">&#128274;</span>
           <input type="password" id="senha" placeholder="Senha" required autocomplete="current-password">
         </div>
 
+        <!-- Botão de envio -->
         <button type="submit" class="btn btn-primary btn-block btn-lg">
           Entrar no Sistema &nbsp;&rarr;
         </button>
       </form>
 
+      <!-- Mensagem de erro do login -->
       <p class="login-error" id="login-msg"></p>
     </div>
   </div>
 
   <script src="app.js"></script>
+  <!-- Scripts da página de login -->
   <script>
+    // Variável global de unidades
     let unidades = [];
 
+    // Carrega a lista de unidades ao iniciar
     (async function carregarUnidades() {
       try {
         unidades = await api('/api/unidades', { loadingText: 'Preparando acesso...' });
@@ -90,7 +103,7 @@
       }
     });
 
-    // Login
+    // Login: envia credenciais para a API
     document.getElementById('login-form').addEventListener('submit', async (e) => {
       e.preventDefault();
       const email = document.getElementById('email').value.trim();

@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- PÁGINA: Usuários — CHGT HelpDesk -->
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
@@ -8,6 +9,7 @@
   <script src="https://cdn.jsdelivr.net/npm/iconify-icon@2/dist/iconify-icon.min.js"></script>
 </head>
 <body class="page-usuarios">
+  <!-- Sidebar -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-brand"><img src="/midia/logo_grau_rn.png" alt="Grau Técnico" style="width:32px;height:32px;border-radius:6px;flex-shrink:0;"><div class="brand-text"><h2>CHGT HelpDesk</h2><span>GRAU TÉCNICO</span></div></div>
     <nav class="sidebar-nav" id="sidebar-nav"></nav>
@@ -17,8 +19,10 @@
       <button class="sidebar-logout" id="sidebar-logout" title="Sair"><iconify-icon icon="mdi:logout" width="18" height="18"></iconify-icon></button>
     </div>
   </aside>
+  <!-- Botão de toggle da sidebar -->
   <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
   <div class="main">
+    <!-- Topo da página com breadcrumb e ações -->
     <div class="top-header">
       <div class="breadcrumb" id="breadcrumb">Cadastros › <strong>Usuários</strong></div>
       <div class="header-actions">
@@ -28,6 +32,7 @@
     </div>
 
     <main class="usuarios-page-content">
+      <!-- Seção de cabeçalho com título e ação -->
       <section class="usuarios-hero" aria-labelledby="usuarios-titulo">
         <span class="usuarios-hero-icone"><iconify-icon icon="mdi:account-group-outline" width="30" height="30"></iconify-icon></span>
         <div>
@@ -38,12 +43,14 @@
         <button class="btn btn-primary" id="btn-novo-usuario" onclick="abrirModalCadastroUsuario()"><iconify-icon icon="mdi:account-plus-outline" width="19" height="19"></iconify-icon> Novo usuário</button>
       </section>
 
+      <!-- Cartões de resumo -->
       <section class="usuarios-resumo" aria-label="Resumo de usuários">
         <article><span><iconify-icon icon="mdi:account-group-outline" width="21" height="21"></iconify-icon></span><div><strong id="resumo-total-usuarios">0</strong><small>usuários cadastrados</small></div></article>
         <article><span class="tecnicos"><iconify-icon icon="mdi:headset" width="21" height="21"></iconify-icon></span><div><strong id="resumo-tecnicos-usuarios">0</strong><small>técnicos</small></div></article>
         <article><span class="setores"><iconify-icon icon="mdi:domain" width="21" height="21"></iconify-icon></span><div><strong id="resumo-setores-usuarios">0</strong><small>setores vinculados</small></div></article>
       </section>
 
+    <!-- Tabela de usuários cadastrados -->
     <div class="tab-panel active" style="display:block">
     <div class="card usuarios-lista-card">
       <div class="card-header usuarios-lista-cabecalho">
@@ -80,11 +87,14 @@
   </div>
 
   <script src="app.js"></script>
+  <!-- Scripts da página de usuários -->
   <script>
+    // Previne submit acidental ao pressionar Enter
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); }
     });
 
+    // Verifica autenticação e permissões
     verificarAutenticacao();
     const u = AppState.usuario;
     if (!u) { window.location.href = '/'; }
@@ -92,6 +102,7 @@
       window.location.href = u.perfil === 'usuario' ? '/usuario' : '/';
     }
 
+    // Configura a navegação da sidebar
     configurarSidebar([]);
     (function() {
       const navEl = document.getElementById('sidebar-nav');
@@ -152,23 +163,28 @@
       navEl.innerHTML = html;
     })();
 
+    // Oculta botão "Novo usuário" se não tiver permissão
     (function() {
       const btnNovo = document.getElementById('btn-novo-usuario');
       if (btnNovo && !temPermissao('usuarios.criar')) btnNovo.style.display = 'none';
     })();
 
+    // Armazena a lista completa de usuários
     let usuarios = [];
 
+    // Extrai iniciais do nome para exibir no avatar
     function iniciaisUsuario(nome) {
       return String(nome || '?').trim().split(/\s+/).filter(Boolean).slice(0, 2).map(parte => parte[0]).join('').toUpperCase() || '?';
     }
 
+    // Atualiza os cartões de resumo (total, técnicos, setores)
     function atualizarResumoUsuarios() {
       document.getElementById('resumo-total-usuarios').textContent = usuarios.length;
       document.getElementById('resumo-tecnicos-usuarios').textContent = usuarios.filter(item => item.perfil === 'tecnico').length;
       document.getElementById('resumo-setores-usuarios').textContent = new Set(usuarios.map(item => item.setor_id).filter(Boolean)).size;
     }
 
+    // Aplica os filtros de busca, perfil e status
     function obterUsuariosFiltrados() {
       const busca = document.getElementById('filtro-busca-usuarios').value.trim().toLocaleLowerCase('pt-BR');
       const perfil = document.getElementById('filtro-perfil-usuarios').value;
@@ -180,6 +196,7 @@
       });
     }
 
+    // Limpa todos os filtros e re-renderiza
     function limparFiltrosUsuarios() {
       document.getElementById('filtro-busca-usuarios').value = '';
       document.getElementById('filtro-perfil-usuarios').value = '';
@@ -187,6 +204,7 @@
       renderizarUsuarios();
     }
 
+    // Renderiza a tabela com os dados filtrados
     function renderizarUsuarios() {
       const tabela = document.getElementById('tabela-usuarios');
       const filtrados = obterUsuariosFiltrados();
@@ -210,7 +228,7 @@
       }).join('');
     }
 
-    // --- CRUD USUÁRIOS ---
+    // Carrega a lista de usuários da API
     async function carregarUsuarios() {
       const tabela = document.getElementById('tabela-usuarios');
       tabela.innerHTML = '<tr><td colspan="6" class="text-center text-secondary">Carregando usuários...</td></tr>';
@@ -225,14 +243,17 @@
       }
     }
 
+    // Abre modal de cadastro de novo usuário
     async function abrirModalCadastroUsuario() {
       const setores = await api('/api/setores');
       const optsSetor = setores.length ? '<option value="">Selecione...</option>' + setores.map(s => `<option value="${s.id}">${s.nome}</option>`).join('') : '<option value="">Nenhum setor cadastrado</option>';
       openModal('➕ Cadastrar Usuário', `<form id="fmu" class="form-grid col-1"><div class="form-group"><label>Nome</label><input id="mu-nome" required></div><div class="form-group"><label>Email</label><input type="email" id="mu-email" required></div><div class="form-group"><label>Senha</label><input type="password" id="mu-senha" required minlength="4"></div><div class="form-group"><label>Perfil</label><select id="mu-perfil" required><option value="">Selecione...</option><option value="tecnico">Técnico</option><option value="usuario">Usuário</option></select></div><div class="form-group"><label>Setor</label><select id="mu-setor">${optsSetor}</select></div></form>`, [{text:'Cancelar',cls:'btn-outline',id:'btn-cancelar-caduser',onClick:closeModal},{text:'💾 Cadastrar',cls:'btn-primary',id:'btn-salvar-u',onClick:salvarUsuarioModal}]);
     }
 
+    // Envia os dados do formulário para criar um novo usuário
     async function salvarUsuarioModal(){ const n=document.getElementById('mu-nome').value.trim(),e=document.getElementById('mu-email').value.trim(),s=document.getElementById('mu-senha').value,p=document.getElementById('mu-perfil').value,setor=document.getElementById('mu-setor').value; if(!p){showToast('Selecione o perfil','error');return} try{const r=await api('/api/usuarios',{method:'POST',body:{nome:n,email:e,senha:s,perfil:p,setor}});showToast(r.mensagem,'success');closeModal();carregarUsuarios();}catch(err){showToast(err.message,'error');} }
 
+    // Abre modal para editar um usuário existente
     async function editarUsuario(id){
       const db=await api('/api/usuarios');
       const setores = await api('/api/setores');
@@ -241,6 +262,7 @@
       openModal(`✏️ Editar ${u.nome}`,`<form id="feu" class="form-grid col-1"><div class="form-group"><label>Nome</label><input id="eu-nome" value="${u.nome}" required></div><div class="form-group"><label>Email</label><input type="email" id="eu-email" value="${u.email}" required></div><div class="form-group"><label>Nova senha (branco = manter)</label><input type="password" id="eu-senha" minlength="4"></div><div class="form-group"><label>Perfil</label><select id="eu-perfil" required><option value="tecnico" ${u.perfil==='tecnico'?'selected':''}>Técnico</option><option value="usuario" ${u.perfil==='usuario'?'selected':''}>Usuário</option></select></div><div class="form-group"><label>Setor</label><select id="eu-setor">${optsSetor}</select></div></form>`, [{text:'Cancelar',cls:'btn-outline',id:'btn-cancelar-edtuser',onClick:closeModal},{text:'💾 Salvar',cls:'btn-primary',id:'btn-editar-u',onClick:async()=>{ const n=document.getElementById('eu-nome').value.trim(),em=document.getElementById('eu-email').value.trim(),s=document.getElementById('eu-senha').value,p=document.getElementById('eu-perfil').value,setor=document.getElementById('eu-setor').value; try{const r=await api(`/api/usuarios/${id}`,{method:'PUT',body:{nome:n,email:em,senha:s||undefined,perfil:p,setor}});showToast(r.mensagem,'success');closeModal();carregarUsuarios();}catch(err){showToast(err.message,'error');} }}]);
     }
 
+    // Abre confirmação para ativar/desativar usuário
     function confirmarAlteracaoStatusUsuario(id, ativar) {
       const usuario = usuarios.find(item => Number(item.id) === Number(id));
       if (!usuario) return;
@@ -262,6 +284,7 @@
       ]);
     }
 
+    // Abre confirmação para excluir um usuário
     function excluirUsuario(id){
       const usuario = usuarios.find(item => Number(item.id) === Number(id));
       if (!usuario) return;

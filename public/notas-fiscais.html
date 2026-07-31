@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- PÁGINA: Notas Fiscais — CHGT HelpDesk -->
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
@@ -129,6 +130,7 @@
   </style>
 </head>
 <body class="page-notas-fiscais">
+  <!-- Sidebar -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-brand"><img src="/midia/logo_grau_rn.png" alt="Grau Técnico" style="width:32px;height:32px;border-radius:6px;flex-shrink:0;"><div class="brand-text"><h2>CHGT HelpDesk</h2><span>GRAU TÉCNICO</span></div></div>
     <nav class="sidebar-nav" id="sidebar-nav"></nav>
@@ -138,8 +140,11 @@
       <button class="sidebar-logout" id="sidebar-logout" title="Sair"><iconify-icon icon="mdi:logout" width="18" height="18"></iconify-icon></button>
     </div>
   </aside>
+  <!-- Botão de toggle da sidebar -->
   <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
+  <!-- Conteúdo principal -->
   <div class="main notas-fiscais-main">
+    <!-- Topo da página com breadcrumb e ações -->
     <div class="top-header">
       <div class="breadcrumb" id="breadcrumb">Gestão › <strong>Notas Fiscais</strong></div>
       <div class="header-actions">
@@ -329,11 +334,14 @@
   </div>
 
   <script src="app.js"></script>
+  <!-- Scripts da página de notas fiscais -->
   <script>
+    // Previne submit acidental ao pressionar Enter
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); }
     });
 
+    // Verifica autenticação e permissões
     verificarAutenticacao();
     const u = AppState.usuario;
     if (!u) { window.location.href = '/'; }
@@ -342,8 +350,10 @@
     }
     const usuario = AppState.usuario;
 
+    // Array auxiliar com nomes de meses
     const NOMES_MESES = ['', 'Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
 
+    // Configura a navegação da sidebar
     configurarSidebar([]);
     (function() {
       const navEl = document.getElementById('sidebar-nav');

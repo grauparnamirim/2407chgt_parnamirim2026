@@ -111,6 +111,7 @@ body {
   font-weight: 700;
 }
 
+/* Links de navegação da sidebar com hover e transição suave */
 .sidebar-nav a {
   display: flex;
   align-items: center;
@@ -738,6 +739,9 @@ body.dark-theme .usuario-status-confirmacao > span { background:rgba(217, 161, 5
   .usuario-email { min-width:180px; }
 }
 
+/* ============================================================
+   TIMER DE RESPOSTA
+   ============================================================ */
 .timer-resposta {
   display: inline-flex;
   align-items: center;
@@ -896,8 +900,11 @@ body.dark-theme .usuario-status-confirmacao > span { background:rgba(217, 161, 5
 .toast.info { background: var(--color-primary); }
 .toast.warning { background: #a96400; }
 
-/* Página de setores */
+/* ============================================================
+   PÁGINA DE SETORES
+   ============================================================ */
 .page-setores .setores-page-content { display: grid; gap: 15px; }
+/* Hero da página de setores — layout em grid com ícone, texto e ações */
 .page-setores .setores-hero {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -1066,8 +1073,11 @@ html[data-theme="escuro"] .page-setores .setores-excluir-aviso > span { color: #
   .page-setores .setores-acoes .btn { min-width: 33px; padding-inline: 8px; }
 }
 
-/* Gestão de dispositivos e números telefônicos */
+/* ============================================================
+   DISPOSITIVOS — GESTÃO DE EQUIPAMENTOS E TELEFONES
+   ============================================================ */
 .page-dispositivos .dispositivos-page-content { display: grid; gap: 15px; }
+/* Hero da página de dispositivos — layout em grid com ícone, texto e ações */
 .page-dispositivos .dispositivos-hero {
   display: grid;
   grid-template-columns: auto minmax(0, 1fr) auto;
@@ -1875,6 +1885,7 @@ html[data-theme="profissionalizante"] .param-field input:focus { box-shadow: 0 0
   background: linear-gradient(112deg, color-mix(in srgb, var(--color-primary) 8%, var(--color-surface)), var(--color-surface) 58%);
 }
 
+/* Barra de filtros do financeiro com grid responsivo de quatro colunas */
 .page-financeiro .financeiro-filter-bar {
   display: grid !important;
   grid-template-columns: minmax(150px, .8fr) minmax(120px, .55fr) minmax(210px, 1.25fr) auto;
@@ -1978,6 +1989,7 @@ html[data-theme="profissionalizante"] .param-field input:focus { box-shadow: 0 0
   letter-spacing: -.04em;
 }
 
+/* Abas do financeiro e notas fiscais com scroll horizontal e borda arredondada */
 .page-financeiro .financeiro-tabs,
 .page-notas-fiscais .nf-tabs {
   display: flex;
@@ -2424,6 +2436,7 @@ html[data-theme="escuro"] .page-notas-fiscais .comp-card {
     linear-gradient(135deg, #11210d 0%, #1f4614 43%, #3c9d09 100%);
 }
 
+/* Círculo decorativo na lateral direita do painel esquerdo do login */
 .login-left::before {
   top: auto;
   right: -15%;
@@ -2435,6 +2448,7 @@ html[data-theme="escuro"] .page-notas-fiscais .comp-card {
   box-shadow: 0 0 0 52px rgba(255, 255, 255, .025), 0 0 0 104px rgba(255, 255, 255, .02);
 }
 
+/* Grade de linhas sobreposta como textura decorativa no fundo do login */
 .login-left::after {
   top: 0;
   right: 0;
@@ -3604,6 +3618,7 @@ html[data-theme="escuro"] .page-inventario .ativo-resumo-detalhes {
 .page-inventario .inventario-manutencao-icon.custo { color: #0d6c64; background: #d9f2ed; }
 .page-inventario .inventario-manutencao-icon.media { color: #4762ad; background: #e4eafe; }
 
+/* Grid de duas colunas para o painel de manutenção com análise e lista */
 .page-inventario .inventario-manutencao-grid {
   display: grid;
   grid-template-columns: minmax(0, 1.2fr) minmax(280px, .8fr);
@@ -3848,7 +3863,9 @@ html[data-theme="escuro"] .page-inventario .inventario-servicos-recorrente-lista
   .page-inventario .inventario-locais-header .btn { justify-content: center; }
 }
 
-/* Administração de categorias e subcategorias de manutenção */
+/* ============================================================
+   MANUTENÇÃO — CATEGORIAS E SUBCATEGORIAS
+   ============================================================ */
 .modal-servicos-manutencao { width: min(94vw, 760px); max-width: 760px; }
 .page-inventario .inventario-gerenciar-servicos { display: grid; gap: 14px; }
 .page-inventario .inventario-servicos-intro { margin: 0; color: var(--color-text-secondary); font-size: .8rem; line-height: 1.5; }
@@ -3894,7 +3911,9 @@ html[data-theme="escuro"] .page-inventario #tabela-servicos-manutencao .badge-in
   .page-inventario .inventario-nova-subcategoria input { flex-basis: 100%; }
 }
 
-/* Local nos chamados, mapa de rede e checklists de laboratório */
+/* ============================================================
+   CHAMADOS — LOCAL, MAPA DE REDE E CHECKLISTS
+   ============================================================ */
 .chamado-local-badge {
   display: inline-flex;
   align-items: center;
@@ -4165,7 +4184,9 @@ html[data-theme="escuro"] .page-inventario .checklist-detalhe-resumo > div { bor
 #tab-permissoes .permissoes-vazio h3 { margin: 2px 0 0; color: var(--color-text); font-size: .9rem; }
 #tab-permissoes .permissoes-vazio p { max-width: 390px; margin: 0; color: var(--color-text-secondary); font-size: .76rem; line-height: 1.5; }
 
-/* Modais da gestão de grupos e permissões */
+/* ============================================================
+   PERMISSÕES — MODAIS DE GRUPOS
+   ============================================================ */
 .modal-permissoes { max-width: 680px; }
 .modal-permissoes .modal-body { padding-top: 16px; }
 .permissoes-modal-intro { display: flex; align-items: flex-start; gap: 10px; margin: -1px 0 16px; padding: 11px; border: 1px solid #d7eadc; border-radius: 10px; background: #f4faf5; }

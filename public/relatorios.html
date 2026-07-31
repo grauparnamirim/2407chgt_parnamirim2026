@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- PÁGINA: Relatórios — CHGT HelpDesk -->
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
@@ -8,6 +9,7 @@
   <script src="https://cdn.jsdelivr.net/npm/iconify-icon@2/dist/iconify-icon.min.js"></script>
 </head>
 <body>
+  <!-- Sidebar -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-brand"><img src="/midia/logo_grau_rn.png" alt="Grau Técnico" style="width:32px;height:32px;border-radius:6px;flex-shrink:0;"><div class="brand-text"><h2>CHGT HelpDesk</h2><span>GRAU TÉCNICO</span></div></div>
     <nav class="sidebar-nav" id="sidebar-nav"></nav>
@@ -17,8 +19,10 @@
       <button class="sidebar-logout" id="sidebar-logout" title="Sair"><iconify-icon icon="mdi:logout" width="18" height="18"></iconify-icon></button>
     </div>
   </aside>
+  <!-- Botão de toggle da sidebar -->
   <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
   <div class="main">
+    <!-- Topo da página com breadcrumb e ações -->
     <div class="top-header">
       <div class="breadcrumb" id="breadcrumb">Gestão › <strong>Relatórios</strong></div>
       <div class="header-actions">
@@ -27,7 +31,9 @@
       </div>
     </div>
 
+    <!-- Conteúdo principal: métricas e tabela de chamados concluídos -->
     <div class="tab-panel active" style="display:block">
+      <!-- Grid de métricas de tempo -->
       <div class="stats-grid">
         <div class="stat-card"><div class="stat-icon resolvidos"><iconify-icon icon="mdi:timer-outline" width="22" height="22"></iconify-icon></div><div class="stat-data"><div class="stat-num" id="met-media">0</div><div class="stat-lbl">Tempo Médio (Útil)</div></div></div>
         <div class="stat-card"><div class="stat-icon total"><iconify-icon icon="mdi:timer-sand" width="22" height="22"></iconify-icon></div><div class="stat-data"><div class="stat-num" id="met-media-total">0</div><div class="stat-lbl">Tempo Médio (Total)</div></div></div>
@@ -35,16 +41,20 @@
         <div class="stat-card"><div class="stat-icon abertos"><iconify-icon icon="mdi:rabbit" width="22" height="22"></iconify-icon></div><div class="stat-data"><div class="stat-num" id="met-rapido">0</div><div class="stat-lbl">Mais Rápido</div></div></div>
         <div class="stat-card"><div class="stat-icon total"><iconify-icon icon="mdi:percent" width="22" height="22"></iconify-icon></div><div class="stat-data"><div class="stat-num" id="met-taxa">0%</div><div class="stat-lbl">Taxa de Resolução</div></div></div>
       </div>
+      <!-- Tabela de chamados concluídos com métricas de tempo -->
       <div class="card"><div class="card-header"><h2><iconify-icon icon="mdi:ticket-outline" width="20" height="20"></iconify-icon> Chamados Concluídos — Métricas de Tempo</h2></div><div class="card-body no-padding"><div class="table-wrap"><table><thead><tr><th>#</th><th>Título</th><th>Usuário</th><th>Técnico</th><th>Aberto em</th><th>Concluído em</th><th> Tempo Util</th><th>⏸️ Aguardando Fornecedor</th><th> Tempo em Aberto</th></tr></thead><tbody id="tabela-tempos"><tr><td colspan="9" class="text-center text-secondary">Carregando...</td></tr></tbody></table></div></div></div>
     </div>
   </div>
 
   <script src="app.js"></script>
+  <!-- Scripts da página de relatórios -->
   <script>
+    // Previne submit acidental ao pressionar Enter em inputs
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); }
     });
 
+    // Verifica autenticação e permissões
     verificarAutenticacao();
     const u = AppState.usuario;
     if (!u) { window.location.href = '/'; }
@@ -52,6 +62,7 @@
       window.location.href = u.perfil === 'usuario' ? '/usuario' : '/';
     }
 
+    // Configura a navegação da sidebar
     configurarSidebar([]);
     (function() {
       const navEl = document.getElementById('sidebar-nav');
@@ -112,8 +123,10 @@
       navEl.innerHTML = html;
     })();
 
+    // Formata duração em ms para exibição legível
     function formatarTempo(ms) { if (ms < 0) ms = 0; const seg = Math.floor(ms / 1000); if (seg < 60) return `${seg}s`; const min = Math.floor(seg / 60); if (min < 60) return `${min}min`; const horas = Math.floor(min / 60); const minRest = min % 60; if (horas < 24) return `${horas}h ${minRest}min`; const dias = Math.floor(horas / 24); const hRest = horas % 24; return `${dias}d ${hRest}h`; }
 
+    // Carrega os dados de relatórios da API e preenche a página
     async function carregarRelatorios() {
       try {
         const data = await api(`/api/relatorios/tempos?gestor_id=${AppState.usuario.id}`);

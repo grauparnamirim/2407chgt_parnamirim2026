@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- PÁGINA: Painel — CHGT HelpDesk -->
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
@@ -8,6 +9,7 @@
   <script src="https://cdn.jsdelivr.net/npm/iconify-icon@2/dist/iconify-icon.min.js"></script>
 </head>
 <body>
+  <!-- Sidebar -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-brand"><img src="/midia/logo_grau_rn.png" alt="Grau Técnico" style="width:32px;height:32px;border-radius:6px;flex-shrink:0;"><div class="brand-text"><h2>CHGT HelpDesk</h2><span>GRAU TÉCNICO</span></div></div>
     <nav class="sidebar-nav" id="sidebar-nav"></nav>
@@ -17,11 +19,17 @@
       <button class="sidebar-logout" id="sidebar-logout" title="Sair"><iconify-icon icon="mdi:logout" width="18" height="18"></iconify-icon></button>
     </div>
   </aside>
+  <!-- Botão de toggle da sidebar -->
   <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
+  <!-- Conteúdo principal -->
   <div class="main">
+    <!-- Topo da página com breadcrumb e ações -->
     <div class="top-header"><div class="breadcrumb" id="breadcrumb">Gestor › <strong>Dashboard</strong></div><div class="header-actions"><button class="header-icon-btn" id="btn-tema-g" title="Selecionar tema" onclick="abrirModalTemas()"><iconify-icon icon="mdi:theme-light-dark" width="20" height="20"></iconify-icon></button><button class="btn btn-sm btn-outline" onclick="carregarTudo()"><iconify-icon icon="mdi:refresh" width="16" height="16"></iconify-icon> Atualizar</button></div></div>
+    <!-- Abas de navegação -->
     <div class="tabs" id="tabs-container"></div>
+    <!-- Painel do dashboard -->
     <div class="tab-panel active" id="tab-dashboard">
+      <!-- Grid de métricas -->
       <div class="stats-grid">
         <div class="stat-card"><div class="stat-icon abertos"><iconify-icon icon="mdi:folder-open-outline" width="22" height="22"></iconify-icon></div><div class="stat-data"><div class="stat-num" id="stat-abertos">0</div><div class="stat-lbl">Chamados Abertos</div></div></div>
         <div class="stat-card"><div class="stat-icon andamento"><iconify-icon icon="mdi:refresh" width="22" height="22"></iconify-icon></div><div class="stat-data"><div class="stat-num" id="stat-andamento">0</div><div class="stat-lbl">Em Andamento</div></div></div>
@@ -76,8 +84,9 @@
     </div>
   </div>
   <script src="app.js"></script>
+  <!-- Scripts da página do painel -->
   <script>
-    // ✅ Impede Enter de recarregar a página em qualquer campo de formulário
+    // Previne submit acidental ao pressionar Enter
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); }
     });

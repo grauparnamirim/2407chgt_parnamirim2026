@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- PÁGINA: Categorias — CHGT HelpDesk -->
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
@@ -8,6 +9,7 @@
   <script src="https://cdn.jsdelivr.net/npm/iconify-icon@2/dist/iconify-icon.min.js"></script>
 </head>
 <body>
+  <!-- Sidebar -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-brand"><img src="/midia/logo_grau_rn.png" alt="Grau Técnico" style="width:32px;height:32px;border-radius:6px;flex-shrink:0;"><div class="brand-text"><h2>CHGT HelpDesk</h2><span>GRAU TÉCNICO</span></div></div>
     <nav class="sidebar-nav" id="sidebar-nav"></nav>
@@ -17,8 +19,10 @@
       <button class="sidebar-logout" id="sidebar-logout" title="Sair"><iconify-icon icon="mdi:logout" width="18" height="18"></iconify-icon></button>
     </div>
   </aside>
+  <!-- Botão de toggle da sidebar -->
   <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
   <div class="main">
+    <!-- Topo da página com breadcrumb e ações -->
     <div class="top-header">
       <div class="breadcrumb" id="breadcrumb">Cadastros › <strong>Categorias</strong></div>
       <div class="header-actions">
@@ -27,6 +31,7 @@
       </div>
     </div>
 
+    <!-- Tabela de categorias e subcategorias -->
     <div class="tab-panel active" style="display:block">
     <div class="card">
       <div class="card-header">
@@ -54,11 +59,14 @@
   </div>
 
   <script src="app.js"></script>
+  <!-- Scripts da página de categorias -->
   <script>
+    // Previne submit acidental ao pressionar Enter
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); }
     });
 
+    // Verifica autenticação e permissões
     verificarAutenticacao();
     const u = AppState.usuario;
     if (!u) { window.location.href = '/'; }
@@ -66,6 +74,7 @@
       window.location.href = u.perfil === 'usuario' ? '/usuario' : '/';
     }
 
+    // Configura a navegação da sidebar
     configurarSidebar([]);
     (function() {
       const navEl = document.getElementById('sidebar-nav');
@@ -126,12 +135,13 @@
       navEl.innerHTML = html;
     })();
 
+    // Oculta botão "Nova Categoria" se não tiver permissão
     (function() {
       const btnNovo = document.getElementById('btn-nova-categoria');
       if (btnNovo && !temPermissao('categorias.criar')) btnNovo.style.display = 'none';
     })();
 
-    // --- CRUD CATEGORIAS ---
+    // Carrega categorias e subcategorias da API e renderiza a tabela
     async function carregarCategorias() {
       try {
         const cats = await api('/api/categorias');
@@ -160,6 +170,7 @@
       } catch(e) { showToast('Erro: '+e.message, 'error'); }
     }
 
+    // Abre modal para criar nova categoria
     function abrirModalNovaCategoria() {
       openModal('📂 Nova Categoria', '<form id="fncat" class="form-grid col-1"><div class="form-group"><label>Nome</label><input id="ncat-nome" placeholder="Ex: Hardware" required></div></form>', [
         { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-cat', onClick: closeModal },
@@ -171,6 +182,7 @@
       ]);
     }
 
+    // Abre modal para editar uma categoria
     function editarCategoria(id, nomeAtual) {
       openModal('✏️ Editar Categoria', `<form id="fecat" class="form-grid col-1"><div class="form-group"><label>Nome</label><input id="ecat-nome" value="${escapeHTML(nomeAtual)}" required></div></form>`, [
         { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-editcat', onClick: closeModal },
@@ -182,6 +194,7 @@
       ]);
     }
 
+    // Abre confirmação para excluir uma categoria
     function excluirCategoria(id, nome) {
       openModal('🗑️ Excluir Categoria', `<p>Excluir <strong>${escapeHTML(nome)}</strong>? Subcategorias serão removidas.</p>`, [
         { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-delcat', onClick: closeModal },
@@ -191,6 +204,7 @@
       ]);
     }
 
+    // Abre modal para criar nova subcategoria
     function abrirModalNovaSubcategoria(catId, catNome) {
       openModal(`📂 Nova Subcategoria — ${escapeHTML(catNome)}`, `<form id="fnsub" class="form-grid col-1"><div class="form-group"><label>Nome</label><input id="nsub-nome" placeholder="Ex: Computador" required></div></form>`, [
         { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-sub', onClick: closeModal },
@@ -202,6 +216,7 @@
       ]);
     }
 
+    // Abre modal para editar uma subcategoria
     function editarSubcategoria(id, nomeAtual, catId) {
       openModal('✏️ Editar Subcategoria', `<form id="fesub" class="form-grid col-1"><div class="form-group"><label>Nome</label><input id="esub-nome" value="${escapeHTML(nomeAtual)}" required></div></form>`, [
         { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-editsub', onClick: closeModal },
@@ -213,6 +228,7 @@
       ]);
     }
 
+    // Abre confirmação para excluir uma subcategoria
     function excluirSubcategoria(id, nome) {
       openModal('🗑️ Excluir Subcategoria', `<p>Excluir <strong>${escapeHTML(nome)}</strong>?</p>`, [
         { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-delsub', onClick: closeModal },

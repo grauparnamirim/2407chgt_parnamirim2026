@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- PÁGINA: Inventário — CHGT HelpDesk -->
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
@@ -6,8 +7,10 @@
   <title>CHGT — Inventário</title>
   <link rel="stylesheet" href="style.css">
   <script src="https://cdn.jsdelivr.net/npm/iconify-icon@2/dist/iconify-icon.min.js"></script>
+  <script src="/js/qrcode.min.js"></script>
 </head>
 <body class="page-inventario">
+  <!-- Sidebar -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-brand"><img src="/midia/logo_grau_rn.png" alt="Grau Técnico" style="width:32px;height:32px;border-radius:6px;flex-shrink:0;"><div class="brand-text"><h2>CHGT HelpDesk</h2><span>GRAU TÉCNICO</span></div></div>
     <nav class="sidebar-nav" id="sidebar-nav"></nav>
@@ -17,8 +20,11 @@
       <button class="sidebar-logout" id="sidebar-logout" title="Sair"><iconify-icon icon="mdi:logout" width="18" height="18"></iconify-icon></button>
     </div>
   </aside>
+  <!-- Botão de toggle da sidebar -->
   <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
+  <!-- Conteúdo principal -->
   <div class="main">
+    <!-- Topo da página com breadcrumb e ações -->
     <div class="top-header">
       <div class="breadcrumb" id="breadcrumb">Cadastros › <strong>Inventário</strong></div>
       <div class="header-actions">
@@ -27,6 +33,7 @@
       </div>
     </div>
 
+    <!-- Abas de navegação do inventário -->
     <div class="tabs inventario-tabs" id="inventario-tabs">
       <button class="tab-btn active" data-inventario-tab="bens" onclick="ativarTabInventario('bens')"><iconify-icon icon="mdi:desktop-tower-monitor" width="18" height="18"></iconify-icon> Bens Patrimoniais</button>
       <button class="tab-btn" id="btn-servicos-manutencao" data-inventario-tab="servicos" onclick="ativarTabInventario('servicos')"><iconify-icon icon="mdi:format-list-bulleted-type" width="18" height="18"></iconify-icon> Serviços de manutenção</button>
@@ -35,6 +42,7 @@
       <button class="tab-btn" id="btn-checklists-inventario" data-inventario-tab="checklists" onclick="ativarTabInventario('checklists')"><iconify-icon icon="mdi:clipboard-check-outline" width="18" height="18"></iconify-icon> Checklist de laboratórios</button>
     </div>
 
+    <!-- Painel de agendamentos de manutenção -->
     <section class="inventario-agendamentos-panel" id="painel-agendamentos-manutencao" aria-labelledby="agendamentos-titulo">
       <div class="inventario-agendamentos-heading">
         <div><span>Agenda de manutenção</span><h2 id="agendamentos-titulo">Serviços agendados</h2></div>
@@ -60,7 +68,9 @@
         </div>
       </section>
 
+    <!-- Aba: Bens patrimoniais -->
     <div class="tab-panel active" id="inventario-tab-bens" style="display:block">
+      <!-- Card de aparelhos -->
       <div class="card">
         <div class="card-header" style="flex-wrap:wrap;gap:8px">
           <h2><iconify-icon icon="mdi:desktop-tower-monitor" width="20" height="20"></iconify-icon> Bens Patrimoniais</h2>
@@ -109,6 +119,7 @@
       </div>
     </div>
 
+    <!-- Aba: Serviços de manutenção -->
     <div class="tab-panel" id="inventario-tab-servicos" style="display:none">
       <section class="card inventario-servicos-card">
         <div class="card-header">
@@ -126,6 +137,7 @@
       </section>
     </div>
 
+    <!-- Aba: Locais físicos -->
     <div class="tab-panel" id="inventario-tab-locais" style="display:none">
       <section class="card inventario-locais-card">
         <div class="card-header inventario-locais-header">
@@ -143,6 +155,7 @@
       </section>
     </div>
 
+    <!-- Aba: Mapa de rede -->
     <div class="tab-panel" id="inventario-tab-rede" style="display:none">
       <section class="inventario-rede-resumo" aria-label="Resumo do mapa de rede">
         <article><iconify-icon icon="mdi:devices" width="21" height="21"></iconify-icon><div><strong id="rede-total">0</strong><span>Bens mapeados</span></div></article>
@@ -156,6 +169,7 @@
       </section>
     </div>
 
+    <!-- Aba: Checklists de laboratório -->
     <div class="tab-panel" id="inventario-tab-checklists" style="display:none">
       <section class="card inventario-checklist-card">
         <div class="card-header inventario-checklist-header"><div><h2><iconify-icon icon="mdi:clipboard-check-outline" width="20" height="20"></iconify-icon> Checklists de laboratório</h2><p>Confira bens, internet e periféricos antes das aulas.</p></div><div><select id="checklist-filtro-local" onchange="carregarHistoricoChecklists()"><option value="">Todos os laboratórios</option></select><button class="btn btn-primary btn-sm" id="btn-novo-checklist" onclick="abrirNovoChecklist()"><iconify-icon icon="mdi:clipboard-plus-outline" width="18" height="18"></iconify-icon> Nova conferência</button></div></div>
@@ -173,11 +187,14 @@
   </div>
 
   <script src="app.js"></script>
+  <!-- Scripts da página de inventário -->
   <script>
+    // Previne submit acidental ao pressionar Enter
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); }
     });
 
+    // Verifica autenticação e permissões
     verificarAutenticacao();
     const u = AppState.usuario;
     if (!u) { window.location.href = '/'; }
@@ -185,6 +202,7 @@
       window.location.href = u.perfil === 'usuario' ? '/usuario' : '/';
     }
 
+    // Configura a navegação da sidebar
     configurarSidebar([]);
     (function() {
       const navEl = document.getElementById('sidebar-nav');

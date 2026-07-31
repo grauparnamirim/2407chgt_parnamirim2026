@@ -1,4 +1,5 @@
 ﻿<!DOCTYPE html>
+<!-- PÁGINA: Meus Chamados — CHGT HelpDesk -->
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
@@ -8,6 +9,7 @@
   <script src="https://cdn.jsdelivr.net/npm/iconify-icon@2/dist/iconify-icon.min.js"></script>
 </head>
 <body>
+  <!-- Sidebar -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-brand"><img src="/midia/logo_grau_rn.png" alt="Grau Técnico" style="width:32px;height:32px;border-radius:6px;flex-shrink:0;"><div class="brand-text"><h2>CHGT HelpDesk</h2><span>GRAU TÉCNICO</span></div></div>
     <nav class="sidebar-nav" id="sidebar-nav"></nav>
@@ -17,13 +19,18 @@
       <button class="sidebar-logout" id="sidebar-logout" title="Sair"><iconify-icon icon="mdi:logout" width="18" height="18"></iconify-icon></button>
     </div>
   </aside>
+  <!-- Botão de toggle da sidebar -->
   <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
   <div class="main">
+    <!-- Topo da página -->
     <div class="top-header"><div class="breadcrumb" id="breadcrumb">Usuário › <strong>Meus Chamados</strong></div><div class="header-actions"><button class="header-icon-btn" id="btn-tema-u" title="Selecionar tema" onclick="abrirModalTemas()"><iconify-icon icon="mdi:theme-light-dark" width="20" height="20"></iconify-icon></button><button class="btn btn-sm btn-outline" onclick="carregarTudo()"><iconify-icon icon="mdi:refresh" width="16" height="16"></iconify-icon> Atualizar</button></div></div>
+    <!-- Abas de navegação -->
     <div class="tabs">
       <button class="tab-btn active" data-tab="meus-chamados" onclick="ativarTab('meus-chamados')"><span style="display:inline-flex;align-items:center;gap:6px;"><iconify-icon icon="mdi:ticket-outline" width="20" height="20"></iconify-icon> Meus Chamados</span></button>
     </div>
+    <!-- Painel de meus chamados -->
     <div class="tab-panel active" id="tab-meus-chamados">
+      <!-- Grid de estatísticas -->
       <div class="stats-grid" id="stats-usuario">
         <div class="stat-card"><div class="stat-icon abertos"><iconify-icon icon="mdi:folder-open-outline" width="22" height="22"></iconify-icon></div><div class="stat-data"><div class="stat-num" id="stat-u-abertos">0</div><div class="stat-lbl">Abertos</div></div></div>
         <div class="stat-card"><div class="stat-icon andamento"><iconify-icon icon="mdi:progress-wrench" width="22" height="22"></iconify-icon></div><div class="stat-data"><div class="stat-num" id="stat-u-andamento">0</div><div class="stat-lbl">Em Andamento</div></div></div>
@@ -33,10 +40,13 @@
       <div class="card"><div class="card-header"><h2><iconify-icon icon="mdi:ticket-outline" width="20" height="20"></iconify-icon> Meus Chamados</h2><span class="text-secondary" style="font-size:0.8rem" id="total-meus-chamados"></span></div><div class="card-body no-padding"><div class="filter-bar"><button class="filter-btn active" onclick="selecionarFiltro(this,'todos')">Todos</button><button class="filter-btn" onclick="selecionarFiltro(this,'Aberto')">Aberto</button><button class="filter-btn" onclick="selecionarFiltro(this,'Em andamento')">Em andamento</button><button class="filter-btn" onclick="selecionarFiltro(this,'Aguardando Fornecedor')">Aguard. Fornecedor</button><button class="filter-btn" onclick="selecionarFiltro(this,'Resolvido')">Resolvido</button></div><div class="table-wrap"><table><thead><tr><th>#</th><th>Título / Descrição</th><th>Categoria</th><th>Local</th><th>Técnico</th><th>Status</th><th>Tempo aguardando</th><th>Ações</th><th>Histórico</th><th>Última Atualização</th></tr></thead><tbody id="tabela-chamados"><tr><td colspan="10" class="text-center text-secondary">Carregando...</td></tr></tbody></table></div></div></div>
     </div>
   </div>
+  <!-- Botão flutuante de novo chamado -->
   <button class="fab" onclick="abrirModalNovoChamado()" title="Abrir chamado"><iconify-icon icon="mdi:plus" width="24" height="24"></iconify-icon></button>
   <span class="fab-label">Novo Chamado</span>
   <script src="app.js"></script>
+  <!-- Scripts da página do usuário -->
   <script>
+    // Logout com confirmação
     document.getElementById('sidebar-logout').addEventListener('click', function(e) {
       e.preventDefault();
       openModal('🚪 Sair do Sistema', '<p>Tem certeza que deseja sair?</p>', [
@@ -45,6 +55,7 @@
       ]);
     });
 
+    // Verifica autenticação e permissões
     if (!verificarAutenticacao('usuario')) throw new Error('Acesso negado.');
     // Usuários com permissões avançadas (ex: coordenador) são redirecionados ao painel completo
     if (temPermissoesAvancadas()) {
@@ -56,11 +67,13 @@
       { id: 'meus-chamados', icon: icons.chamados, label: 'Meus Chamados', section: 'Principal' }
     ]);
 
+    // Variáveis globais de estado
     let todosChamados = [];
     let categorias = [];
     let filtroStatus = 'todos';
     async function carregarTudo() { await carregarChamados(); }
 
+    // Renderiza os chamados na tabela e atualiza estatísticas
     function renderizarChamados() {
       const chamados = todosChamados;
       document.getElementById('stat-u-abertos').textContent = chamados.filter(c => c.status === 'Aberto').length;
@@ -98,6 +111,7 @@
       atualizarTimersResposta();
     }
 
+    // Carrega os chamados do usuário da API
     async function carregarChamados() {
       try {
         todosChamados = await api(`/api/chamados?usuario_id=${usuario.id}&perfil=usuario`);
@@ -105,6 +119,7 @@
       } catch (e) { showToast('Erro: '+e.message, 'error'); }
     }
 
+    // Aplica filtro de status na tabela
     function selecionarFiltro(el, status) {
       document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
       el.classList.add('active');
@@ -112,6 +127,7 @@
       renderizarChamados();
     }
 
+    // Abre modal para reabrir um chamado resolvido
     async function reabrirChamado(id, titulo) {
       openModal('🔄 Reabrir Chamado', `<p>Deseja reabrir o chamado <strong>#${id}: ${escapeHTML(titulo)}</strong>?</p><p class="text-secondary mt-12">O chamado voltará para a lista de ativos para o técnico.</p>`, [
         { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-reabrir', onClick: closeModal },
@@ -126,6 +142,7 @@
       ]);
     }
 
+    // Abre modal de comentários do chamado
     async function abrirComentarios(chamadoId, titulo) {
       let comentarios = [];
       try { comentarios = await api(`/api/chamados/${chamadoId}/comentarios`); } catch(e) { comentarios = []; }
@@ -150,6 +167,7 @@
         ]);
     }
 
+    // Abre modal com histórico de alterações do chamado
     async function abrirHistorico(chamadoId, titulo) {
       try {
         const data = await api(`/api/chamados/${chamadoId}/historico`);
@@ -199,10 +217,12 @@
         showToast('Erro: '+e.message, 'error');
       }
     }
+    // Carrega lista de categorias para o formulário
     async function carregarCategorias() {
       try { categorias = await api('/api/categorias'); } catch(e) { categorias = []; }
     }
 
+    // Carrega subcategorias com base na categoria selecionada
     async function carregarSubcategorias(categoriaId) {
       if (!categoriaId) { document.getElementById('nc-subcategoria').innerHTML = '<option value="">Selecione uma categoria primeiro</option>'; return; }
       try {
@@ -216,6 +236,7 @@
       } catch(e) { console.error("Erro ao carregar subcategorias:", e); }
     }
 
+    // Abre modal de criação de novo chamado
     async function abrirModalNovoChamado() {
       await carregarCategorias();
       let locais = [];

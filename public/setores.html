@@ -1,4 +1,5 @@
 <!DOCTYPE html>
+<!-- PÁGINA: Setores — CHGT HelpDesk -->
 <html lang="pt-BR">
 <head>
   <meta charset="UTF-8">
@@ -8,6 +9,7 @@
   <script src="https://cdn.jsdelivr.net/npm/iconify-icon@2/dist/iconify-icon.min.js"></script>
 </head>
 <body class="page-setores">
+  <!-- Sidebar -->
   <aside class="sidebar" id="sidebar">
     <div class="sidebar-brand"><img src="/midia/logo_grau_rn.png" alt="Grau Técnico" style="width:32px;height:32px;border-radius:6px;flex-shrink:0;"><div class="brand-text"><h2>CHGT HelpDesk</h2><span>GRAU TÉCNICO</span></div></div>
     <nav class="sidebar-nav" id="sidebar-nav"></nav>
@@ -17,8 +19,10 @@
       <button class="sidebar-logout" id="sidebar-logout" title="Sair"><iconify-icon icon="mdi:logout" width="18" height="18"></iconify-icon></button>
     </div>
   </aside>
+  <!-- Botão de toggle da sidebar -->
   <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
   <div class="main">
+    <!-- Topo da página com breadcrumb e ações -->
     <div class="top-header">
       <div class="breadcrumb" id="breadcrumb">Cadastros › <strong>Setores</strong></div>
       <div class="header-actions">
@@ -27,6 +31,7 @@
     </div>
 
     <main class="setores-page-content">
+      <!-- Seção de cabeçalho com título e ação -->
       <section class="setores-hero" aria-labelledby="setores-titulo">
         <div class="setores-hero-icone"><iconify-icon icon="mdi:domain" width="30" height="30"></iconify-icon></div>
         <div class="setores-hero-texto">
@@ -39,6 +44,7 @@
         </div>
       </section>
 
+      <!-- Cartões de resumo -->
       <section class="setores-resumo" aria-label="Resumo dos setores">
         <article class="setores-resumo-card">
           <span class="setores-resumo-icone"><iconify-icon icon="mdi:office-building-outline" width="22" height="22"></iconify-icon></span>
@@ -50,6 +56,7 @@
         </article>
       </section>
 
+      <!-- Tabela de setores cadastrados -->
       <section class="card setores-lista-card" aria-labelledby="setores-lista-titulo">
         <div class="card-header setores-lista-cabecalho">
           <div>
@@ -83,11 +90,14 @@
   </div>
 
   <script src="app.js"></script>
+  <!-- Scripts da página de setores -->
   <script>
+    // Previne submit acidental ao pressionar Enter
     document.addEventListener('keydown', function(e) {
       if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); }
     });
 
+    // Verifica autenticação e permissões
     verificarAutenticacao();
     const u = AppState.usuario;
     if (!u) { window.location.href = '/'; }
@@ -95,6 +105,7 @@
       window.location.href = u.perfil === 'usuario' ? '/usuario' : '/';
     }
 
+    // Configura a navegação da sidebar
     configurarSidebar([]);
     (function() {
       const navEl = document.getElementById('sidebar-nav');
@@ -155,14 +166,16 @@
       navEl.innerHTML = html;
     })();
 
+    // Oculta botão "Novo setor" se não tiver permissão
     (function() {
       const btnNovo = document.getElementById('btn-novo-setor');
       if (btnNovo && !temPermissao('setores.criar')) btnNovo.style.display = 'none';
     })();
 
-    // --- CRUD SETORES ---
+    // Armazena a lista completa de setores
     let setoresAtuais = [];
 
+    // Renderiza a tabela de setores com busca
     function renderizarSetores() {
       const tbody = document.getElementById('tabela-setores');
       const termo = document.getElementById('busca-setores')?.value.trim().toLocaleLowerCase('pt-BR') || '';
@@ -198,12 +211,14 @@
       }).join('');
     }
 
+    // Limpa o campo de busca e re-renderiza
     function limparBuscaSetores() {
       const campo = document.getElementById('busca-setores');
       if (campo) { campo.value = ''; campo.focus(); }
       renderizarSetores();
     }
 
+    // Carrega a lista de setores da API
     async function carregarSetores() {
       const tbody = document.getElementById('tabela-setores');
       if (tbody) tbody.innerHTML = '<tr><td colspan="4" class="text-center text-secondary">Atualizando setores...</td></tr>';
@@ -219,6 +234,7 @@
       }
     }
 
+    // Abre modal para cadastrar novo setor
     function abrirModalNovoSetor() {
       openModal('Novo setor', '<form id="fnset" class="form-grid col-1 setores-modal-form"><div class="setores-modal-intro"><span><iconify-icon icon="mdi:domain-plus" width="23" height="23"></iconify-icon></span><div><strong>Identifique o setor administrativo</strong><p>Use um nome claro, como “Secretaria”, “Coordenação Pedagógica” ou “Recepção”.</p></div></div><div class="form-group"><label>Nome do setor *</label><input id="nset-nome" maxlength="100" placeholder="Ex: Secretaria" required autofocus></div></form>', [
         { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-set', onClick: closeModal },
@@ -230,6 +246,7 @@
       ]);
     }
 
+    // Abre modal para editar um setor
     function editarSetor(id) {
       const setor = setoresAtuais.find(item => Number(item.id) === Number(id));
       if (!setor) return;
@@ -243,6 +260,7 @@
       ]);
     }
 
+    // Abre confirmação para excluir um setor
     function excluirSetor(id) {
       const setor = setoresAtuais.find(item => Number(item.id) === Number(id));
       if (!setor) return;
