@@ -1,0 +1,267 @@
+<!DOCTYPE html>
+<!-- PÁGINA: Avançado — CHGT HelpDesk -->
+<html lang="pt-BR">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>CHGT — Avançado</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="https://cdn.jsdelivr.net/npm/iconify-icon@2/dist/iconify-icon.min.js"></script>
+  <style>
+    .backup-acoes { display: flex; gap: 12px; align-items: center; flex-wrap: wrap; margin-bottom: 20px; }
+    .backup-card { background: #fff; border-radius: 10px; padding: 20px; box-shadow: 0 1px 4px rgba(0,0,0,.06); }
+    .backup-card h3 { margin: 0 0 12px; font-size: 1rem; display: flex; align-items: center; gap: 8px; }
+    .backup-lista { margin-top: 16px; }
+    .backup-item { display: flex; justify-content: space-between; align-items: center; padding: 10px 0; border-bottom: 1px solid #eee; font-size: .9rem; }
+    .backup-item:last-child { border: none; }
+    .backup-info { display: flex; flex-direction: column; gap: 2px; }
+    .backup-info strong { font-size: .95rem; }
+    .backup-info small { color: #888; }
+    .backup-vazio { text-align: center; color: #888; padding: 32px 0; }
+  </style>
+</head>
+<body>
+  <!-- Sidebar -->
+  <aside class="sidebar" id="sidebar">
+    <div class="sidebar-brand"><img src="/midia/logo_grau_rn.png" alt="Grau Técnico" style="width:32px;height:32px;border-radius:6px;flex-shrink:0;"><div class="brand-text"><h2>CHGT HelpDesk</h2><span>GRAU TÉCNICO</span></div></div>
+    <nav class="sidebar-nav" id="sidebar-nav"></nav>
+    <div class="sidebar-footer">
+      <div class="sidebar-avatar" id="sidebar-avatar">U</div>
+      <div class="sidebar-user-info"><div class="user-name" id="sidebar-nome">Usuário</div><div class="user-role" id="sidebar-cargo">perfil</div></div>
+      <button class="sidebar-logout" id="sidebar-logout" title="Sair"><iconify-icon icon="mdi:logout" width="18" height="18"></iconify-icon></button>
+    </div>
+  </aside>
+  <!-- Botão de toggle da sidebar -->
+  <button class="sidebar-toggle" id="sidebar-toggle">☰</button>
+  <!-- Conteúdo principal -->
+  <div class="main">
+    <!-- Topo da página com breadcrumb e ações -->
+    <div class="top-header">
+      <div class="breadcrumb" id="breadcrumb">Configurações › <strong>Avançado</strong></div>
+      <div class="header-actions">
+        <button class="header-icon-btn" id="btn-tema" title="Selecionar tema" onclick="abrirModalTemas()"><iconify-icon icon="mdi:theme-light-dark" width="20" height="20"></iconify-icon></button>
+        <button class="btn btn-sm btn-outline" onclick="carregarBackups()"><iconify-icon icon="mdi:refresh" width="16" height="16"></iconify-icon> Atualizar</button>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h2><iconify-icon icon="mdi:database-cog-outline" width="20" height="20"></iconify-icon> Backup do Banco de Dados</h2></div>
+      <div class="card-body">
+        <div class="backup-acoes">
+          <button class="btn btn-primary" onclick="criarBackup()"><iconify-icon icon="mdi:backup" width="18" height="18"></iconify-icon> Fazer Backup Agora</button>
+        </div>
+        <div class="backup-card">
+          <h3><iconify-icon icon="mdi:archive-outline" width="18" height="18"></iconify-icon> Backups disponíveis</h3>
+          <div class="backup-lista" id="lista-backups">
+            <div class="backup-vazio">Carregando...</div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div class="card">
+      <div class="card-header"><h2><iconify-icon icon="mdi:cloud-download-outline" width="20" height="20"></iconify-icon> Atualizações</h2></div>
+      <div class="card-body">
+        <div class="backup-acoes">
+          <button class="btn btn-primary" onclick="verificarAtualizacao()" id="btn-verificar-atualizacao"><iconify-icon icon="mdi:refresh" width="18" height="18"></iconify-icon> Verificar atualizações</button>
+          <button class="btn btn-outline" onclick="baixarAtualizacao()" id="btn-baixar-atualizacao" style="display:none"><iconify-icon icon="mdi:download" width="18" height="18"></iconify-icon> Baixar atualização</button>
+        </div>
+        <div class="backup-card" id="resultado-atualizacao">
+          <h3><iconify-icon icon="mdi:information-outline" width="18" height="18"></iconify-icon> Status</h3>
+          <p class="text-secondary" style="margin:8px 0 0;font-size:.9rem">Clique em "Verificar atualizações" para checar se há uma nova versão disponível no GitHub.</p>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <script src="app.js"></script>
+  <!-- Scripts da página avançada -->
+  <script>
+    // Inicialização: verifica autenticação e perfil de admin
+    (async function() {
+      if (!AppState.token) { AppState.logout(); return; }
+      const nomeEl = document.getElementById('sidebar-nome');
+      const cargoEl = document.getElementById('sidebar-cargo');
+      const avatarEl = document.getElementById('sidebar-avatar');
+      const u = AppState.usuario;
+      if (nomeEl) nomeEl.textContent = u.nome || 'Usuário';
+      if (cargoEl) cargoEl.textContent = u.perfil || 'perfil';
+      if (avatarEl) avatarEl.textContent = (u.nome || 'U').charAt(0).toUpperCase();
+
+      if (u.perfil !== 'admin') {
+        document.querySelector('.main').innerHTML = '<div class="card"><div class="card-body"><p class="text-secondary" style="text-align:center;padding:40px">Acesso restrito a administradores.</p></div></div>';
+        return;
+      }
+
+      const navEl = document.getElementById('sidebar-nav');
+      if (navEl) {
+        const perfil = u.perfil;
+        const isAdminOrGestor = ['admin','gestor','tecnico'].includes(perfil);
+        let html = '';
+        html += '<div class="nav-section">Principal</div>';
+        html += '<a href="painel"><span class="nav-icon"><iconify-icon icon="mdi:view-dashboard" width="20" height="20"></iconify-icon></span> Painel</a>';
+        if (temAlgumaPermissao('chamados.ver_atribuidos', 'chamados.ver_todos_unidade', 'chamados.ver_proprios')) {
+          html += '<a href="painel"><span class="nav-icon"><iconify-icon icon="mdi:ticket-outline" width="20" height="20"></iconify-icon></span> Chamados</a>';
+        }
+        const mostraCadastros = temAlgumaPermissao('setores.ver', 'categorias.ver', 'usuarios.ver', 'inventario.ver', 'ativos.ver');
+        if (mostraCadastros) {
+          html += '<div class="nav-section">Cadastros</div>';
+          if (temAlgumaPermissao('setores.ver')) html += '<a href="setores"><span class="nav-icon"><iconify-icon icon="mdi:domain" width="20" height="20"></iconify-icon></span> Setores</a>';
+          if (temAlgumaPermissao('categorias.ver')) html += '<a href="categorias"><span class="nav-icon"><iconify-icon icon="mdi:shape-outline" width="20" height="20"></iconify-icon></span> Categorias</a>';
+          if (temAlgumaPermissao('ativos.ver') || temAlgumaPermissao('inventario.ver')) html += '<a href="inventario"><span class="nav-icon"><iconify-icon icon="mdi:desktop-tower-monitor" width="20" height="20"></iconify-icon></span> Inventário</a>';
+          if (temAlgumaPermissao('usuarios.ver')) html += '<a href="usuarios"><span class="nav-icon"><iconify-icon icon="mdi:account-group" width="20" height="20"></iconify-icon></span> Usuários</a>';
+        }
+        const mostraGestao = temAlgumaPermissao('relatorios.ver_dashboard', 'relatorios.ver_tempos', 'impressoras.ver', 'fornecedores.ver', 'dispositivos.ver') || isAdminOrGestor;
+        if (mostraGestao) {
+          html += '<div class="nav-section">Gestão</div>';
+          if (temAlgumaPermissao('relatorios.ver_dashboard', 'relatorios.ver_tempos')) html += '<a href="relatorios"><span class="nav-icon"><iconify-icon icon="mdi:chart-bar" width="20" height="20"></iconify-icon></span> Relatórios</a>';
+          if (temAlgumaPermissao('impressoras.ver') || isAdminOrGestor) html += '<a href="impressoras"><span class="nav-icon"><iconify-icon icon="mdi:printer" width="20" height="20"></iconify-icon></span> Controle Impressões</a>';
+          if (temAlgumaPermissao('fornecedores.ver') || isAdminOrGestor) html += '<a href="fornecedores"><span class="nav-icon"><iconify-icon icon="mdi:truck-delivery" width="20" height="20"></iconify-icon></span> Fornecedores</a>';
+          if (temPermissao('dispositivos.ver')) html += '<a href="dispositivos"><span class="nav-icon"><iconify-icon icon="mdi:cellphone-link" width="20" height="20"></iconify-icon></span> Dispositivos</a>';
+        }
+        const mostraFinanceiro = temAlgumaPermissao('financeiro.ver', 'financeiro.criar', 'financeiro.aprovar') || isAdminOrGestor;
+        if (mostraFinanceiro) {
+          html += '<div class="nav-section">Financeiro</div>';
+          html += '<a href="financeiro"><span class="nav-icon"><iconify-icon icon="mdi:currency-usd" width="20" height="20"></iconify-icon></span> Financeiro</a>';
+          if (temAlgumaPermissao('notas_fiscais.ver') || isAdminOrGestor) html += '<a href="notas-fiscais"><span class="nav-icon"><iconify-icon icon="mdi:file-document" width="20" height="20"></iconify-icon></span> Notas Fiscais</a>';
+        }
+        if (u.perfil === 'admin') {
+          html += '<div class="nav-section">Sistema</div>';
+          html += '<a href="avancado" class="active"><span class="nav-icon"><iconify-icon icon="mdi:cog-outline" width="20" height="20"></iconify-icon></span> Avançado</a>';
+        }
+        navEl.innerHTML = html;
+      }
+
+      await carregarBackups();
+    })();
+
+    async function criarBackup() {
+      try {
+        const r = await api('/api/backup', { method: 'POST' });
+        showToast(r.mensagem, 'success');
+        carregarBackups();
+      } catch (e) { showToast(e.message || 'Erro ao criar backup.', 'error'); }
+    }
+
+    async function carregarBackups() {
+      const lista = document.getElementById('lista-backups');
+      if (!lista) return;
+      try {
+        const backups = await api('/api/backups');
+        if (!backups.length) {
+          lista.innerHTML = '<div class="backup-vazio"><iconify-icon icon="mdi:archive-remove-outline" width="32" height="32"></iconify-icon><p>Nenhum backup encontrado.</p></div>';
+          return;
+        }
+        lista.innerHTML = backups.map(b => {
+          const data = new Date(b.criado_em);
+          const dataStr = data.toLocaleString('pt-BR');
+          const tamanho = b.tamanho > 1024 * 1024
+            ? (b.tamanho / 1024 / 1024).toFixed(1) + ' MB'
+            : (b.tamanho / 1024).toFixed(0) + ' KB';
+          return `<div class="backup-item">
+            <div class="backup-info">
+              <strong><iconify-icon icon="mdi:file-database-outline" width="16" height="16"></iconify-icon> ${escapeHTML(b.nome)}</strong>
+              <small>${dataStr} · ${tamanho}</small>
+            </div>
+            <div style="display:flex;gap:6px">
+              <button class="btn btn-outline btn-sm" onclick="baixarBackup('${b.nome}')" title="Baixar"><iconify-icon icon="mdi:download" width="15" height="15"></iconify-icon></button>
+              <button class="btn btn-danger btn-sm" onclick="excluirBackup('${b.nome}')" title="Excluir"><iconify-icon icon="mdi:delete" width="15" height="15"></iconify-icon></button>
+            </div>
+          </div>`;
+        }).join('');
+      } catch (e) {
+        lista.innerHTML = '<div class="backup-vazio">Erro ao carregar backups.</div>';
+      }
+    }
+
+    function baixarBackup(nome) {
+      window.open('/api/backups/' + nome + '/download', '_blank');
+    }
+
+    function excluirBackup(nome) {
+      openModal('🗑️ Excluir Backup', `<p>Excluir <strong>${escapeHTML(nome)}</strong>?</p>`, [
+        { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-bk', onClick: closeModal },
+        { text:'🗑️ Excluir', cls:'btn-danger', id:'btn-confirmar-bk', onClick: async () => {
+          try { const r = await api('/api/backups/' + nome, { method:'DELETE' }); showToast(r.mensagem, 'success'); closeModal(); carregarBackups(); } catch(e) { showToast(e.message, 'error'); }
+        }}
+      ]);
+    }
+
+    // ============================================================
+    // ATUALIZAÇÕES — VERIFICAR NO GITHUB E BAIXAR
+    // ============================================================
+    // Armazena resultado da última verificação para usar no download
+    let ultimaVerificacao = null;
+
+    // Consulta o backend que verifica GitHub Releases por versão mais nova
+    async function verificarAtualizacao() {
+      const btn = document.getElementById('btn-verificar-atualizacao');
+      const resultado = document.getElementById('resultado-atualizacao');
+      const btnBaixar = document.getElementById('btn-baixar-atualizacao');
+      btn.disabled = true;
+      btn.innerHTML = '<iconify-icon icon="mdi:loading" width="18" height="18"></iconify-icon> Verificando...';
+      try {
+        const data = await api('/api/atualizacoes/verificar');
+        ultimaVerificacao = data;
+        if (data.erro) {
+          resultado.innerHTML = `<h3><iconify-icon icon="mdi:alert-circle-outline" width="18" height="18"></iconify-icon> Erro</h3><p class="text-secondary" style="margin:8px 0 0;font-size:.9rem">${escapeHTML(data.erro)}</p>`;
+          btnBaixar.style.display = 'none';
+          return;
+        }
+        if (data.atualizacao_disponivel) {
+          const changelog = data.changelog ? `<div style="margin-top:10px;padding:10px;background:#f9fafb;border-radius:6px;font-size:.8rem;white-space:pre-wrap;max-height:200px;overflow-y:auto">${escapeHTML(data.changelog)}</div>` : '';
+          resultado.innerHTML = `<h3><iconify-icon icon="mdi:arrow-up-bold-circle-outline" width="18" height="18" style="color:#2563EB"></iconify-icon> Nova versão disponível</h3>
+            <p style="margin:8px 0 0;font-size:.9rem">
+              <strong>Versão atual:</strong> v${escapeHTML(data.versao_atual)}<br>
+              <strong>Nova versão:</strong> <a href="${escapeHTML(data.url_release)}" target="_blank" rel="noopener">v${escapeHTML(data.versao_nova)}</a>
+            </p>${changelog}`;
+          btnBaixar.style.display = '';
+        } else {
+          resultado.innerHTML = `<h3><iconify-icon icon="mdi:check-circle-outline" width="18" height="18" style="color:#43B307"></iconify-icon> Sistema atualizado</h3>
+            <p style="margin:8px 0 0;font-size:.9rem">Você está usando a versão mais recente: <strong>v${escapeHTML(data.versao_atual)}</strong>.</p>`;
+          btnBaixar.style.display = 'none';
+        }
+      } catch (e) {
+        resultado.innerHTML = `<h3><iconify-icon icon="mdi:alert-circle-outline" width="18" height="18"></iconify-icon> Erro</h3><p class="text-secondary" style="margin:8px 0 0;font-size:.9rem">${escapeHTML(e.message)}</p>`;
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<iconify-icon icon="mdi:refresh" width="18" height="18"></iconify-icon> Verificar atualizações';
+      }
+    }
+
+    // Faz download do zipball da release via backend
+    async function baixarAtualizacao() {
+      const btn = document.getElementById('btn-baixar-atualizacao');
+      const resultado = document.getElementById('resultado-atualizacao');
+      btn.disabled = true;
+      btn.innerHTML = '<iconify-icon icon="mdi:loading" width="18" height="18"></iconify-icon> Baixando...';
+      try {
+        const data = await api('/api/atualizacoes/baixar', { method: 'POST', body: { tag: ultimaVerificacao?.versao_nova || '' } });
+        resultado.innerHTML = `<h3><iconify-icon icon="mdi:check-circle-outline" width="18" height="18" style="color:#43B307"></iconify-icon> Download concluído</h3>
+          <p style="margin:8px 0 0;font-size:.9rem">
+            Arquivo salvo em: <code>backups/${escapeHTML(data.arquivo)}</code><br>
+            Tamanho: ${(data.tamanho / 1024 / 1024).toFixed(1)} MB
+          </p>
+          <p class="text-secondary" style="margin:8px 0 0;font-size:.8rem">
+            Para atualizar, substitua os arquivos do sistema pelos contidos no ZIP baixado e reinicie o servidor.
+          </p>`;
+        showToast('Atualização baixada com sucesso!', 'success');
+        btn.style.display = 'none';
+      } catch (e) {
+        resultado.innerHTML = `<h3><iconify-icon icon="mdi:alert-circle-outline" width="18" height="18"></iconify-icon> Erro</h3><p class="text-secondary" style="margin:8px 0 0;font-size:.9rem">${escapeHTML(e.message)}</p>`;
+      } finally {
+        btn.disabled = false;
+        btn.innerHTML = '<iconify-icon icon="mdi:download" width="18" height="18"></iconify-icon> Baixar atualização';
+      }
+    }
+
+    document.getElementById('sidebar-logout').addEventListener('click', function(e) {
+      e.preventDefault();
+      openModal('🚪 Sair do Sistema', '<p>Tem certeza que deseja sair?</p>', [
+        { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-logout', onClick: closeModal },
+        { text:'✅ Sair', cls:'btn-danger', id:'btn-confirmar-logout', onClick: () => AppState.logout() }
+      ]);
+    });
+  </script>
+</body>
+</html>
