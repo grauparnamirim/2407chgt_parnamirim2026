@@ -1,51 +1,325 @@
-# CHGT HelpDesk — versão local JSON
+# CHGT HelpDesk
 
-Aplicação de helpdesk executada somente no computador local. Ela não usa MySQL,
-não se conecta a serviços externos e não contém dados reais.
+Sistema de helpdesk executado localmente para gerenciamento de chamados, inventário de equipamentos, impressoras, dispositivos e fluxos financeiros da Central de HelpDesk Grau Técnico — unidades Parnamirim/RN, Natal Centro e Natal Zona Norte.
 
-## Executar
+A aplicação roda somente no computador onde é instalada. Usa **SQLite** como banco de dados — não requer MySQL, não depende de serviços externos e os dados ficam armazenados localmente.
 
-Requer Node.js 14 ou superior.
+---
+
+## Sumário
+
+- [Funcionalidades](#funcionalidades)
+- [Stack Tecnológica](#stack-tecnológica)
+- [Requisitos](#requisitos)
+- [Instalação e Execução](#instalação-e-execução)
+- [Acesso de Demonstração](#acesso-de-demonstração)
+- [Estrutura do Projeto](#estrutura-do-projeto)
+- [Banco de Dados](#banco-de-dados)
+- [Autenticação e Segurança](#autenticação-e-segurança)
+- [API — Endpoints](#api--endpoints)
+- [Backup e Atualizações](#backup-e-atualizações)
+- [Temas](#temas)
+- [Testes](#testes)
+- [Boas Práticas Adotadas](#boas-práticas-adotadas)
+
+---
+
+## Funcionalidades
+
+- **Chamados** — abertura, acompanhamento por status (Aberto, Em andamento, Aguardando Fornecedor, Resolvido), atribuição de técnico, comentários e medição de tempo de resposta.
+- **Inventário** — cadastro de bens patrimoniais com patrimônio auto-gerado, tipos (gabinete, monitor, projetor, caixa de som, fones, outros), QR Code para identificação, movimentações e manutenções.
+- **Impressoras** — cadastro de impressoras, leituras mensais de contadores, relatório consolidado.
+- **Dispositivos** — aparelhos com vínculo de números de telefone.
+- **Financeiro** — custos e orçamentos por chamado, compras mensais, notas fiscais e comparativo mensal.
+- **Usuários e Permissões** — perfis (admin, gestor, tecnico, usuario), grupos de permissão personalizados e controle de acesso por unidade.
+- **Relatórios** — métricas de tempo de atendimento, taxa de resolução, desempenho por técnico e indicadores financeiros.
+- **Backup** — criação, listagem, download e exclusão de backups do banco de dados (somente administrador).
+- **Atualizações** — verificação de novas versões no GitHub e download do pacote de atualização (somente administrador).
+- **Pesquisa Global** — busca rápida por chamados e bens patrimoniais (Ctrl+K).
+- **Temas visuais** — 4 temas selecionáveis (Técnico, Escuro, Faculdade, Profissionalizante).
+
+---
+
+## Stack Tecnológica
+
+| Camada | Tecnologia |
+| --- | --- |
+| Backend | Node.js, Express 4, better-sqlite3 |
+| Autenticação | JWT (jsonwebtoken) + bcrypt |
+| Segurança | Helmet, express-rate-limit, sanitização de entrada |
+| Frontend | HTML5, CSS3 e JavaScript puro (sem frameworks) |
+| Ícones | Iconify (CDN) |
+| QR Code | qrcode-generator (Kazuhiko Arase) — geração 100% no navegador |
+| Testes | Node.js nativo com `http` (sem jest/mocha) |
+
+---
+
+## Requisitos
+
+- **Node.js 18 ou superior** (testado na v22)
+- Windows, Linux ou macOS
+- Acesso de leitura/escrita no diretório do projeto
+
+---
+
+## Instalação e Execução
 
 ```bash
+# 1. Instalar as dependências
 npm install
+
+# 2. Iniciar o servidor
 npm start
 ```
 
-Abra `http://127.0.0.1:3000`. O servidor não fica acessível pela rede local.
+Abra o navegador em `http://127.0.0.1:3000`.
 
-### Acesso de demonstração
+> O servidor escuta apenas em `127.0.0.1` (localhost), ou seja, **não fica acessível pela rede local** — um requisito de segurança para o uso doméstico/balcão.
 
-| E-mail | Senha |
-| --- | --- |
-| `admin@local.test` | `Admin123!` |
+### Reset dos dados locais
 
-Selecione uma das unidades fictícias: Parnamirim/RN, Natal Centro ou Natal Zona
-Norte. Esta é uma conta pública de demonstração; não a utilize em produção.
-
-## Dados locais
-
-O repositório versiona apenas `data/template.json`, que contém as três unidades
-fictícias e a conta demo. No primeiro início, ele é copiado para
-`data/local.json`. Todas as alterações feitas na aplicação são salvas nesse
-arquivo local, que é ignorado pelo Git.
-
-Para descartar os dados criados e voltar ao estado inicial:
+Para apagar o banco de dados e recomeçar com dados limpos (o banco é recriado na próxima inicialização):
 
 ```bash
 npm run reset-local-data
 ```
 
-Esse comando altera somente `data/local.json`. Ele não acessa, exporta, altera
-ou remove qualquer banco MySQL existente no computador.
+> Este comando remove **apenas** o `data/local.db`. Ele não acessa nem altera qualquer outro banco de dados.
 
-## Segurança e limites
+---
 
-- A aplicação usa bcrypt e JWT. Sem `JWT_SECRET`, é gerado um segredo aleatório
-  a cada inicialização, invalidando sessões antigas.
-- Notificações push e chaves VAPID foram removidas.
-- O armazenamento JSON é destinado a execução local em processo único. Não é
-  apropriado para múltiplas instâncias ou produção concorrente.
+## Acesso de Demonstração
+
+| E-mail | Senha |
+| --- | --- |
+| `admin@local.test` | `Admin123!` |
+
+No login, selecione uma das unidades fictícias: **Parnamirim/RN**, **Natal Centro** ou **Natal Zona Norte**.
+
+> Esta é uma conta pública de demonstração. **Não a utilize em produção** — altere a senha ou crie seus próprios usuários antes de usar com dados reais.
+
+---
+
+## Estrutura do Projeto
+
+```
+2407chgt_parnamirim2026/
+├── config/
+│   └── app.json              # Versão do sistema e repositório GitHub
+├── src/
+│   ├── index.js              # Ponto de entrada: inicializa banco e sobe o servidor
+│   ├── app.js                # Aplicação Express, rotas estáticas e /api/*
+│   ├── db.js                 # Conexão SQLite, schema, migrações e dados iniciais
+│   ├── middleware.js          # JWT, permissões, sanitização e proteção de páginas
+│   └── routes/
+│       ├── auth.js           # Login, logout e listagem de unidades
+│       ├── users.js          # CRUD de usuários e troca de unidade/senha
+│       ├── tickets.js        # Chamados e comentários
+│       ├── assets.js         # Inventário: bens, movimentações, manutenções e indicadores
+│       ├── devices.js        # Dispositivos e números de telefone
+│       ├── printers.js       # Impressoras e leituras mensais
+│       ├── misc.js           # Financeiro, notas fiscais, relatórios, grupos e pesquisa
+│       ├── backup.js         # Backup e restauração do banco (admin)
+│       ├── atualizacoes.js   # Versão, verificação e download de atualizações (admin)
+│       └── crud.js           # Gerador de CRUD genérico (categorias, setores, locais...)
+├── public/
+│   ├── app.js                # Frontend: estado global, API, sidebar, modais e temas
+│   ├── style.css             # Estilos completos com 4 temas
+│   ├── index.html            # Tela de login
+│   ├── painel.html           # Dashboard e chamados
+│   ├── inventario.html       # Inventário de equipamentos com QR Code
+│   ├── avancado.html         # Backup e atualizações (admin)
+│   ├── ...                   # Demais páginas do sistema
+│   ├── js/qrcode.min.js      # Biblioteca de geração de QR Code
+│   └── midia/                # Imagens e logotipos
+├── test/
+│   ├── run.js                # Orquestrador: sobe servidor de teste e executa as suites
+│   ├── helpers.js            # startServer, waitForServer e cliente HTTP
+│   ├── helpdesk.test.js      # Login, unidades e CRUD básico
+│   ├── crud.test.js          # CRUD de todas as entidades
+│   └── security.test.js      # SQL injection, XSS, validação, acesso e rate limit
+├── backups/                  # Backups gerados pela aplicação (ignorado pelo Git)
+├── data/                     # Banco SQLite local (ignorado pelo Git)
+├── package.json
+└── README.md
+```
+
+---
+
+## Banco de Dados
+
+O banco é um arquivo SQLite local em `data/local.db`, criado automaticamente na primeira execução. As três unidades fictícias e a conta de administrador de demonstração são semeadas nesse momento.
+
+Características:
+
+- **WAL mode** (`journal_mode = WAL`) — permite leitura durante gravação e melhor desempenho em uso local concorrente leve.
+- **Foreign keys ativadas** (`foreign_keys = ON`).
+- **Migrações automáticas** — colunas novas são adicionadas em tabelas existentes via `ALTER TABLE ... ADD COLUMN` com `try/catch`, sem exigir intervenção manual.
+
+### Principais tabelas
+
+| Tabela | Finalidade |
+| --- | --- |
+| `unidades` | Unidades de atendimento (Parnamirim, Natal Centro, Natal Zona Norte) |
+| `usuarios` | Usuários do sistema (admin, gestor, tecnico, usuario) |
+| `chamados`, `comentarios` | Chamados de suporte e seus comentários |
+| `categorias`, `subcategorias`, `setores`, `locais`, `fornecedores` | Cadastros base |
+| `computadores` | Bens patrimoniais do inventário (tipo, modelo, série, especificações, etc.) |
+| `movimentacoes_bens` | Histórico de movimentações de bens |
+| `manutencoes` | Manutenções agendadas/concluídas de equipamentos |
+| `categorias_servico_manutencao` | Categorias de serviços de manutenção |
+| `dispositivos`, `numeros_dispositivos` | Dispositivos e números de telefone vinculados |
+| `impressoras`, `leituras_mensais` | Impressoras e leituras de contador |
+| `custos_chamado`, `orcamentos_chamado`, `compras_mensais` | Financeiro |
+| `notas_fiscais`, `nf_comparativo_mensal` | Notas fiscais e comparativo mensal |
+| `permissoes`, `grupos`, `grupos_permissoes`, `usuarios_grupos` | Controle de acesso (RBAC) |
+
+---
+
+## Autenticação e Segurança
+
+- **Senhas** — armazenadas com **bcrypt** (nunca em texto puro). O hash nunca é exposto na API.
+- **JWT** — token com expiração de **8 horas**. O segredo (`JWT_SECRET`) pode ser definido via variável de ambiente; sem ele, um segredo aleatório é gerado a cada inicialização (o que invalida sessões antigas ao reiniciar).
+- **Cookie httpOnly** — as páginas HTML usam um cookie `token` com `httpOnly` e `sameSite: strict` para proteger contra acesso via JavaScript (XSS).
+- **Header Authorization** — as chamadas de API usam `Authorization: Bearer <token>`.
+- **Rate limit** — 30 requisições por 15 segundos por IP nas rotas `/api/*`; 20 tentativas de login por 15 minutos.
+- **Sanitização** — strings com `<` e `>` são higienizadas e campos acima de 10.000 caracteres são rejeitados.
+- **SQL injection** — nomes de tabelas e colunas passam por whitelist (`validTable`, `validColumns`).
+- **Controle de acesso** — perfis, grupos de permissão e escopo por unidade via `requireRole`, `requirePermission` e `unitScope`.
+- **Logout automático** — o frontend detecta respostas `401` e tokens expirados e encerra a sessão.
+
+---
+
+## API — Endpoints
+
+Todas as rotas abaixo são prefixadas com `/api`.
+
+### Autenticação
+
+| Método | Rota | Descrição |
+| --- | --- | --- |
+| `POST` | `/login` | Autentica com email + senha + unidade e retorna token e usuário |
+| `POST` | `/logout` | Encerra a sessão e limpa o cookie |
+| `GET` | `/unidades` | Lista unidades ativas (pública, usada no login) |
+
+### Usuários
+
+| Método | Rota | Descrição |
+| --- | --- | --- |
+| `GET/POST` | `/usuarios` | Listar/criar usuários |
+| `PUT/DELETE` | `/usuarios/:id` | Atualizar/excluir usuário |
+| `PUT` | `/usuarios/:id/senha` | Alterar senha |
+| `PUT` | `/usuarios/:id/unidade` | Alterar unidade do usuário |
+
+### Chamados
+
+| Método | Rota | Descrição |
+| --- | --- | --- |
+| `GET/POST` | `/chamados` | Listar (com filtros) e criar chamados |
+| `PUT` | `/chamados/:id` | Atualizar chamado |
+| `GET/POST` | `/chamados/:id/comentarios` | Listar/adicionar comentários |
+| `GET` | `/chamados/:id/tempos` | Tempo de resposta do chamado |
+| `PUT` | `/chamados/:id/status` | Alterar status com notificação |
+| `PUT` | `/chamados/:id/motivo` | Registrar motivo de resolução |
+
+### Inventário
+
+| Método | Rota | Descrição |
+| --- | --- | --- |
+| `GET/POST` | `/ativos` | Listar/criar bens patrimoniais |
+| `PUT/DELETE` | `/ativos/:id` | Atualizar/excluir bem |
+| `GET/POST` | `/ativos/:id/movimentacoes` | Movimentações do bem |
+| `GET/POST` | `/ativos/:id/manutencoes` | Listar/agendar manutenções |
+| `PUT` | `/ativos/:id/manutencoes/:mid` | Atualizar manutenção |
+| `GET` | `/ativos/indicadores-manutencao` | Resumo, série mensal e bens recorrentes |
+
+### Dispositivos
+
+| Método | Rota | Descrição |
+| --- | --- | --- |
+| `GET/POST` | `/dispositivos` | Listar/criar dispositivos |
+| `PUT/DELETE` | `/dispositivos/:id` | Atualizar/excluir dispositivo |
+| `GET/POST/PUT/DELETE` | `/dispositivos/:id/numeros[/:nid]` | Gerenciar números de telefone |
+| `GET` | `/dispositivos/relatorio` | Relatório consolidado |
+
+### Impressoras
+
+| Método | Rota | Descrição |
+| --- | --- | --- |
+| `GET/POST` | `/impressoras` | Listar/criar impressoras |
+| `PUT/DELETE` | `/impressoras/:id` | Atualizar/excluir impressora |
+| `GET/POST` | `/impressoras/:id/leituras` | Leituras mensais |
+| `DELETE` | `/impressoras/:id/leituras/:lid` | Excluir leitura |
+| `GET` | `/impressoras/relatorio` | Relatório consolidado |
+
+### Financeiro, Notas e Relatórios
+
+| Método | Rota | Descrição |
+| --- | --- | --- |
+| `CRUD` | `/custos-chamado`, `/orcamentos-chamado`, `/compras-mensais` | Financeiro por chamado |
+| `PUT` | `/orcamentos-chamado/:id/aprovar` e `/rejeitar` | Aprovar/rejeitar orçamento |
+| `CRUD` | `/notas-fiscais` | Notas fiscais |
+| `GET` | `/notas-fiscais/estatisticas` | Estatísticas de notas |
+| `GET` | `/relatorios`, `/relatorios/tempos`, `/relatorios/financeiros` | Relatórios |
+
+### Grupos e Permissões
+
+| Método | Rota | Descrição |
+| --- | --- | --- |
+| `GET` | `/permissoes` | Lista permissões disponíveis |
+| `CRUD` | `/grupos` | Grupos de permissão |
+| `PUT` | `/grupos/:id/permissoes` | Vincular permissões ao grupo |
+| `GET/PUT` | `/usuarios/:id/grupos` | Vincular grupos a um usuário |
+
+### Pesquisa
+
+| Método | Rota | Descrição |
+| --- | --- | --- |
+| `GET` | `/pesquisa?q=...` | Busca chamados e bens patrimoniais |
+
+### CRUD Genérico
+
+`GET`, `POST`, `PUT` e `DELETE` em: `/categorias`, `/subcategorias`, `/fornecedores`, `/setores` e `/locais`.
+
+---
+
+## Backup e Atualizações
+
+### Backup (somente administrador)
+
+| Método | Rota | Descrição |
+| --- | --- | --- |
+| `POST` | `/backup` | Cria um backup do banco em `backups/local-AAAA-MM-DD-HHMMSS.db` |
+| `GET` | `/backups` | Lista backups (nome, tamanho e data) |
+| `GET` | `/backups/:nome/download` | Baixa o arquivo do backup |
+| `DELETE` | `/backups/:nome` | Exclui um backup |
+
+> Antes de copiar, a aplicação executa `wal_checkpoint(TRUNCATE)` para garantir consistência sem fechar o banco. A página **Avançado** (`/avancado`) permite gerenciar tudo isso pelo navegador.
+
+### Atualizações (somente administrador)
+
+| Método | Rota | Descrição |
+| --- | --- | --- |
+| `GET` | `/versao` | Versão atual do sistema (exibida no rodapé da sidebar) |
+| `GET` | `/atualizacoes/verificar` | Consulta o GitHub Releases e compara versões |
+| `POST` | `/atualizacoes/baixar` | Baixa o pacote da nova versão para `backups/` |
+
+A versão atual e a URL do repositório são configuradas em `config/app.json`. A interface fica na página **Avançado**, com botões "Verificar atualizações" e "Baixar atualização".
+
+---
+
+## Temas
+
+O sistema oferece 4 temas selecionáveis, salvos no `localStorage`:
+
+| Tema | Cor principal |
+| --- | --- |
+| Técnico (padrão) | Verde `#43B307` |
+| Escuro | Verde sobre fundo escuro |
+| Faculdade | Laranja `#E67E22` |
+| Profissionalizante | Azul `#2563EB` |
+
+---
 
 ## Testes
 
@@ -53,5 +327,21 @@ ou remove qualquer banco MySQL existente no computador.
 npm test
 ```
 
-Os testes usam um arquivo temporário e não modificam `data/local.json` nem
-qualquer banco de dados local.
+A suíte executa **18 testes** em 3 arquivos:
+
+- **helpdesk** — login, listagem de unidades, CRUD básico e módulos vazios.
+- **crud** — operações completas de todas as entidades.
+- **security** — SQL injection, XSS, validação de entrada, controle de acesso e rate limit (HTTP 429).
+
+Os testes sobem um servidor em porta aleatória com **banco temporário** em `os.tmpdir()` e não modificam o `data/local.db`.
+
+---
+
+## Boas Práticas Adotadas
+
+- **Sem `dados_json`** — todos os campos em colunas diretas do banco (consultas mais simples e tipadas).
+- **QR Code em texto plano** — o QR do patrimônio carrega os dados como texto (não URL), funcionando em qualquer leitor, inclusive na câmera nativa do Android.
+- **Patrimônio auto-gerado** — sigla da unidade + 8 caracteres hexadecimais aleatórios, com garantia de unicidade.
+- **Cache de 7 dias** para assets estáticos.
+- **Modais com confirmação** — inclusive no logout, evitando cliques acidentais.
+- **Sanitização no servidor** — proteção adicional mesmo que o frontend seja burlado.
