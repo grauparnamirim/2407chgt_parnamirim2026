@@ -1,4 +1,4 @@
-// app.js — CHGT HelpDesk v2.0 — Frontend com JWT
+// app.js — CHGT HelpDesk v1.0.0 — Frontend com JWT
 // Gerencia: estado global, API com token, sidebar, tabs e modais
 
 // ============================================================
@@ -599,11 +599,34 @@ function abrirPesquisaGlobal() {
 }
 
 // ============================================================
+// VERSÃO NO SIDEBAR
+// ============================================================
+// Busca a versão do sistema no servidor e exibe no rodapé da sidebar
+async function exibirVersaoSidebar() {
+  const footer = document.querySelector('.sidebar-footer');
+  if (!footer || document.getElementById('sidebar-version')) return;
+  try {
+    const res = await fetch('/api/versao', {
+      headers: AppState.token ? { 'Authorization': `Bearer ${AppState.token}` } : {}
+    });
+    if (!res.ok) return;
+    const data = await res.json();
+    const el = document.createElement('span');
+    el.id = 'sidebar-version';
+    el.className = 'sidebar-version';
+    el.textContent = `v${data.versao}`;
+    el.title = `CHGT HelpDesk v${data.versao}`;
+    footer.appendChild(el);
+  } catch (_) {}
+}
+
+// ============================================================
 // INIT
 // ============================================================
 document.addEventListener('DOMContentLoaded', () => {
   setInterval(atualizarTimersResposta, 60000);
   if (document.body.classList.contains('login-body')) return;
+  exibirVersaoSidebar();
   const usuario = AppState.usuario;
   if (podeUsarPesquisaGlobal()) {
     const acoes = document.querySelector('.top-header .header-actions');
