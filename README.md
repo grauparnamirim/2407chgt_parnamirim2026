@@ -17,7 +17,7 @@ A aplicação roda somente no computador onde é instalada. Usa **SQLite** como 
 - [Banco de Dados](#banco-de-dados)
 - [Autenticação e Segurança](#autenticação-e-segurança)
 - [API — Endpoints](#api--endpoints)
-- [Backup e Atualizações](#backup-e-atualizações)
+- [Backup, Atualizações e DNS](#backup-atualizações-e-dns)
 - [Temas](#temas)
 - [Testes](#testes)
 - [Boas Práticas Adotadas](#boas-práticas-adotadas)
@@ -35,6 +35,7 @@ A aplicação roda somente no computador onde é instalada. Usa **SQLite** como 
 - **Relatórios** — métricas de tempo de atendimento, taxa de resolução, desempenho por técnico e indicadores financeiros.
 - **Backup** — criação, listagem, download e exclusão de backups do banco de dados (somente administrador).
 - **Atualizações** — verificação de novas versões no GitHub e download do pacote de atualização (somente administrador).
+- **Servidor DNS local** — resolve `chgt.helpdesk.local` para o IP do hospedeiro, permitindo acesso pela rede por nome de domínio.
 - **Pesquisa Global** — busca rápida por chamados e bens patrimoniais (Ctrl+K).
 - **Temas visuais** — 4 temas selecionáveis (Técnico, Escuro, Faculdade, Profissionalizante).
 
@@ -72,9 +73,16 @@ npm install
 npm start
 ```
 
-Abra o navegador em `http://127.0.0.1:3000`.
+Abra o navegador em `http://127.0.0.1:3000` ou, pela rede local, no IP da máquina (ex.: `http://10.2.200.155:3000`).
 
-> O servidor escuta apenas em `127.0.0.1` (localhost), ou seja, **não fica acessível pela rede local** — um requisito de segurança para o uso doméstico/balcão.
+> O servidor escuta no **IP do hospedeiro** (detectado dinamicamente), permitindo que outros computadores da rede acessem o sistema. Para usar o nome `chgt.helpdesk.local` no navegador, use o servidor DNS integrado:
+
+```bash
+# Sobe o sistema e o servidor DNS local juntos
+npm run start:all
+```
+
+Com o DNS rodando, qualquer PC da rede com DNS apontado para o IP do hospedeiro acessa o sistema em `http://chgt.helpdesk.local:3000`.
 
 ### Reset dos dados locais
 
@@ -105,12 +113,14 @@ No login, selecione uma das unidades fictícias: **Parnamirim/RN**, **Natal Cent
 ```
 2407chgt_parnamirim2026/
 ├── config/
-│   └── app.json              # Versão do sistema e repositório GitHub
+│   ├── app.json              # Versão do sistema e repositório GitHub
+│   └── dns.json              # Configuração do servidor DNS local
 ├── src/
 │   ├── index.js              # Ponto de entrada: inicializa banco e sobe o servidor
 │   ├── app.js                # Aplicação Express, rotas estáticas e /api/*
 │   ├── db.js                 # Conexão SQLite, schema, migrações e dados iniciais
 │   ├── middleware.js          # JWT, permissões, sanitização e proteção de páginas
+│   ├── dns-server.js         # Servidor DNS local (resolve chgt.helpdesk.local)
 │   └── routes/
 │       ├── auth.js           # Login, logout e listagem de unidades
 │       ├── users.js          # CRUD de usuários e troca de unidade/senha
@@ -132,12 +142,14 @@ No login, selecione uma das unidades fictícias: **Parnamirim/RN**, **Natal Cent
 │   ├── ...                   # Demais páginas do sistema
 │   ├── js/qrcode.min.js      # Biblioteca de geração de QR Code
 │   └── midia/                # Imagens e logotipos
+├── start.js                  # Launcher unificado: sobe sistema + DNS (start:all)
 ├── test/
 │   ├── run.js                # Orquestrador: sobe servidor de teste e executa as suites
 │   ├── helpers.js            # startServer, waitForServer e cliente HTTP
 │   ├── helpdesk.test.js      # Login, unidades e CRUD básico
 │   ├── crud.test.js          # CRUD de todas as entidades
-│   └── security.test.js      # SQL injection, XSS, validação, acesso e rate limit
+│   ├── security.test.js      # SQL injection, XSS, validação, acesso, rate limit e erros
+│   └── atualizacoes.test.js  # Config, /api/versao, verificação, link e release do GitHub
 ├── backups/                  # Backups gerados pela aplicação (ignorado pelo Git)
 ├── data/                     # Banco SQLite local (ignorado pelo Git)
 ├── package.json
@@ -283,7 +295,7 @@ Todas as rotas abaixo são prefixadas com `/api`.
 
 ---
 
-## Backup e Atualizações
+## Backup, Atualizações e DNS
 
 ### Backup (somente administrador)
 
@@ -304,7 +316,19 @@ Todas as rotas abaixo são prefixadas com `/api`.
 | `GET` | `/atualizacoes/verificar` | Consulta o GitHub Releases e compara versões |
 | `POST` | `/atualizacoes/baixar` | Baixa o pacote da nova versão para `backups/` |
 
-A versão atual e a URL do repositório são configuradas em `config/app.json`. A interface fica na página **Avançado**, com botões "Verificar atualizações" e "Baixar atualização".
+A versão atual e a URL do repositório são configuradas em `config/app.json`. A interface fica na página **Avançado**, com botões "Verificar atualizações" e "Baixar atualização". Em caso de erro, o usuário recebe mensagens amigáveis — os detalhes técnicos ficam apenas no log do servidor.
+
+### Servidor DNS local
+
+| Comando | Descrição |
+| --- | --- |
+| `npm run dns` | Inicia o servidor DNS (porta 53) |
+| `npm run dns:dev` | Inicia com recarga automática (nodemon) |
+| `npm run start:all` | Sobe o sistema e o DNS juntos |
+
+O DNS resolve `chgt.helpdesk.local` para o IP do hospedeiro. Se a porta 53 estiver ocupada no `0.0.0.0` (ex.: ICS do Windows), ele detecta automaticamente o IP da interface física e vincula nela. A configuração fica em `config/dns.json` (porta, TTL, rate limit e domínios).
+
+> No Windows a porta baixa (53) não exige privilégio especial, mas em Linux pode ser necessário rodar como `root`/`sudo`.
 
 ---
 
@@ -327,11 +351,12 @@ O sistema oferece 4 temas selecionáveis, salvos no `localStorage`:
 npm test
 ```
 
-A suíte executa **18 testes** em 3 arquivos:
+A suíte executa **20 testes** em 4 arquivos:
 
 - **helpdesk** — login, listagem de unidades, CRUD básico e módulos vazios.
 - **crud** — operações completas de todas as entidades.
-- **security** — SQL injection, XSS, validação de entrada, controle de acesso e rate limit (HTTP 429).
+- **security** — SQL injection, XSS, validação de entrada, controle de acesso, rate limit (HTTP 429) e erros de atualização sem vazar detalhes técnicos.
+- **atualizacoes** — validação da config (versão e link do GitHub), `/api/versao`, verificação de atualizações e consulta real à release do GitHub.
 
 Os testes sobem um servidor em porta aleatória com **banco temporário** em `os.tmpdir()` e não modificam o `data/local.db`.
 
