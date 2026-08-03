@@ -124,5 +124,21 @@ module.exports = async function testSecurity(port) {
     try { fs.rmSync(path.dirname(limiterServer.tempDb), { recursive: true, force: true }); } catch (_) {}
   }
 
-  console.log('  ✓ security: SQL injection, XSS, validação, acesso, rate limit');
+  // ============================================================
+  // 10. ERROS DE ATUALIZAÇÃO NÃO VAZAM DETALHES TÉCNICOS
+  // ============================================================
+
+  // A rota responde 200 com dados válidos OU erro amigável. Quando há erro,
+  // a mensagem deve ser curta e sem detalhes técnicos (status HTTP bruto do GitHub).
+  const upd = await request(port, 'GET', '/api/atualizacoes/verificar', undefined, token);
+  assert.equal(upd.status, 200);
+  if (upd.data.erro) {
+    assert.ok(!/\d{3}\s*[-:]\s*.*github/i.test(upd.data.erro), 'não deve vazar status HTTP bruto do GitHub');
+    assert.ok(!/error\s+in|at\s+[a-zA-Z_$].*\(/i.test(upd.data.erro), 'não deve vazar stack trace');
+    assert.ok(upd.data.erro.length < 200, 'mensagem de erro deve ser curta e amigável');
+  } else {
+    assert.ok(typeof upd.data.versao_atual === 'string', 'deve retornar a versão atual quando conectado ao GitHub');
+  }
+
+  console.log('  ✓ security: SQL injection, XSS, validação, acesso, rate limit, erros de atualização');
 };

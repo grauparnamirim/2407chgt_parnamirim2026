@@ -24,7 +24,8 @@ async function run() {
     const suites = [
       ['helpdesk', require('./helpdesk.test')],
       ['crud', require('./crud.test')],
-      ['security', require('./security.test')]
+      ['security', require('./security.test')],
+      ['atualizacoes', require('./atualizacoes.test')]
     ];
 
     // ============================================================

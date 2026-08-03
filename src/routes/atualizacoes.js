@@ -71,6 +71,21 @@ function streamDownload(url, destPath) {
 // Cache da última release obtida do GitHub
 let ultimaRelease = null;
 
+// Converte erros técnicos em mensagens amigáveis para o usuário.
+// O detalhe técnico é registrado no log do servidor (console), não exposto na API.
+function mensagemAmigavel(err) {
+  const msg = err && err.message ? err.message : String(err);
+  console.error('[atualizacoes] erro:', msg);
+  if (/Tempo limite|timed out|ETIMEDOUT/i.test(msg)) return 'Não foi possível contactar o GitHub. Verifique sua conexão com a internet e tente novamente.';
+  if (/ECONNREFUSED|ENOTFOUND|socket hang up|getaddrinfo/i.test(msg)) return 'Não foi possível conectar ao GitHub. Verifique sua conexão com a internet.';
+  if (/404/i.test(msg)) return 'Repositório ou versão não encontrado no GitHub. Verifique a URL configurada em config/app.json.';
+  if (/401|403|Forbidden|rate limit/i.test(msg)) return 'O GitHub recusou a requisição (limite ou permissão). Tente novamente mais tarde.';
+  if (/Download falhou|HTTP \d{3}/i.test(msg)) return 'Falha ao baixar a atualização. Tente novamente em instantes.';
+  if (/Resposta inválida/i.test(msg)) return 'O GitHub respondeu de forma inesperada. Tente novamente.';
+  if (/permiss|EACCES|EADDRINUSE|ENOSPC/i.test(msg)) return 'Falha ao salvar o arquivo no servidor. Verifique as permissões e o espaço em disco.';
+  return 'Ocorreu um erro inesperado ao verificar/baixar a atualização. Tente novamente.';
+}
+
 // Retorna a versão atual do sistema (usado pelo sidebar)
 router.get('/versao', autenticar, (req, res) => {
   res.json({ versao: APP_CONFIG.versao });
@@ -97,7 +112,7 @@ router.get('/atualizacoes/verificar', autenticar, admin, async (req, res) => {
       changelog: release.body || ''
     });
   } catch (e) {
-    res.json({ erro: e.message, atualizacao_disponivel: false });
+    res.json({ erro: mensagemAmigavel(e), atualizacao_disponivel: false });
   }
 });
 
@@ -127,7 +142,7 @@ router.post('/atualizacoes/baixar', autenticar, admin, async (req, res) => {
       tamanho: stat.size
     });
   } catch (e) {
-    res.status(500).json({ erro: e.message });
+    res.status(500).json({ erro: mensagemAmigavel(e) });
   }
 });
 
