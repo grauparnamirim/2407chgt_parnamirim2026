@@ -19,7 +19,7 @@ function startServer(extraEnv = {}) {
   const port = 35117 + Math.floor(Math.random() * 500);
   const server = spawn(process.execPath, ['src/index.js'], {
     cwd: path.join(__dirname, '..'),
-    env: { ...process.env, PORT: String(port), DB_PATH: tempDb, TEST: '1', ...extraEnv },
+    env: { ...process.env, PORT: String(port), DB_PATH: tempDb, TEST: '1', HOST: '127.0.0.1', ...extraEnv },
     stdio: ['ignore', 'pipe', 'pipe']
   });
   server.stderr.on('data', chunk => process.stderr.write('[SERVER] ' + chunk));

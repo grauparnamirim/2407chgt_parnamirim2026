@@ -1,9 +1,10 @@
 // Ponto de entrada do servidor HTTP
 const { initialize } = require('./db');
 const { createApp } = require('./app');
+const { getHostIP } = require('./dns-server');
 
 const PORT = Number(process.env.PORT || 3000);
-const HOST = '127.0.0.1';
+const HOST = process.env.HOST || getHostIP();
 
 // Inicializa o banco e sobe o servidor Express na porta configurada
 async function start() {

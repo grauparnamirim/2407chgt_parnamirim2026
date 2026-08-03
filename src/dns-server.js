@@ -3,6 +3,7 @@ const dgram = require('dgram');
 const os = require('os');
 const fs = require('fs');
 const path = require('path');
+const { execSync } = require('child_process');
 const dnsPacket = require('dns-packet');
 
 const CONFIG_PATH = path.join(__dirname, '..', 'config', 'dns.json');
@@ -27,18 +28,48 @@ config.host = process.env.DNS_HOST || config.host;
 // Configuração de rede
 // ============================================================
 
-// Obtém o IP local da primeira interface de rede não interna
-function getLocalIP() {
-  const ifaces = os.networkInterfaces();
-  for (const name of Object.keys(ifaces)) {
-    for (const iface of ifaces[name]) {
-      if (iface.family === 'IPv4' && !iface.internal) return iface.address;
+// Marcadores de adaptadores de rede virtuais (devem ser evitados)
+const VIRTUAL_MARKERS = ['vEthernet', 'virtual', 'wsl', 'loopback', 'hyper-v'];
+
+// Lista as interfaces IPv4 não internas, priorizando adaptadores físicos
+function listInterfaces() {
+  const entries = [];
+  for (const name of Object.keys(os.networkInterfaces())) {
+    for (const iface of os.networkInterfaces()[name]) {
+      if (iface.family === 'IPv4' && !iface.internal) {
+        entries.push({ name, address: iface.address });
+      }
     }
   }
-  return '127.0.0.1';
+  const isVirtual = (name) => VIRTUAL_MARKERS.some((m) => name.toLowerCase().includes(m.toLowerCase()));
+  entries.sort((a, b) => Number(isVirtual(a.name)) - Number(isVirtual(b.name)));
+  return entries;
 }
 
-const localIP = getLocalIP();
+// Detecta dinamicamente o IP do hospedeiro: prioriza o adaptador físico,
+// caindo para o primeiro disponível se não houver. Usado como host padrão.
+function getHostIP() {
+  const entries = listInterfaces();
+  return entries.length > 0 ? entries[0].address : '127.0.0.1';
+}
+
+// Verifica se o processo roda com privilégios elevados.
+// No Windows usa "net session" (só roda elevado); no Linux usa o UID.
+function isElevated() {
+  try {
+    if (process.platform === 'win32') {
+      execSync('net session', { stdio: 'ignore' });
+      return true;
+    }
+    return typeof process.getuid === 'function' && process.getuid() === 0;
+  } catch {
+    return false;
+  }
+}
+
+// IP usado nas respostas para clientes da rede; é atualizado para
+// refletir a interface realmente vinculada ao iniciar o servidor
+let localIP = getHostIP();
 const requests = new Map();
 
 // ============================================================
@@ -139,21 +170,62 @@ server.on('error', (err) => {
 // Gerenciamento do servidor
 // ============================================================
 
-// Inicia o servidor DNS na porta e host configurados
-function start() {
+// Monta a lista de hosts a tentar: o host configurado (ou o IP dinâmico
+// do hospedeiro quando o padrão for 0.0.0.0) e, em seguida, cada interface
+function listCandidateHosts() {
+  const hosts = [];
+  if (config.host && config.host !== '0.0.0.0') {
+    hosts.push(config.host);
+  } else {
+    hosts.push(getHostIP());
+  }
+  for (const e of listInterfaces()) hosts.push(e.address);
+  return [...new Set(hosts)];
+}
+
+// Tenta vincular o servidor a um host:porta e resolve/rejeita conforme o resultado
+function tryBind(srv, port, host) {
   return new Promise((resolve, reject) => {
-    server.once('listening', () => {
+    srv.once('listening', resolve);
+    srv.once('error', reject);
+    srv.bind(port, host);
+  });
+}
+
+// Inicia o servidor DNS na porta configurada, vinculando dinamicamente
+// ao IP do hospedeiro. Se esse IP estiver ocupado,
+// tenta automaticamente as demais interfaces até conseguir vincular.
+async function start() {
+  const port = config.port;
+  const candidates = listCandidateHosts();
+  let lastError = null;
+
+  for (const host of candidates) {
+    try {
+      await tryBind(server, port, host);
       const addr = server.address();
+      localIP = addr.address;
       console.log(`[dns] ${addr.family} server on ${addr.address}:${addr.port}`);
       console.log(`[dns] resolving: ${Object.keys(config.domains).join(', ')}`);
-      if (config.port === 53) {
-        console.log(`[dns] LAN access via ${localIP}:53 (requires admin/root)`);
+      if (port === 53) {
+        console.log(`[dns] LAN access via ${addr.address}:53`);
+        if (addr.address !== getHostIP()) {
+          console.log(`[dns] ${getHostIP()} ocupado — usando interface ${addr.address}. Configure o DNS dos clientes para ${addr.address}.`);
+        }
+        if (!isElevated() && process.platform !== 'win32') {
+          console.log('[dns] aviso: rodando como usuário sem privilégio — porta 53 pode exigir root em alguns sistemas.');
+        }
       }
-      resolve();
-    });
-    server.once('error', reject);
-    server.bind(config.port, config.host);
-  });
+      return;
+    } catch (err) {
+      lastError = err;
+      // Um bind com falha deixa o socket desvinculado; tenta a próxima interface
+      server.removeAllListeners('listening');
+      server.removeAllListeners('error');
+    }
+  }
+
+  throw lastError || new Error('Não foi possível iniciar o servidor DNS em nenhuma interface.');
 }
 
 // Para o servidor DNS de forma graciosa
@@ -179,4 +251,4 @@ process.on('SIGTERM', () => {
   stop().then(() => process.exit(0));
 });
 
-module.exports = { start, stop };
+module.exports = { start, stop, getHostIP };
