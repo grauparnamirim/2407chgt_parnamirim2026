@@ -154,9 +154,10 @@ server.on('message', (raw, rinfo) => {
     return;
   }
 
-  const ip = domain === q.name && config.domains[domain] === '127.0.0.1' && clientIP !== '127.0.0.1'
-    ? localIP
-    : config.domains[domain];
+  // Domínios configurados com "127.0.0.1" indicam "o próprio servidor":
+  // devolve o IP do hospedeiro onde o servidor web escuta, para que
+  // clientes locais e remotos acessem o mesmo endereço.
+  const ip = config.domains[domain] === '127.0.0.1' ? localIP : config.domains[domain];
 
   const response = buildResponse(query, ip);
   server.send(response, rinfo.port, clientIP);
