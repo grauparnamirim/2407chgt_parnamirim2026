@@ -136,4 +136,23 @@ module.exports = async function testCrud(port) {
     await put(`/api/grupos/${g.data.id}/permissoes`, { permissoes: [] }, t);
     await del(`/api/grupos/${g.data.id}`, t);
   });
+
+  await test('servicos (FK em uso)', async () => {
+    // Cria categoria de serviço e uma manutenção vinculada a ela
+    const cat = await post('/api/manutencoes/categorias-servico', { nome: 'Serviço FK Teste' }, t);
+    assert.equal(cat.status, 201, JSON.stringify(cat.data));
+    const ativo = await post('/api/ativos', { patrimonio: 'PAT-FK', modelo: 'Dell' }, t); assert.equal(ativo.status, 201);
+    const manut = await post(`/api/ativos/${ativo.data.id}/manutencoes`, { categoria_servico_id: cat.data.id, nome_servico: 'Manutenção FK' }, t);
+    assert.equal(manut.status, 201, JSON.stringify(manut.data));
+
+    // Exclusão deve ser bloqueada (409) com mensagem amigável — sem stack trace
+    const bloqueada = await del(`/api/manutencoes/categorias-servico/${cat.data.id}`, t);
+    assert.equal(bloqueada.status, 409, 'deve bloquear exclusão de serviço em uso');
+    assert.ok(bloqueada.data.erro && bloqueada.data.erro.includes('manutenção'), 'mensagem deve ser amigável');
+
+    // Removendo a manutenção, a exclusão da categoria passa a funcionar
+    await del(`/api/ativos/${ativo.data.id}`, t);
+    const liberada = await del(`/api/manutencoes/categorias-servico/${cat.data.id}`, t);
+    assert.equal(liberada.status, 200, 'após desvincular, exclusão deve funcionar');
+  });
 };

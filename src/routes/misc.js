@@ -63,6 +63,21 @@ router.get('/nf-comparativo/:id', autenticar, operational, (req, res) => {
 });
 
 // === MANUTENÇÃO CATEGORIAS ===
+// DELETE customizado: bloqueia a exclusão de uma categoria de serviço que
+// ainda esteja vinculada a manutenções, evitando o erro de foreign key.
+router.delete('/manutencoes/categorias-servico/:id', autenticar, operational, (req, res) => {
+  const db = getDb();
+  const categoriaId = id(req.params.id);
+  const categoria = db.prepare('SELECT * FROM categorias_servico_manutencao WHERE id = ?').get(categoriaId);
+  if (!categoria) return res.status(404).json({ erro: 'Categoria de serviço não encontrada.' });
+  const emUso = db.prepare('SELECT COUNT(*) AS c FROM manutencoes WHERE categoria_servico_id = ?').get(categoriaId).c;
+  if (emUso > 0) {
+    return res.status(409).json({ erro: `Não é possível excluir "${categoria.nome}" pois está vinculada a ${emUso} manutenção(ões).` });
+  }
+  db.prepare('DELETE FROM categorias_servico_manutencao WHERE id = ?').run(categoriaId);
+  res.json({ sucesso: true, mensagem: 'Categoria de serviço removida!' });
+});
+
 router.use(createCrudRoutes({ path: 'manutencoes/categorias-servico', table: 'categorias_servico_manutencao', fields: ['nome'], message: 'Categoria de serviço' }));
 
 // === RELATÓRIOS ===
