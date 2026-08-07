@@ -32,7 +32,12 @@ function createApp() {
 
   app.use(helmet({ contentSecurityPolicy: false }));
   app.use(express.json({ limit: '1mb' }));
-  app.use(express.static(path.join(__dirname, '..', 'public'), { maxAge: '7d' }));
+  app.use(express.static(path.join(__dirname, '..', 'public'), {
+    maxAge: '7d',
+    setHeaders(res, filePath) {
+      if (filePath.endsWith('.html')) res.setHeader('Cache-Control', 'no-store');
+    }
+  }));
 
   const staticPages = ['painel', 'impressoras', 'fornecedores', 'dispositivos', 'meus-chamados', 'setores', 'categorias', 'financeiro', 'relatorios', 'inventario', 'usuarios', 'notas-fiscais', 'avancado'];
   for (const page of staticPages) {
