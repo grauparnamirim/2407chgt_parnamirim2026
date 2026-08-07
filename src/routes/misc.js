@@ -90,12 +90,27 @@ function relatoriosAllowed(req, res, next) {
   return res.status(403).json({ erro: 'Acesso negado.' });
 }
 
-// Chamados visíveis ao usuário (admin: todos; demais: da unidade)
-function relatorioChamados(req) {
+// Chamados visíveis ao usuário nos relatórios.
+// - admin: todos; gestor: da unidade (com filtro opcional por técnico);
+// - tecnico: apenas os próprios chamados atribuídos;
+// - usuario: apenas os chamados que ele mesmo abriu.
+// gestorId (query): permite a admin/gestor filtrar por um técnico específico.
+// Quando gestorId é o próprio id, o filtro é ignorado (visão completa da unidade).
+function relatorioChamados(req, gestorId) {
   const db = getDb();
-  if (req.usuario.perfil === 'admin') return db.prepare('SELECT * FROM chamados').all();
-  if (req.usuario.perfil === 'usuario') return db.prepare('SELECT * FROM chamados WHERE usuario_id = ?').all(req.usuario.id);
-  return db.prepare('SELECT * FROM chamados WHERE unidade_id = ?').all(req.usuario.unidade_id);
+  const filtroTecnico = chamados => gestorId && gestorId !== req.usuario.id
+    ? chamados.filter(c => Number(c.tecnico_id) === gestorId)
+    : chamados;
+  if (req.usuario.perfil === 'admin') {
+    return filtroTecnico(db.prepare('SELECT * FROM chamados').all());
+  }
+  if (req.usuario.perfil === 'usuario') {
+    return db.prepare('SELECT * FROM chamados WHERE usuario_id = ?').all(req.usuario.id);
+  }
+  if (req.usuario.perfil === 'tecnico') {
+    return db.prepare('SELECT * FROM chamados WHERE tecnico_id = ?').all(req.usuario.id);
+  }
+  return filtroTecnico(db.prepare('SELECT * FROM chamados WHERE unidade_id = ?').all(req.usuario.unidade_id));
 }
 
 // Reconstrói a linha do tempo de status de um chamado a partir do notificacoes_log
@@ -123,7 +138,8 @@ function calcularTemposChamado(db, c) {
 // Retorna relatório geral de chamados agrupados por status e técnico
 router.get('/relatorios', autenticar, relatoriosAllowed, (req, res) => {
   const db = getDb();
-  const chamados = relatorioChamados(req);
+  const gestorId = id(req.query.gestor_id);
+  const chamados = relatorioChamados(req, gestorId);
   const count = status => chamados.filter(c => c.status === status).length;
   const porTecnicoMap = {};
   chamados.forEach(c => {
@@ -141,7 +157,8 @@ router.get('/relatorios', autenticar, relatoriosAllowed, (req, res) => {
 // Retorna relatório de tempos de chamados concluídos com métricas reais
 router.get('/relatorios/tempos', autenticar, relatoriosAllowed, (req, res) => {
   const db = getDb();
-  const todosChamados = relatorioChamados(req);
+  const gestorId = id(req.query.gestor_id);
+  const todosChamados = relatorioChamados(req, gestorId);
   const concluidos = todosChamados.filter(c => c.status === 'Resolvido');
   const chamados = concluidos.map(c => {
     const t = calcularTemposChamado(db, c);
