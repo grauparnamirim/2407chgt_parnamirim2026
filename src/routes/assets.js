@@ -85,16 +85,33 @@ router.put(['/computadores/:id/atribuir', '/ativos/:id/atribuir'], autenticar, o
   res.json({ sucesso: true, mensagem: 'Usuário atribuído!' });
 });
 
-// Retorna ativos que possuem IP configurado para exibição no mapa de rede
+// Retorna ativos da unidade com resumo para exibição no mapa de rede
 router.get('/ativos/mapa-rede', autenticar, operational, (req, res) => {
   const db = getDb();
   let rows;
   if (req.usuario.perfil === 'admin') {
-    rows = db.prepare("SELECT * FROM computadores WHERE (ip IS NOT NULL AND ip != '') OR (ip_endereco IS NOT NULL AND ip_endereco != '')").all();
+    rows = db.prepare('SELECT * FROM computadores').all();
   } else {
-    rows = db.prepare("SELECT * FROM computadores WHERE unidade_id = ? AND ((ip IS NOT NULL AND ip != '') OR (ip_endereco IS NOT NULL AND ip_endereco != ''))").all(req.usuario.unidade_id);
+    rows = db.prepare('SELECT * FROM computadores WHERE unidade_id = ?').all(req.usuario.unidade_id);
   }
-  res.json(rows.map(a => enrichAsset(db, a)));
+  const porIp = new Map();
+  rows.forEach(a => { const ip = String(a.ip_endereco || a.ip || '').trim(); if (ip) porIp.set(ip, (porIp.get(ip) || 0) + 1); });
+  const itens = rows.map(a => {
+    const local = a.local_id ? db.prepare('SELECT nome, tipo FROM locais WHERE id = ?').get(a.local_id) : null;
+    return {
+      ...enrichAsset(db, a),
+      local_tipo: local?.tipo || null,
+      ip_endereco: a.ip_endereco || a.ip || '',
+      ip_duplicado: Boolean(a.ip_endereco && porIp.get(String(a.ip_endereco).trim()) > 1)
+    };
+  });
+  const comIp = itens.filter(a => a.ip_endereco).length;
+  const conflitosIp = [...porIp.values()].filter(n => n > 1).length;
+  res.json({
+    resumo: { total: itens.length, com_ip: comIp, sem_ip: itens.length - comIp, conflitos_ip: conflitosIp },
+    itens,
+    pode_ver_acesso_remoto: req.usuario.perfil === 'admin' || (req.usuario.permissoes || []).includes('ativos.editar')
+  });
 });
 
 // ============================================================
@@ -205,21 +222,50 @@ router.put('/manutencoes/:id', autenticar, operational, (req, res) => {
 // CHECKLISTS DE LABORATÓRIO
 // ============================================================
 
-// Retorna dados de preparação para checklist (locais disponíveis)
+// Retorna laboratórios disponíveis e, se informado um local, os itens para a conferência
 router.get('/checklists-laboratorio/preparacao', autenticar, operational, (req, res) => {
   const db = getDb();
-  const locais = req.usuario.perfil === 'admin'
-    ? db.prepare('SELECT * FROM locais').all()
-    : db.prepare('SELECT * FROM locais WHERE unidade_id = ?').all(req.usuario.unidade_id);
-  res.json({ locais, itens: [] });
+  const isAdmin = req.usuario.perfil === 'admin';
+  const laboratorios = db.prepare(`SELECT l.id, l.nome, l.tipo,
+    (SELECT COUNT(*) FROM computadores c WHERE c.local_id = l.id AND c.status != 'Desativado' AND c.status != 'Baixado') +
+    (SELECT COUNT(*) FROM dispositivos d WHERE d.local_id = l.id AND d.ativo = 1) +
+    (SELECT COUNT(*) FROM impressoras i WHERE i.local_id = l.id AND i.ativo = 1) AS total_bens
+    FROM locais l WHERE l.tipo = 'laboratorio' AND l.ativo = 1${isAdmin ? '' : ' AND l.unidade_id = ?'} ORDER BY l.nome COLLATE NOCASE`)
+    .all(...(isAdmin ? [] : [req.usuario.unidade_id]));
+  const localId = id(req.query.local_id);
+  let itens = [];
+  if (localId) {
+    itens.push({ tipo: 'internet', chave: 'internet', bem_id: null, nome: 'Internet e rede do laboratório' });
+    const bens = db.prepare(`SELECT c.*, l.nome AS local_nome FROM computadores c LEFT JOIN locais l ON l.id = c.local_id
+      WHERE c.local_id = ? AND c.status != 'Desativado' AND c.status != 'Baixado' ORDER BY c.patrimonio`).all(localId);
+    for (const bem of bens) {
+      const descricao = [bem.modelo, bem.fabricante].filter(Boolean).join(' · ');
+      itens.push({ tipo: 'bem', chave: `bem:${bem.id}`, bem_id: bem.id, nome: bem.patrimonio || descricao || `Bem #${bem.id}` });
+    }
+  }
+  res.json({ laboratorios, itens });
 });
 
-// Lista todos os checklists de laboratório
+// Lista os checklists de laboratório (com resultado e responsável) respeitando filtros
 router.get('/checklists-laboratorio', autenticar, operational, (req, res) => {
   const db = getDb();
-  const rows = req.usuario.perfil === 'admin'
-    ? db.prepare('SELECT * FROM checklists_laboratorio').all()
-    : db.prepare('SELECT * FROM checklists_laboratorio WHERE unidade_id = ?').all(req.usuario.unidade_id);
+  const isAdmin = req.usuario.perfil === 'admin';
+  const condicoes = [];
+  const params = [];
+  if (!isAdmin) { condicoes.push('cl.unidade_id = ?'); params.push(req.usuario.unidade_id); }
+  if (id(req.query.local_id)) { condicoes.push('cl.local_id = ?'); params.push(id(req.query.local_id)); }
+  const limite = Math.min(200, Math.max(1, parseInt(req.query.limite, 10) || 50));
+  const where = condicoes.length ? ' WHERE ' + condicoes.join(' AND ') : '';
+  const rows = db.prepare(`SELECT cl.*, u.nome AS realizado_por_nome,
+      (SELECT COUNT(*) FROM checklist_laboratorio_itens i WHERE i.checklist_id = cl.id AND i.estado = 'problema') AS total_problemas,
+      (SELECT COUNT(*) FROM checklist_laboratorio_itens i WHERE i.checklist_id = cl.id AND i.estado = 'ausente') AS total_ausentes
+    FROM checklists_laboratorio cl LEFT JOIN usuarios u ON u.id = cl.usuario_id${where}
+    ORDER BY cl.criado_em DESC LIMIT ?`).all(...params, limite);
+  for (const row of rows) {
+    if (!row.local_nome_snapshot) {
+      row.local_nome_snapshot = db.prepare('SELECT nome FROM locais WHERE id = ?').get(row.local_id)?.nome || 'Local removido';
+    }
+  }
   res.json(rows);
 });
 
@@ -228,19 +274,33 @@ router.get('/checklists-laboratorio/:id', autenticar, operational, (req, res) =>
   const db = getDb();
   const cl = db.prepare('SELECT * FROM checklists_laboratorio WHERE id = ?').get(id(req.params.id));
   if (!cl) return res.status(404).json({ erro: 'Checklist não encontrado.' });
-  const itens = db.prepare('SELECT * FROM checklist_laboratorio_itens WHERE checklist_id = ?').all(cl.id);
-  res.json({ ...cl, itens });
+  if (req.usuario.perfil !== 'admin' && Number(cl.unidade_id) !== Number(req.usuario.unidade_id)) {
+    return res.status(403).json({ erro: 'Acesso negado.' });
+  }
+  const localNome = cl.local_nome_snapshot || db.prepare('SELECT nome FROM locais WHERE id = ?').get(cl.local_id)?.nome || 'Local removido';
+  const usuario = db.prepare('SELECT nome FROM usuarios WHERE id = ?').get(cl.usuario_id);
+  const itens = db.prepare('SELECT * FROM checklist_laboratorio_itens WHERE checklist_id = ? ORDER BY id').all(cl.id)
+    .map(i => ({ ...i, situacao: i.estado, observacao: i.observacoes, nome_snapshot: i.nome_snapshot || 'Item' }));
+  res.json({ ...cl, local_nome_snapshot: localNome, realizado_por_nome: usuario?.nome || 'Usuário removido', itens });
 });
 
-// Cria um novo checklist com seus itens
+// Cria um novo checklist com seus itens (salva snapshot dos nomes para exibição futura)
 router.post('/checklists-laboratorio', autenticar, operational, (req, res) => {
   const unit = currentUnit(req, res); if (!unit) return;
   const db = getDb();
-  const result = db.prepare('INSERT INTO checklists_laboratorio (local_id, unidade_id, turno, observacoes, usuario_id, criado_em) VALUES (?, ?, ?, ?, ?, ?)').run(
-    id(req.body.local_id), unit, req.body.turno || 'outro', String(req.body.observacoes || '').trim(), req.usuario.id, now());
-  const insert = db.prepare('INSERT INTO checklist_laboratorio_itens (checklist_id, estado, observacoes) VALUES (?, ?, ?)');
-  for (const item of (req.body.itens || [])) insert.run(result.lastInsertRowid, item.estado || null, item.observacoes || null);
-  res.status(201).json({ sucesso: true, id: result.lastInsertRowid, mensagem: 'Checklist salvo!' });
+  const local = db.prepare('SELECT * FROM locais WHERE id = ?').get(id(req.body.local_id));
+  if (!local || !unitScope(req, local)) return res.status(400).json({ erro: 'Laboratório inválido.' });
+  const localNomeSnapshot = local.nome;
+  const result = db.prepare('INSERT INTO checklists_laboratorio (local_id, unidade_id, turno, observacoes, usuario_id, local_nome_snapshot, criado_em) VALUES (?, ?, ?, ?, ?, ?, ?)').run(
+    local.id, unit, req.body.turno || 'outro', String(req.body.observacoes || '').trim(), req.usuario.id, localNomeSnapshot, now());
+  const insert = db.prepare('INSERT INTO checklist_laboratorio_itens (checklist_id, estado, observacoes, tipo, chave, bem_id, nome_snapshot) VALUES (?, ?, ?, ?, ?, ?, ?)');
+  let problemas = 0;
+  for (const item of (req.body.itens || [])) {
+    const situacao = item.situacao || item.estado || null;
+    if (situacao === 'problema') problemas++;
+    insert.run(result.lastInsertRowid, situacao, item.observacao || item.observacoes || null, item.tipo || 'bem', item.chave || null, id(item.bem_id) || null, item.nome || null);
+  }
+  res.status(201).json({ sucesso: true, id: result.lastInsertRowid, problemas, mensagem: problemas ? `Checklist salvo com ${problemas} pendência${problemas === 1 ? '' : 's'}!` : 'Checklist salvo!' });
 });
 
 // ============================================================

@@ -81,27 +81,98 @@ router.delete('/manutencoes/categorias-servico/:id', autenticar, operational, (r
 router.use(createCrudRoutes({ path: 'manutencoes/categorias-servico', table: 'categorias_servico_manutencao', fields: ['nome'], message: 'Categoria de serviço' }));
 
 // === RELATÓRIOS ===
-// Retorna relatório geral de chamados agrupados por status
-router.get('/relatorios', autenticar, operational, (req, res) => {
+
+// Permite acesso a relatórios para perfis operacionais OU quem tiver a permissão
+function relatoriosAllowed(req, res, next) {
+  const perms = req.usuario.permissoes || [];
+  if (['admin', 'gestor', 'tecnico'].includes(req.usuario.perfil) ||
+      perms.includes('relatorios.ver_dashboard') || perms.includes('relatorios.ver_tempos')) return next();
+  return res.status(403).json({ erro: 'Acesso negado.' });
+}
+
+// Chamados visíveis ao usuário (admin: todos; demais: da unidade)
+function relatorioChamados(req) {
   const db = getDb();
-  let chamados;
-  if (req.usuario.perfil === 'admin') {
-    chamados = db.prepare('SELECT * FROM chamados').all();
-  } else if (req.usuario.perfil === 'usuario') {
-    chamados = db.prepare('SELECT * FROM chamados WHERE usuario_id = ?').all(req.usuario.id);
-  } else {
-    chamados = db.prepare('SELECT * FROM chamados WHERE unidade_id = ?').all(req.usuario.unidade_id);
+  if (req.usuario.perfil === 'admin') return db.prepare('SELECT * FROM chamados').all();
+  if (req.usuario.perfil === 'usuario') return db.prepare('SELECT * FROM chamados WHERE usuario_id = ?').all(req.usuario.id);
+  return db.prepare('SELECT * FROM chamados WHERE unidade_id = ?').all(req.usuario.unidade_id);
+}
+
+// Reconstrói a linha do tempo de status de um chamado a partir do notificacoes_log
+// e calcula tempo aberto, tempo aguardando fornecedor e tempo útil (em ms).
+function calcularTemposChamado(db, c) {
+  const inicio = new Date(c.criado_em).getTime();
+  const fim = c.status === 'Resolvido' ? new Date(c.atualizado_em || c.criado_em).getTime() : Date.now();
+  const logs = db.prepare('SELECT * FROM notificacoes_log WHERE chamado_id = ? ORDER BY enviada_em ASC').all(c.id);
+  const eventos = [{ t: inicio, status: 'Aberto' }];
+  logs.forEach(l => eventos.push({ t: new Date(l.enviada_em).getTime(), status: l.status_novo }));
+  eventos.push({ t: fim, status: c.status });
+  let espera = 0;
+  for (let i = 0; i < eventos.length - 1; i++) {
+    const dt = eventos[i + 1].t - eventos[i].t;
+    if (dt > 0 && eventos[i].status === 'Aguardando Fornecedor') espera += dt;
   }
+  const aberto = Math.max(0, fim - inicio);
+  return {
+    tempo_aberto_ms: aberto,
+    tempo_espera_ms: espera,
+    tempo_util_ms: Math.max(0, aberto - espera)
+  };
+}
+
+// Retorna relatório geral de chamados agrupados por status e técnico
+router.get('/relatorios', autenticar, relatoriosAllowed, (req, res) => {
+  const db = getDb();
+  const chamados = relatorioChamados(req);
   const count = status => chamados.filter(c => c.status === status).length;
+  const porTecnicoMap = {};
+  chamados.forEach(c => {
+    if (!c.tecnico_id) return;
+    const nome = db.prepare('SELECT nome FROM usuarios WHERE id = ?').get(c.tecnico_id)?.nome || `Técnico #${c.tecnico_id}`;
+    porTecnicoMap[nome] = (porTecnicoMap[nome] || 0) + 1;
+  });
   res.json({
     porStatus: ['Aberto', 'Em andamento', 'Resolvido'].map(status => ({ status, total: count(status) })),
-    porTecnico: [],
+    porTecnico: Object.entries(porTecnicoMap).map(([tecnico, total]) => ({ tecnico, total })),
     totalChamados: chamados.length
   });
 });
 
-// Retorna relatório de tempos de chamados (dados mockados)
-router.get('/relatorios/tempos', autenticar, operational, (_, res) => res.json({ chamados: [], metricas: { tempo_medio_util_ms: 0, tempo_medio_total_ms: 0, mais_demorado_ms: 0, mais_rapido_ms: 0, total_chamados: 0, total_resolvidos: 0 } }));
+// Retorna relatório de tempos de chamados concluídos com métricas reais
+router.get('/relatorios/tempos', autenticar, relatoriosAllowed, (req, res) => {
+  const db = getDb();
+  const todosChamados = relatorioChamados(req);
+  const concluidos = todosChamados.filter(c => c.status === 'Resolvido');
+  const chamados = concluidos.map(c => {
+    const t = calcularTemposChamado(db, c);
+    return {
+      id: c.id, titulo: c.titulo,
+      usuario_nome: db.prepare('SELECT nome FROM usuarios WHERE id = ?').get(c.usuario_id)?.nome || '',
+      tecnico_nome: c.tecnico_id ? db.prepare('SELECT nome FROM usuarios WHERE id = ?').get(c.tecnico_id)?.nome || '' : '',
+      aberto_em: c.criado_em,
+      concluido_em: c.atualizado_em || c.criado_em,
+      tempo_util_ms: t.tempo_util_ms,
+      tempo_espera_ms: t.tempo_espera_ms,
+      tempo_aberto_ms: t.tempo_aberto_ms
+    };
+  });
+  const total = chamados.length;
+  const totalChamados = todosChamados.length;
+  const totalResolvidos = total;
+  const somaUtil = chamados.reduce((s, c) => s + c.tempo_util_ms, 0);
+  const somaTotal = chamados.reduce((s, c) => s + c.tempo_aberto_ms, 0);
+  res.json({
+    chamados,
+    metricas: {
+      tempo_medio_util_ms: total ? Math.round(somaUtil / total) : 0,
+      tempo_medio_total_ms: total ? Math.round(somaTotal / total) : 0,
+      mais_demorado_ms: total ? Math.max(...chamados.map(c => c.tempo_aberto_ms)) : 0,
+      mais_rapido_ms: total ? Math.min(...chamados.map(c => c.tempo_aberto_ms)) : 0,
+      total_chamados: totalChamados,
+      total_resolvidos: totalResolvidos
+    }
+  });
+});
 
 // === ADMIN: GRUPOS E PERMISSÕES ===
 // Retorna todas as permissões disponíveis, agrupadas por módulo

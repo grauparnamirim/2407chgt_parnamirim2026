@@ -23,6 +23,13 @@ function createCrudRoutes({ path, table, fields, unit, message }) {
       rows = db.prepare(`SELECT * FROM ${validTable(table)}`).all();
     }
     if (table === 'locais' && !req.query.incluir_inativos) rows = rows.filter(x => x.ativo !== 0);
+    if (table === 'locais') {
+      const countStmt = db.prepare(`SELECT
+        (SELECT COUNT(*) FROM computadores c WHERE c.local_id = ? AND c.status NOT IN ('Desativado','Baixado')) +
+        (SELECT COUNT(*) FROM dispositivos d WHERE d.local_id = ? AND d.ativo = 1) +
+        (SELECT COUNT(*) FROM impressoras i WHERE i.local_id = ? AND i.ativo = 1) AS total`);
+      for (const row of rows) row.total_bens = countStmt.get(row.id, row.id, row.id).total || 0;
+    }
     res.json(rows);
   });
 
