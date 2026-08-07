@@ -15,7 +15,9 @@ module.exports = async function testHelpdesk(port) {
 
   const unidades = await request(port, 'GET', '/api/unidades');
   assert.equal(unidades.status, 200);
-  assert.equal(unidades.data.length, 3);
+  assert.ok(Array.isArray(unidades.data.unidades));
+  assert.equal(unidades.data.unidades.length, 3);
+  assert.equal(unidades.data.unidade_fixa, null);
 
   // ============================================================
   // LOGIN EM MÚLTIPLAS UNIDADES
@@ -30,6 +32,32 @@ module.exports = async function testHelpdesk(port) {
     logins.push(login);
   }
   const login = logins[1];
+
+  // ============================================================
+  // UNIDADE FIXA DO SERVIDOR (INTRANET LOCAL)
+  // ============================================================
+
+  const configAntes = await request(port, 'GET', '/api/config/unidade-fixa');
+  assert.equal(configAntes.status, 200);
+  assert.equal(configAntes.data.unidade_fixa, null);
+  // Define unidade fixa (id 2) como admin
+  const setFixa = await request(port, 'PUT', '/api/config/unidade-fixa', { unidade_id: 2 }, login.data.token);
+  assert.equal(setFixa.status, 200);
+  const configDepois = await request(port, 'GET', '/api/config/unidade-fixa');
+  assert.equal(configDepois.data.unidade_fixa, 2);
+  const unidadesComFixa = await request(port, 'GET', '/api/unidades');
+  assert.equal(unidadesComFixa.data.unidade_fixa, 2);
+  // Não-admin não pode alterar
+  const semPermissao = await request(port, 'PUT', '/api/config/unidade-fixa', { unidade_id: 1 });
+  assert.equal(semPermissao.status, 401);
+  // Unidade inválida é rejeitada
+  const invalida = await request(port, 'PUT', '/api/config/unidade-fixa', { unidade_id: 999 }, login.data.token);
+  assert.equal(invalida.status, 400);
+  // Remove a unidade fixa (null) para não afetar os demais testes
+  const remover = await request(port, 'PUT', '/api/config/unidade-fixa', { unidade_id: null }, login.data.token);
+  assert.equal(remover.status, 200);
+  const configFinal = await request(port, 'GET', '/api/config/unidade-fixa');
+  assert.equal(configFinal.data.unidade_fixa, null);
 
   // ============================================================
   // CRUD DE CATEGORIAS
@@ -47,8 +75,12 @@ module.exports = async function testHelpdesk(port) {
 
   const createdUser = await request(port, 'POST', '/api/usuarios', { nome: 'Técnico local', email: 'tecnico@local.test', senha: 'SenhaLocal123!', perfil: 'tecnico' }, login.data.token);
   assert.equal(createdUser.status, 201);
-  const dangerous = await request(port, 'PUT', `/api/usuarios/${createdUser.data.id}`, { perfil: 'admin' }, login.data.token);
-  assert.equal(dangerous.status, 400);
+  // Promoção para admin é permitida ao admin
+  const promote = await request(port, 'PUT', `/api/usuarios/${createdUser.data.id}`, { perfil: 'admin' }, login.data.token);
+  assert.equal(promote.status, 200);
+  // Conta admin demo (id 1) é protegida contra alterações
+  const protectedAdmin = await request(port, 'PUT', '/api/usuarios/1', { perfil: 'usuario' }, login.data.token);
+  assert.equal(protectedAdmin.status, 403);
 
   // ============================================================
   // MÓDULOS VAZIOS — TODOS DEVEM RETORNAR 200

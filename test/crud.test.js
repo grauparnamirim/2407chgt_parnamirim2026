@@ -73,6 +73,26 @@ module.exports = async function testCrud(port) {
     await del(`/api/usuarios/${c.data.id}`, t);
   });
 
+  await test('usuarios: criar admin e setor_nome', async () => {
+    // Cria um setor e vincula a um novo usuário
+    const setor = await post('/api/setores', { nome: 'Setor TI' }, t); assert.equal(setor.status, 201);
+    const a = await post('/api/usuarios', { nome: 'Admin 2', email: 'admin2@test.local', senha: 'Senha123!', perfil: 'admin', setor: setor.data.id }, t);
+    assert.equal(a.status, 201, JSON.stringify(a.data));
+    const lista = await get('/api/usuarios', t);
+    const criado = lista.data.find(u => Number(u.id) === Number(a.data.id));
+    assert.ok(criado, 'usuário deve aparecer na lista');
+    assert.equal(criado.perfil, 'admin', 'perfil admin deve ser salvo');
+    assert.equal(criado.setor_nome, 'Setor TI', 'lista deve incluir o nome do setor vinculado');
+    // Novo admin deve conseguir criar outro usuário
+    const login2 = await post('/api/login', { email: 'admin2@test.local', senha: 'Senha123!', unidade_id: 1 });
+    assert.equal(login2.status, 200);
+    const c2 = await post('/api/usuarios', { nome: 'Usuário do admin2', email: 'u2@test.local', senha: 'Senha123!', perfil: 'usuario' }, login2.data.token);
+    assert.equal(c2.status, 201, 'admin criado deve poder cadastrar usuários');
+    await del(`/api/usuarios/${c2.data.id}`, login2.data.token);
+    await del(`/api/usuarios/${a.data.id}`, t);
+    await del(`/api/setores/${setor.data.id}`, t);
+  });
+
   await test('chamados', async () => {
     const c = await post('/api/chamados', { titulo: 'Chamado T', descricao: 'Desc' }, t); assert.equal(c.status, 201);
     const cm = await post(`/api/chamados/${c.data.id}/comentarios`, { texto: 'Comentário' }, t); assert.equal(cm.status, 201);
@@ -135,6 +155,64 @@ module.exports = async function testCrud(port) {
     const g = await post('/api/grupos', { nome: 'Grupo T', descricao: 'Desc' }, t); assert.equal(g.status, 201);
     await put(`/api/grupos/${g.data.id}/permissoes`, { permissoes: [] }, t);
     await del(`/api/grupos/${g.data.id}`, t);
+  });
+
+  await test('grupos: permissões e membros', async () => {
+    // Permissões disponíveis devem estar populadas no seed
+    const perm = await get('/api/permissoes', t); assert.equal(perm.status, 200);
+    assert.ok(perm.data.lista.length >= 10, 'deve existir permissões no seed: ' + perm.data.lista.length);
+    assert.ok(perm.data.agrupadas && Object.keys(perm.data.agrupadas).length >= 3, 'deve vir agrupadas por módulo');
+    const permissaoId = perm.data.lista[0].id;
+
+    // Cria grupo, vincula permissão e consulta de volta
+    const g = await post('/api/grupos', { nome: 'Grupo Perm', descricao: 'Teste' }, t); assert.equal(g.status, 201);
+    const salvarPerm = await put(`/api/grupos/${g.data.id}/permissoes`, { permissoes: [permissaoId] }, t);
+    assert.equal(salvarPerm.status, 200);
+    const atuais = await get(`/api/grupos/${g.data.id}/permissoes`, t);
+    assert.deepEqual(atuais.data.map(Number), [permissaoId], 'deve retornar as permissões do grupo');
+    const listaGrupos = await get('/api/grupos', t);
+    const grupoNaLista = listaGrupos.data.find(item => Number(item.id) === Number(g.data.id));
+    assert.ok(grupoNaLista && grupoNaLista.permissoes.length === 1, 'grupo deve vir com chaves de permissões');
+    assert.equal(grupoNaLista.permissoes[0], perm.data.lista[0].chave, 'chave da permissão no grupo');
+
+    // Cria usuário, vincula ao grupo e consulta membros
+    const u = await post('/api/usuarios', { nome: 'Membro G', email: 'membro.g@test.local', senha: 'Senha123!', perfil: 'tecnico' }, t);
+    assert.equal(u.status, 201);
+    await put(`/api/usuarios/${u.data.id}/grupos`, { grupos: [g.data.id] }, t);
+    const membros = await get(`/api/grupos/${g.data.id}/usuarios`, t);
+    assert.ok(membros.data.some(m => Number(m.id) === Number(u.data.id)), 'usuário deve aparecer como membro');
+    const gruposDoUsuario = await get(`/api/usuarios/${u.data.id}/grupos`, t);
+    assert.deepEqual(gruposDoUsuario.data.map(g => Number(g.id)), [g.data.id], 'grupos do usuário');
+
+    await del(`/api/usuarios/${u.data.id}`, t);
+    await del(`/api/grupos/${g.data.id}`, t);
+  });
+
+  await test('relatorios: métricas reais', async () => {
+    // Sem chamados, relatório vem zerado
+    const vazio = await get('/api/relatorios/tempos', t);
+    assert.equal(vazio.status, 200);
+    assert.equal(vazio.data.metricas.total_chamados, 0);
+
+    // Abre e resolve um chamado para gerar métrica real
+    const chamado = await post('/api/chamados', { titulo: 'Chamado relatório', descricao: 'Teste de métricas' }, t);
+    assert.equal(chamado.status, 201);
+    const status = await put(`/api/chamados/${chamado.data.id}/status`, { status: 'Resolvido', motivo: 'Corrigido no teste' }, t);
+    assert.equal(status.status, 200);
+
+    const rel = await get('/api/relatorios', t);
+    assert.equal(rel.status, 200);
+    assert.equal(rel.data.totalChamados, 1);
+    assert.ok(rel.data.porStatus.find(s => s.status === 'Resolvido').total === 1, 'deve contar resolvidos');
+
+    const tempos = await get('/api/relatorios/tempos', t);
+    assert.equal(tempos.status, 200);
+    assert.equal(tempos.data.metricas.total_chamados, 1);
+    assert.equal(tempos.data.metricas.total_resolvidos, 1);
+    assert.equal(tempos.data.chamados.length, 1);
+    assert.ok(tempos.data.chamados[0].tempo_aberto_ms >= 0, 'tempo aberto calculado');
+    assert.ok(tempos.data.metricas.tempo_medio_util_ms > 0, 'tempo médio útil calculado');
+    assert.ok(tempos.data.metricas.mais_rapido_ms > 0, 'mais rápido calculado');
   });
 
   await test('servicos (FK em uso)', async () => {

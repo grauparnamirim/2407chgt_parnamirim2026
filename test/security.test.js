@@ -105,6 +105,32 @@ module.exports = async function testSecurity(port) {
   assert.equal(forbidden.status, 403, 'usuário sem acesso deve receber 403');
 
   // ============================================================
+  // 8.1. TÉCNICO SEM GRUPO — PADRÃO DE CHAMADOS
+  // ============================================================
+
+  // Técnico criado sem grupo de permissão ainda deve ver os chamados
+  const tecLogin = await request(port, 'POST', '/api/login', { email: 'admin@local.test', senha: 'Admin123!', unidade_id: 1 });
+  const adminTecToken = tecLogin.data.token;
+  const createdTec = await request(port, 'POST', '/api/usuarios', { nome: 'Técnico sem grupo', email: 'tec.semgrupo@test.local', senha: 'Senha123!', perfil: 'tecnico' }, adminTecToken);
+  assert.equal(createdTec.status, 201);
+  const tecTokenLogin = await request(port, 'POST', '/api/login', { email: 'tec.semgrupo@test.local', senha: 'Senha123!', unidade_id: 1 });
+  assert.equal(tecTokenLogin.status, 200);
+  assert.ok(tecTokenLogin.data.usuario.permissoes.includes('chamados.ver_atribuidos'), 'técnico sem grupo deve ver chamados atribuídos');
+  const chamadosTec = await request(port, 'GET', '/api/chamados', undefined, tecTokenLogin.data.token);
+  assert.equal(chamadosTec.status, 200, 'técnico sem grupo deve listar chamados da unidade');
+
+  // Técnico com permissão chamados.alterar_status deve poder alterar status
+  // de um chamado da unidade mesmo não sendo o técnico atribuído.
+  const criadoChamado = await request(port, 'POST', '/api/chamados', { titulo: 'Chamado status tecnico', descricao: 'desc' }, tecTokenLogin.data.token);
+  assert.equal(criadoChamado.status, 201);
+  // Atribuição automática: como só existe um técnico ativo na unidade, o chamado deve ficar com ele
+  const chamadoAposAbrir = await request(port, 'GET', `/api/chamados/${criadoChamado.data.id}/detalhes`, undefined, tecTokenLogin.data.token);
+  assert.equal(chamadoAposAbrir.status, 200);
+  assert.equal(chamadoAposAbrir.data.tecnico_id, tecTokenLogin.data.usuario.id, 'chamado deve ser atribuído ao técnico menos ocupado');
+  const alteraStatus = await request(port, 'PUT', `/api/chamados/${criadoChamado.data.id}/status`, { status: 'Em andamento', tecnico_id: tecTokenLogin.data.usuario.id }, tecTokenLogin.data.token);
+  assert.equal(alteraStatus.status, 200, 'técnico sem grupo deve alterar status do chamado da unidade');
+
+  // ============================================================
   // 9. RATE LIMIT
   // ============================================================
 
