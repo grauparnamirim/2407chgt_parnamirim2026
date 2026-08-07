@@ -62,14 +62,33 @@ const PERMISSOES_PADRAO_PERFIL = {
   usuario: ['chamados.ver_proprios']
 };
 
-// Retorna a lista de permissões do usuário (admins têm todas)
+// Permissões básicas de usuário comum — não habilitam acesso operacional
+const PERMISSOES_USUARIO_BASICAS = new Set([
+  'chamados.abrir', 'chamados.ver_proprios', 'chamados.reabrir',
+  'chamados.comentar', 'notificacoes.receber'
+]);
+
+// Retorna a lista de permissões do usuário (admins têm todas).
+// As permissões padrão do perfil são somadas às do grupo: entrar em um grupo
+// NÃO revoga as capacidades básicas do perfil (ex.: técnico continua vendo
+// os próprios chamados e alterando status mesmo sem a permissão no grupo).
 function userPermissions(db, user) {
   if (user.perfil === 'admin') return ['*'];
+  const base = PERMISSOES_PADRAO_PERFIL[user.perfil] || [];
   const groupIds = db.prepare('SELECT grupo_id FROM usuarios_grupos WHERE usuario_id = ?').all(user.id).map(r => r.grupo_id);
-  if (!groupIds.length) return PERMISSOES_PADRAO_PERFIL[user.perfil] || [];
+  if (!groupIds.length) return base;
   const permIds = db.prepare(`SELECT permissao_id FROM grupos_permissoes WHERE grupo_id IN (${groupIds.map(() => '?').join(',')})`).all(...groupIds).map(r => r.permissao_id);
-  if (!permIds.length) return PERMISSOES_PADRAO_PERFIL[user.perfil] || [];
-  return db.prepare(`SELECT chave FROM permissoes WHERE id IN (${permIds.map(() => '?').join(',')})`).all(...permIds).map(r => r.chave);
+  if (!permIds.length) return base;
+  const grupoPerms = db.prepare(`SELECT chave FROM permissoes WHERE id IN (${permIds.map(() => '?').join(',')})`).all(...permIds).map(r => r.chave);
+  return [...new Set([...base, ...grupoPerms])];
+}
+
+// Verifica se o usuário tem capacidade operacional: perfis operacionais
+// (admin/gestor/tecnico) OU permissões concedidas via grupo além das básicas
+// de usuário. Espelha temPermissoesAvancadas() do frontend.
+function temCapacidadeOperacional(req) {
+  if (['admin', 'gestor', 'tecnico'].includes(req.usuario.perfil)) return true;
+  return (req.usuario.permissoes || []).some(p => !PERMISSOES_USUARIO_BASICAS.has(p));
 }
 
 // Middleware de autenticação via JWT — valida token e carrega usuário
@@ -108,7 +127,7 @@ function requireRole(...roles) {
 }
 
 const admin = requireRole('admin');
-const operational = requireRole('admin', 'gestor', 'tecnico');
+const operational = (req, res, next) => temCapacidadeOperacional(req) ? next() : res.status(403).json({ erro: 'Acesso negado.' });
 
 // Verifica se o item pertence à unidade do usuário (admins veem tudo)
 function unitScope(req, item) {
