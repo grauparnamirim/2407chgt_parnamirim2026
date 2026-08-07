@@ -104,26 +104,64 @@ router.get('/relatorios', autenticar, operational, (req, res) => {
 router.get('/relatorios/tempos', autenticar, operational, (_, res) => res.json({ chamados: [], metricas: { tempo_medio_util_ms: 0, tempo_medio_total_ms: 0, mais_demorado_ms: 0, mais_rapido_ms: 0, total_chamados: 0, total_resolvidos: 0 } }));
 
 // === ADMIN: GRUPOS E PERMISSÕES ===
-// Retorna todas as permissões disponíveis
-router.get('/permissoes', autenticar, admin, (_, res) => res.json(getDb().prepare('SELECT * FROM permissoes').all()));
-// Retorna todos os grupos de usuários
-router.get('/grupos', autenticar, admin, (_, res) => res.json(getDb().prepare('SELECT * FROM grupos').all()));
+// Retorna todas as permissões disponíveis, agrupadas por módulo
+router.get('/permissoes', autenticar, admin, (_, res) => {
+  const db = getDb();
+  const lista = db.prepare('SELECT * FROM permissoes').all();
+  const agrupadas = {};
+  lista.forEach(p => {
+    const modulo = p.chave.split('.')[0];
+    (agrupadas[modulo] = agrupadas[modulo] || []).push(p);
+  });
+  res.json({ lista, agrupadas });
+});
+
+// Retorna todos os grupos de usuários com permissões e flag de sistema
+router.get('/grupos', autenticar, admin, (_, res) => {
+  const db = getDb();
+  const grupos = db.prepare('SELECT * FROM grupos').all();
+  res.json(grupos.map(g => ({
+    ...g,
+    sistema: false,
+    permissoes: db.prepare(`SELECT p.chave FROM grupos_permissoes gp JOIN permissoes p ON p.id = gp.permissao_id WHERE gp.grupo_id = ?`).all(g.id).map(r => r.chave)
+  })));
+});
 router.use(createCrudRoutes({ path: 'grupos', table: 'grupos', fields: ['nome', 'descricao'], message: 'Grupo', manage: admin }));
 
-// Atualiza as permissões de um grupo (substitui todas as associações)
+// Retorna os IDs das permissões de um grupo
+router.get('/grupos/:id/permissoes', autenticar, admin, (req, res) => {
+  const rows = getDb().prepare('SELECT permissao_id FROM grupos_permissoes WHERE grupo_id = ?').all(id(req.params.id));
+  res.json(rows.map(r => r.permissao_id));
+});
+
+// Retorna os usuários de um grupo
+router.get('/grupos/:id/usuarios', autenticar, admin, (req, res) => {
+  const rows = getDb().prepare(`SELECT u.id, u.nome, u.email, u.perfil FROM usuarios u
+    JOIN usuarios_grupos ug ON ug.usuario_id = u.id WHERE ug.grupo_id = ?`).all(id(req.params.id));
+  res.json(rows);
+});
+
+// Atualiza as permissões de um grupo (substitui todas as associações).
+// Aceita tanto IDs numéricos quanto chaves de permissão.
 router.put('/grupos/:id/permissoes', autenticar, admin, (req, res) => {
   const db = getDb();
-  const permissions = Array.isArray(req.body.permissoes) ? req.body.permissoes.map(id) : [];
-  db.prepare('DELETE FROM grupos_permissoes WHERE grupo_id = ?').run(id(req.params.id));
+  const grupoId = id(req.params.id);
+  const raw = Array.isArray(req.body.permissoes) ? req.body.permissoes : [];
+  const permissionIds = raw.map(v => {
+    if (Number.isInteger(Number(v))) return Number(v);
+    const found = db.prepare('SELECT id FROM permissoes WHERE chave = ?').get(String(v));
+    return found ? found.id : null;
+  }).filter(v => v !== null);
+  db.prepare('DELETE FROM grupos_permissoes WHERE grupo_id = ?').run(grupoId);
   const insert = db.prepare('INSERT INTO grupos_permissoes (grupo_id, permissao_id) VALUES (?, ?)');
-  permissions.forEach(permissao_id => insert.run(id(req.params.id), permissao_id));
+  permissionIds.forEach(permissao_id => insert.run(grupoId, permissao_id));
   res.json({ sucesso: true, mensagem: 'Permissões atualizadas!' });
 });
 
-// Retorna os IDs dos grupos de um usuário
+// Retorna os grupos de um usuário (com nome, para exibição)
 router.get('/usuarios/:id/grupos', autenticar, admin, (req, res) => {
-  const rows = getDb().prepare('SELECT grupo_id FROM usuarios_grupos WHERE usuario_id = ?').all(id(req.params.id));
-  res.json(rows.map(r => r.grupo_id));
+  const rows = getDb().prepare(`SELECT g.id, g.nome FROM grupos g JOIN usuarios_grupos ug ON ug.grupo_id = g.id WHERE ug.usuario_id = ?`).all(id(req.params.id));
+  res.json(rows);
 });
 
 // Atualiza os grupos de um usuário (substitui todas as associações)

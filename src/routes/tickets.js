@@ -34,6 +34,29 @@ function requireTicket(req, res, next) {
   next();
 }
 
+// Valida a permissão de alterar status de um chamado:
+//   admin    → acesso total
+//   gestor   → chamados da sua unidade
+//   tecnico  → chamados da sua unidade atribuídos a ele OU com permissão chamados.alterar_status
+//   usuario  → apenas chamados próprios
+function podeAlterarStatus(req, ticket) {
+  if (!ticket) return false;
+  if (req.usuario.perfil === 'admin') return true;
+  if (req.usuario.perfil === 'usuario') return Number(ticket.usuario_id) === Number(req.usuario.id);
+  const daUnidade = Number(ticket.unidade_id) === Number(req.usuario.unidade_id);
+  if (req.usuario.perfil === 'gestor') return daUnidade;
+  return daUnidade && (Number(ticket.tecnico_id) === Number(req.usuario.id) || (req.usuario.permissoes || []).includes('chamados.alterar_status'));
+}
+
+// Middleware específico para alterar status/reabrir — carrega o chamado e valida permissão
+function requireStatusPermission(req, res, next) {
+  const ticket = getDb().prepare('SELECT * FROM chamados WHERE id = ?').get(id(req.params.id));
+  if (!ticket) return res.status(404).json({ erro: 'Chamado não encontrado.' });
+  if (!podeAlterarStatus(req, ticket)) return res.status(403).json({ erro: 'Acesso negado a este chamado.' });
+  req.chamado = ticket;
+  next();
+}
+
 // Enriquece dados do chamado com nomes relacionados (usuário, técnico, fornecedor, local)
 function enrichChamado(db, c) {
   return {
@@ -56,9 +79,22 @@ router.post('/chamados', autenticar, (req, res) => {
   const titulo = String(req.body.titulo || '').trim(), descricao = String(req.body.descricao || '').trim();
   if (!titulo || !descricao) return res.status(400).json({ erro: 'Título e descrição são obrigatórios.' });
   const db = getDb();
-  const result = db.prepare(`INSERT INTO chamados (titulo, descricao, usuario_id, tecnico_id, unidade_id, subcategoria_id, local_id, status, criado_em, atualizado_em)
-    VALUES (?, ?, ?, NULL, ?, ?, ?, 'Aberto', ?, ?)`).run(titulo, descricao, req.usuario.id, unidadeId, validId(req.body.subcategoria_id) ? id(req.body.subcategoria_id) : null, validId(req.body.local_id) ? id(req.body.local_id) : null, now(), now());
-  res.status(201).json({ sucesso: true, id: result.lastInsertRowid, mensagem: 'Chamado aberto!' });
+  const insert = db.transaction(() => {
+    const result = db.prepare(`INSERT INTO chamados (titulo, descricao, usuario_id, tecnico_id, unidade_id, subcategoria_id, local_id, status, criado_em, atualizado_em)
+      VALUES (?, ?, ?, NULL, ?, ?, ?, 'Aberto', ?, ?)`).run(titulo, descricao, req.usuario.id, unidadeId, validId(req.body.subcategoria_id) ? id(req.body.subcategoria_id) : null, validId(req.body.local_id) ? id(req.body.local_id) : null, now(), now());
+    const chamadoId = result.lastInsertRowid;
+    // Atribui automaticamente ao técnico ativo da unidade com menos chamados em aberto
+    const tecnico = db.prepare(`SELECT u.id FROM usuarios u
+      WHERE u.perfil = 'tecnico' AND u.ativo = 1 AND u.unidade_id = ?
+      ORDER BY (SELECT COUNT(*) FROM chamados c WHERE c.tecnico_id = u.id AND c.status != 'Resolvido') ASC, u.id ASC
+      LIMIT 1`).get(unidadeId);
+    if (tecnico) {
+      db.prepare('UPDATE chamados SET tecnico_id = ? WHERE id = ?').run(tecnico.id, chamadoId);
+    }
+    return chamadoId;
+  });
+  const chamadoId = insert();
+  res.status(201).json({ sucesso: true, id: chamadoId, mensagem: 'Chamado aberto!' });
 });
 
 // Lista chamados conforme perfil (admin: todos, usuario: próprios, demais: da unidade)
@@ -80,7 +116,7 @@ router.get('/chamados', autenticar, (req, res) => {
 });
 
 // Altera o status de um chamado e registra notificação da mudança
-router.put('/chamados/:id/status', autenticar, requireTicket, operational, (req, res) => {
+router.put('/chamados/:id/status', autenticar, requireStatusPermission, operational, (req, res) => {
   const status = String(req.body.status || '').trim();
   const validos = ['Aberto', 'Em andamento', 'Aguardando Fornecedor', 'Resolvido', 'Reaberto'];
   if (!validos.includes(status)) return res.status(400).json({ erro: 'Status inválido.' });
@@ -93,7 +129,7 @@ router.put('/chamados/:id/status', autenticar, requireTicket, operational, (req,
 });
 
 // Reabre um chamado que estava resolvido
-router.put('/chamados/:id/reabrir', autenticar, requireTicket, (req, res) => {
+router.put('/chamados/:id/reabrir', autenticar, requireStatusPermission, (req, res) => {
   if (req.chamado.status !== 'Resolvido') return res.status(400).json({ erro: 'Apenas chamados resolvidos podem ser reabertos.' });
   getDb().prepare('UPDATE chamados SET status = ?, atualizado_em = ? WHERE id = ?').run('Reaberto', now(), id(req.params.id));
   res.json({ sucesso: true, mensagem: 'Chamado reaberto com sucesso!' });

@@ -47,13 +47,28 @@ function safeUser(user) {
   return safe;                            // devolve o resto sem o hash
 }
 
+// Permissões padrão por perfil quando o usuário não está vinculado a nenhum grupo.
+// Garante que perfis operacionais continuem funcionando mesmo sem grupos configurados.
+const PERMISSOES_PADRAO_PERFIL = {
+  tecnico: [
+    'chamados.ver_atribuidos', 'chamados.ver_todos_unidade', 'chamados.alterar_status',
+    'chamados.ver_proprios', 'categorias.ver'
+  ],
+  gestor: [
+    'chamados.ver_atribuidos', 'chamados.ver_todos_unidade', 'chamados.alterar_status',
+    'chamados.ver_proprios', 'categorias.ver', 'setores.ver',
+    'relatorios.ver_dashboard', 'relatorios.ver_tempos'
+  ],
+  usuario: ['chamados.ver_proprios']
+};
+
 // Retorna a lista de permissões do usuário (admins têm todas)
 function userPermissions(db, user) {
   if (user.perfil === 'admin') return ['*'];
   const groupIds = db.prepare('SELECT grupo_id FROM usuarios_grupos WHERE usuario_id = ?').all(user.id).map(r => r.grupo_id);
-  if (!groupIds.length) return [];
+  if (!groupIds.length) return PERMISSOES_PADRAO_PERFIL[user.perfil] || [];
   const permIds = db.prepare(`SELECT permissao_id FROM grupos_permissoes WHERE grupo_id IN (${groupIds.map(() => '?').join(',')})`).all(...groupIds).map(r => r.permissao_id);
-  if (!permIds.length) return [];
+  if (!permIds.length) return PERMISSOES_PADRAO_PERFIL[user.perfil] || [];
   return db.prepare(`SELECT chave FROM permissoes WHERE id IN (${permIds.map(() => '?').join(',')})`).all(...permIds).map(r => r.chave);
 }
 

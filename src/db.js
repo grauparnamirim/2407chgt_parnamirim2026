@@ -23,6 +23,7 @@ function initialize() {
   db.pragma('foreign_keys = ON');
   schema();
   if (db.prepare("SELECT COUNT(*) AS c FROM unidades").get().c === 0) seed();
+  seedPermissoes();
   return db;
 }
 
@@ -34,6 +35,10 @@ function schema() {
   // Unidades de atendimento
   db.exec(`CREATE TABLE IF NOT EXISTS unidades (
     id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, cidade TEXT, ativo INTEGER DEFAULT 1
+  )`);
+  // Configurações do sistema (chave-valor)
+  db.exec(`CREATE TABLE IF NOT EXISTS config (
+    chave TEXT PRIMARY KEY, valor TEXT
   )`);
   // Setores dos usuários
   db.exec(`CREATE TABLE IF NOT EXISTS setores (
@@ -253,6 +258,88 @@ function seed() {
   // Usuário administrador padrão para acesso inicial
   db.prepare(`INSERT INTO usuarios (id, nome, email, senha_hash, perfil, unidade_id, setor_id, ativo, criado_em)
     VALUES (1, 'Administrador de demonstração', 'admin@local.test', ?, 'admin', NULL, NULL, 1, ?)`).run(senha_hash, now);
+
+  // Permissões disponíveis para os grupos de usuários
+  seedPermissoes();
 }
 
-module.exports = { getDb, initialize, DB_PATH };
+// Popula as permissões disponíveis (idempotente — só insere as que ainda não existem)
+function seedPermissoes() {
+  const permissoes = [
+    ['chamados.ver_atribuidos', 'Ver chamados atribuídos a mim'],
+    ['chamados.ver_todos_unidade', 'Ver todos os chamados da unidade'],
+    ['chamados.ver_proprios', 'Ver os próprios chamados'],
+    ['chamados.alterar_status', 'Alterar status de chamados'],
+    ['categorias.ver', 'Ver categorias de chamados'],
+    ['categorias.criar', 'Criar categorias'],
+    ['categorias.editar', 'Editar categorias'],
+    ['categorias.excluir', 'Excluir categorias'],
+    ['setores.ver', 'Ver setores'],
+    ['setores.criar', 'Criar setores'],
+    ['setores.editar', 'Editar setores'],
+    ['setores.excluir', 'Excluir setores'],
+    ['usuarios.ver', 'Ver usuários'],
+    ['usuarios.criar', 'Criar usuários'],
+    ['usuarios.editar', 'Editar usuários'],
+    ['usuarios.excluir', 'Excluir usuários'],
+    ['usuarios.gerenciar_permissoes', 'Gerenciar permissões de usuários'],
+    ['inventario.ver', 'Ver inventário'],
+    ['inventario.atribuir_usuario', 'Atribuir usuário em equipamentos'],
+    ['inventario.checklists', 'Gerenciar checklists de laboratório'],
+    ['ativos.ver', 'Ver ativos e manutenções'],
+    ['ativos.criar', 'Criar ativos'],
+    ['ativos.editar', 'Editar ativos'],
+    ['ativos.excluir', 'Excluir ativos'],
+    ['ativos.manutencoes', 'Gerenciar manutenções'],
+    ['ativos.movimentar', 'Movimentar ativos'],
+    ['relatorios.ver_dashboard', 'Ver dashboard de relatórios'],
+    ['relatorios.ver_tempos', 'Ver relatório de tempos'],
+    ['impressoras.ver', 'Ver controle de impressões'],
+    ['impressoras.criar', 'Cadastrar impressoras'],
+    ['impressoras.editar', 'Editar impressoras'],
+    ['impressoras.excluir', 'Excluir impressoras'],
+    ['fornecedores.ver', 'Ver fornecedores'],
+    ['fornecedores.criar', 'Cadastrar fornecedores'],
+    ['fornecedores.editar', 'Editar fornecedores'],
+    ['fornecedores.excluir', 'Excluir fornecedores'],
+    ['dispositivos.ver', 'Ver dispositivos'],
+    ['dispositivos.criar', 'Cadastrar dispositivos'],
+    ['dispositivos.editar', 'Editar dispositivos'],
+    ['dispositivos.excluir', 'Excluir dispositivos'],
+    ['financeiro.ver', 'Ver financeiro'],
+    ['financeiro.criar', 'Lançar movimentações financeiras'],
+    ['financeiro.aprovar', 'Aprovar movimentações financeiras'],
+    ['compras.solicitar', 'Solicitar compras mensais'],
+    ['compras.aprovar', 'Aprovar compras mensais'],
+    ['notas_fiscais.ver', 'Ver notas fiscais'],
+    ['notas_fiscais.criar', 'Cadastrar notas fiscais'],
+    ['notas_fiscais.editar', 'Editar notas fiscais'],
+    ['notas_fiscais.excluir', 'Excluir notas fiscais'],
+    ['nf_comparativo.criar', 'Criar comparativos de notas fiscais'],
+    ['nf_comparativo.editar', 'Editar comparativos de notas fiscais'],
+    ['nf_comparativo.excluir', 'Excluir comparativos de notas fiscais']
+  ];
+  const insertPerm = db.prepare('INSERT INTO permissoes (chave, descricao) VALUES (?, ?)');
+  const exists = db.prepare('SELECT 1 FROM permissoes WHERE chave = ?');
+  permissoes.forEach(([chave, descricao]) => {
+    if (!exists.get(chave)) insertPerm.run(chave, descricao);
+  });
+}
+
+// Retorna o valor de uma configuração (null se não existir)
+function getConfig(chave) {
+  const row = getDb().prepare('SELECT valor FROM config WHERE chave = ?').get(chave);
+  return row ? row.valor : null;
+}
+
+// Salva (ou remove, se valor for null) uma configuração
+function setConfig(chave, valor) {
+  const db = getDb();
+  if (valor === null || valor === undefined || valor === '') {
+    db.prepare('DELETE FROM config WHERE chave = ?').run(chave);
+  } else {
+    db.prepare('INSERT INTO config (chave, valor) VALUES (?, ?) ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor').run(chave, String(valor));
+  }
+}
+
+module.exports = { getDb, initialize, DB_PATH, getConfig, setConfig };
