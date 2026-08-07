@@ -203,7 +203,7 @@
     const u = AppState.usuario;
     if (!u) { window.location.href = '/'; }
     else if (!['admin','gestor','tecnico'].includes(u.perfil) && !temPermissao('ativos.ver') && !temPermissao('inventario.ver')) {
-      window.location.href = u.perfil === 'usuario' ? '/usuario' : '/';
+      window.location.href = u.perfil === 'usuario' ? '/meus-chamados' : '/';
     }
 
     // Configura a navegação da sidebar

@@ -127,7 +127,7 @@
 
         AppState.token = data.token;
         AppState.usuario = data.usuario;
-        const paginas = { admin: 'painel', gestor: 'painel', tecnico: 'painel', usuario: 'usuario' };
+        const paginas = { admin: 'painel', gestor: 'painel', tecnico: 'painel', usuario: 'meus-chamados' };
         window.location.href = paginas[data.usuario.perfil] || 'index';
       } catch (err) {
         msgEl.textContent = err.message || 'Erro ao fazer login.';

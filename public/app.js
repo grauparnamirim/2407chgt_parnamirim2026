@@ -239,7 +239,7 @@ function verificarAutenticacao(...perfisEsperados) {
   // Usuários com permissões avançadas podem acessar páginas restritas
   if (temPermissoesAvancadas()) return true;
   // Redireciona para a página apropriada
-  const paginas = { admin: 'painel', gestor: 'painel', tecnico: 'painel', usuario: 'usuario' };
+  const paginas = { admin: 'painel', gestor: 'painel', tecnico: 'painel', usuario: 'meus-chamados' };
   window.location.href = paginas[usuario.perfil] || '/';
   return false;
 }

@@ -346,7 +346,7 @@
     const u = AppState.usuario;
     if (!u) { window.location.href = '/'; }
     else if (!['admin','gestor','tecnico'].includes(u.perfil) && !temPermissao('notas_fiscais.ver')) {
-      window.location.href = u.perfil === 'usuario' ? '/usuario' : '/';
+      window.location.href = u.perfil === 'usuario' ? '/meus-chamados' : '/';
     }
     const usuario = AppState.usuario;
 

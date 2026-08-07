@@ -71,7 +71,7 @@
     verificarAutenticacao();
     const usuarioDispositivos = AppState.usuario;
     if (!usuarioDispositivos) window.location.href = '/';
-    else if (!temPermissao('dispositivos.ver')) window.location.href = usuarioDispositivos.perfil === 'usuario' ? '/usuario' : '/painel';
+    else if (!temPermissao('dispositivos.ver')) window.location.href = usuarioDispositivos.perfil === 'usuario' ? '/meus-chamados' : '/painel';
 
     // Configura a navegação da sidebar
     configurarSidebar([]);

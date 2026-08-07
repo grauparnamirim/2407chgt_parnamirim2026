@@ -34,10 +34,13 @@ function createApp() {
   app.use(express.json({ limit: '1mb' }));
   app.use(express.static(path.join(__dirname, '..', 'public'), { maxAge: '7d' }));
 
-  const staticPages = ['painel', 'impressoras', 'fornecedores', 'dispositivos', 'usuario', 'setores', 'categorias', 'financeiro', 'relatorios', 'inventario', 'usuarios', 'notas-fiscais', 'avancado'];
+  const staticPages = ['painel', 'impressoras', 'fornecedores', 'dispositivos', 'meus-chamados', 'setores', 'categorias', 'financeiro', 'relatorios', 'inventario', 'usuarios', 'notas-fiscais', 'avancado'];
   for (const page of staticPages) {
     app.get(`/${page}`, autenticarPagina, (_, res) => res.sendFile(path.join(__dirname, '..', 'public', `${page}.html`)));
   }
+
+  // Compatibilidade: página antiga "usuario" foi renomeada para "meus-chamados"
+  app.get('/usuario', autenticarPagina, (_, res) => res.redirect('/meus-chamados'));
 
   app.get('/dispositivo/:id', autenticarPagina, (req, res) => {
     res.sendFile(path.join(__dirname, '..', 'public', 'dispositivo-detalhe.html'));
