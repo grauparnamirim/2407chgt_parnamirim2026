@@ -131,6 +131,37 @@ module.exports = async function testSecurity(port) {
   assert.equal(alteraStatus.status, 200, 'técnico sem grupo deve alterar status do chamado da unidade');
 
   // ============================================================
+  // 8.2. USUÁRIO EM GRUPO COM PERMISSÕES OPERACIONAIS
+  // ============================================================
+
+  // Usuário de perfil 'usuario' vinculado a um grupo com permissões de módulo
+  // (ex.: inventario.ver) NÃO deve receber 403 nas rotas operacionais,
+  // e o técnico em grupo NÃO deve perder as permissões padrão do perfil.
+  const grupo = await request(port, 'POST', '/api/grupos', { nome: 'Grupo operacional', descricao: '' }, token);
+  assert.equal(grupo.status, 201);
+  const permList = await request(port, 'GET', '/api/permissoes', undefined, token);
+  const inventarioPermId = permList.data.lista.find(p => p.chave === 'inventario.ver').id;
+  await request(port, 'PUT', `/api/grupos/${grupo.data.id}/permissoes`, { permissoes: [inventarioPermId] }, token);
+
+  const userGrupo = await request(port, 'POST', '/api/usuarios', { nome: 'User grupo', email: 'user.grupo@test.local', senha: 'Senha123!', perfil: 'usuario', unidade_id: 1 }, token);
+  assert.equal(userGrupo.status, 201);
+  await request(port, 'PUT', `/api/usuarios/${userGrupo.data.id}/grupos`, { grupos: [grupo.data.id] }, token);
+  const loginUserGrupo = await request(port, 'POST', '/api/login', { email: 'user.grupo@test.local', senha: 'Senha123!', unidade_id: 1 });
+  assert.equal(loginUserGrupo.status, 200);
+  assert.ok(loginUserGrupo.data.usuario.permissoes.includes('inventario.ver'), 'usuário do grupo deve ter a permissão do grupo');
+  const ativosGrupo = await request(port, 'GET', '/api/ativos', undefined, loginUserGrupo.data.token);
+  assert.equal(ativosGrupo.status, 200, 'usuário com inventario.ver não deve ser bloqueado nas rotas operacionais');
+
+  const tecnicoGrupo = await request(port, 'POST', '/api/usuarios', { nome: 'Tec grupo', email: 'tec.grupo@test.local', senha: 'Senha123!', perfil: 'tecnico', unidade_id: 1 }, token);
+  assert.equal(tecnicoGrupo.status, 201);
+  await request(port, 'PUT', `/api/usuarios/${tecnicoGrupo.data.id}/grupos`, { grupos: [grupo.data.id] }, token);
+  const loginTecnicoGrupo = await request(port, 'POST', '/api/login', { email: 'tec.grupo@test.local', senha: 'Senha123!', unidade_id: 1 });
+  assert.equal(loginTecnicoGrupo.status, 200);
+  assert.ok(loginTecnicoGrupo.data.usuario.permissoes.includes('chamados.ver_atribuidos'), 'técnico em grupo mantém permissão padrão do perfil');
+  assert.ok(loginTecnicoGrupo.data.usuario.permissoes.includes('inventario.ver'), 'técnico em grupo soma permissões do grupo');
+  await request(port, 'DELETE', `/api/grupos/${grupo.data.id}`, token);
+
+  // ============================================================
   // 9. RATE LIMIT
   // ============================================================
 
