@@ -9,14 +9,16 @@ const { autenticar, admin, operational, now, id, validId, safeUser, currentUnit,
 
 const router = Router();
 
-// Lista todos os usuários (filtrados por unidade quando aplicável)
+// Lista todos os usuários (filtrados por unidade quando aplicável),
+// incluindo o nome do setor vinculado
 router.get('/usuarios', autenticar, admin, (req, res) => {
   const db = getDb();
+  const select = `SELECT u.*, s.nome AS setor_nome FROM usuarios u LEFT JOIN setores s ON u.setor_id = s.id`;
   let rows;
   if (req.usuario.perfil === 'admin' && !req.usuario.unidade_id) {
-    rows = db.prepare('SELECT * FROM usuarios').all();
+    rows = db.prepare(select).all();
   } else {
-    rows = db.prepare('SELECT * FROM usuarios WHERE unidade_id = ? OR unidade_id IS NULL').all(req.usuario.unidade_id);
+    rows = db.prepare(`${select} WHERE u.unidade_id = ? OR u.unidade_id IS NULL`).all(req.usuario.unidade_id);
   }
   res.json(rows.map(safeUser));
 });
@@ -35,7 +37,7 @@ router.post('/usuarios', autenticar, admin, async (req, res) => {
   const nome = String(req.body.nome || '').trim(), email = String(req.body.email || '').trim().toLowerCase(), senha = String(req.body.senha || ''), perfil = String(req.body.perfil || '').trim();
   const unidadeId = currentUnit(req, res);
   if (!unidadeId) return;
-  if (!nome || !email || senha.length < 8 || !['tecnico', 'usuario'].includes(perfil)) return res.status(400).json({ erro: 'Informe nome, email, senha com ao menos 8 caracteres e perfil válido.' });
+  if (!nome || !email || senha.length < 8 || !['admin', 'gestor', 'tecnico', 'usuario'].includes(perfil)) return res.status(400).json({ erro: 'Informe nome, email, senha com ao menos 8 caracteres e perfil válido.' });
   const db = getDb();
   const exists = db.prepare('SELECT id FROM usuarios WHERE email = ?').get(email);
   if (exists) return res.status(400).json({ erro: 'Email já cadastrado.' });
@@ -55,7 +57,7 @@ router.put('/usuarios/:id', autenticar, admin, async (req, res) => {
   if (req.body.email !== undefined) { sets.push('email = ?'); vals.push(String(req.body.email).trim().toLowerCase()); }
   if (req.body.setor !== undefined) { sets.push('setor_id = ?'); vals.push(validId(req.body.setor) ? id(req.body.setor) : null); }
   if (req.body.perfil !== undefined) {
-    if (!['tecnico', 'usuario'].includes(req.body.perfil)) return res.status(400).json({ erro: 'Perfil inválido.' });
+    if (!['admin', 'gestor', 'tecnico', 'usuario'].includes(req.body.perfil)) return res.status(400).json({ erro: 'Perfil inválido.' });
     sets.push('perfil = ?'); vals.push(req.body.perfil);
   }
   if (req.body.senha) { sets.push('senha_hash = ?'); vals.push(await bcrypt.hash(String(req.body.senha), 10)); }
@@ -79,6 +81,7 @@ router.delete('/usuarios/:id', autenticar, admin, (req, res) => {
   const target = db.prepare('SELECT * FROM usuarios WHERE id = ?').get(id(req.params.id));
   if (!target) return res.status(404).json({ erro: 'Usuário não encontrado.' });
   if (target.perfil === 'admin') return res.status(403).json({ erro: 'A conta demonstrativa administrativa não pode ser excluída.' });
+  db.prepare('DELETE FROM usuarios_grupos WHERE usuario_id = ?').run(id(req.params.id));
   db.prepare('DELETE FROM usuarios WHERE id = ?').run(id(req.params.id));
   res.json({ sucesso: true, mensagem: 'Usuário excluído!' });
 });
