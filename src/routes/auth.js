@@ -1,8 +1,8 @@
 const { Router } = require('express');
 const bcrypt = require('bcrypt');
 const jwt = require('jsonwebtoken');
-const { getDb } = require('../db');
-const { JWT_SECRET, JWT_EXPIRES, now, id, validId, safeUser, userPermissions } = require('../middleware');
+const { getDb, getConfig, setConfig } = require('../db');
+const { JWT_SECRET, JWT_EXPIRES, now, id, validId, safeUser, userPermissions, autenticar, admin } = require('../middleware');
 const rateLimit = require('express-rate-limit');
 
 // ============================================================
@@ -18,8 +18,30 @@ const loginLimiter = rateLimit({
 const router = Router();
 
 // Retorna lista de unidades ativas para o formulário de login
+// Inclui a unidade fixa do servidor (intranet local), se definida pelo admin
 router.get('/unidades', (_, res) => {
-  res.json(getDb().prepare('SELECT * FROM unidades WHERE ativo != 0').all());
+  const unidades = getDb().prepare('SELECT * FROM unidades WHERE ativo != 0').all();
+  const unidadeFixa = getConfig('unidade_fixa');
+  res.json({ unidades, unidade_fixa: unidadeFixa ? id(unidadeFixa) : null });
+});
+
+// Retorna a unidade fixa do servidor (pública — usada pelo formulário de login)
+router.get('/config/unidade-fixa', (_, res) => {
+  const unidadeFixa = getConfig('unidade_fixa');
+  res.json({ unidade_fixa: unidadeFixa ? id(unidadeFixa) : null });
+});
+
+// Define (ou remove, com null) a unidade fixa do servidor — somente admin
+router.put('/config/unidade-fixa', autenticar, admin, (req, res) => {
+  const valor = req.body.unidade_id === null || req.body.unidade_id === undefined || req.body.unidade_id === ''
+    ? null
+    : id(req.body.unidade_id);
+  if (valor !== null) {
+    const unidade = getDb().prepare('SELECT id FROM unidades WHERE id = ? AND ativo != 0').get(valor);
+    if (!unidade) return res.status(400).json({ erro: 'Unidade inválida ou inativa.' });
+  }
+  setConfig('unidade_fixa', valor);
+  res.json({ sucesso: true, mensagem: valor ? 'Unidade fixa definida!' : 'Unidade fixa removida.' });
 });
 
 // Limpa o cookie de autenticação e encerra a sessão

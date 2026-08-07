@@ -72,6 +72,19 @@
         </div>
       </div>
     </div>
+
+    <div class="card">
+      <div class="card-header"><h2><iconify-icon icon="mdi:map-marker-outline" width="20" height="20"></iconify-icon> Unidade do Servidor</h2></div>
+      <div class="card-body">
+        <p class="text-secondary" style="margin:0 0 14px;font-size:.85rem">Como o sistema roda em intranet local, o acesso é fixado em uma unidade. Selecione a unidade deste servidor — o login passará a aceitar somente ela.</p>
+        <div class="backup-acoes">
+          <select id="select-unidade-fixa" style="min-width:260px;padding:9px 12px;border:1px solid var(--color-border);border-radius:8px;background:var(--color-surface);color:var(--color-text);font-size:.85rem;">
+            <option value="">Nenhuma (login libera todas)</option>
+          </select>
+          <button class="btn btn-primary" onclick="salvarUnidadeFixa()"><iconify-icon icon="mdi:content-save-outline" width="18" height="18"></iconify-icon> Salvar</button>
+        </div>
+      </div>
+    </div>
   </div>
 
   <script src="app.js"></script>
@@ -133,7 +146,39 @@
       }
 
       await carregarBackups();
+      await carregarUnidadeFixa();
     })();
+
+    // ============================================================
+    // UNIDADE DO SERVIDOR — FIXA PARA INTRANET LOCAL
+    // ============================================================
+    async function carregarUnidadeFixa() {
+      const select = document.getElementById('select-unidade-fixa');
+      if (!select) return;
+      try {
+        const data = await api('/api/config/unidade-fixa');
+        const unidadeFixa = data.unidade_fixa;
+        const res = await api('/api/unidades');
+        const unidades = Array.isArray(res) ? res : (res.unidades || []);
+        select.innerHTML = '<option value="">Nenhuma (login libera todas)</option>' +
+          unidades.map(u => `<option value="${u.id}">${u.nome}${u.cidade ? ' — ' + u.cidade : ''}</option>`).join('');
+        if (unidadeFixa) select.value = String(unidadeFixa);
+      } catch (e) {
+        showToast(e.message || 'Erro ao carregar unidades.', 'error');
+      }
+    }
+
+    async function salvarUnidadeFixa() {
+      const select = document.getElementById('select-unidade-fixa');
+      if (!select) return;
+      const valor = select.value ? Number(select.value) : null;
+      try {
+        const r = await api('/api/config/unidade-fixa', { method: 'PUT', body: { unidade_id: valor } });
+        showToast(r.mensagem, 'success');
+      } catch (e) {
+        showToast(e.message || 'Erro ao salvar unidade fixa.', 'error');
+      }
+    }
 
     async function criarBackup() {
       try {
