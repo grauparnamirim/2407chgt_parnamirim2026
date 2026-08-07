@@ -263,8 +263,9 @@
         const temPermAlterarStatus = temPermissao('chamados.alterar_status');
         tbody.innerHTML = chamados.map(c => {
           const podeAlterar = (isTecnico && c.tecnico_id === painelUsuario.id) || temPermAlterarStatus;
+          const resolvido = c.status === 'Resolvido';
           const statusSelect = podeAlterar
-            ? `<select class="status-select" data-chamado-id="${c.id}" data-status-atual="${c.status}" style="padding:6px 10px;border:1px solid var(--color-border);border-radius:6px;font-size:0.82rem;font-family:inherit;background:var(--color-surface);color:var(--color-text);cursor:pointer;">
+            ? `<select class="status-select" data-chamado-id="${c.id}" data-status-atual="${c.status}" ${resolvido ? 'disabled' : ''} style="padding:6px 10px;border:1px solid var(--color-border);border-radius:6px;font-size:0.82rem;font-family:inherit;background:var(--color-surface);color:var(--color-text);${resolvido ? 'cursor:not-allowed;opacity:.7' : 'cursor:pointer'};">
                 <option value="Aberto" ${c.status==='Aberto'?'selected':''}>Aberto</option>
                 <option value="Em andamento" ${c.status==='Em andamento'?'selected':''}>Em andamento</option>
                 <option value="Aguardando Fornecedor" ${c.status==='Aguardando Fornecedor'?'selected':''}>Aguardando Fornecedor</option>
@@ -293,11 +294,18 @@
       } catch (e) { showToast('Erro: '+e.message, 'error'); }
     }
     async function alterarStatus(event) {
-      const select = event.target; const chamadoId = select.dataset.chamadoId; const novoStatus = select.value; const statusAnterior = select.dataset.statusAtual;
+      const select = event.target; 
+      const chamadoId = select.dataset.chamadoId; 
+      const novoStatus = select.value; 
+      const statusAnterior = select.dataset.statusAtual;
       if (novoStatus === statusAnterior) return;
       let extraHTML = '';
       if (novoStatus === 'Resolvido') {
-        extraHTML = '<div class="form-group mt-12"><label for="modal-motivo">🔧 Motivo da resolução *</label><textarea id="modal-motivo" placeholder="Descreva o que foi feito..." required rows="3" style="width:100%;padding:10px;border:1px solid var(--color-border);border-radius:var(--radius-sm);font-family:inherit;font-size:0.88rem;resize:vertical;background:var(--color-surface);color:var(--color-text);"></textarea></div>';
+        extraHTML = `<div class="form-group mt-12">
+          <label for="modal-motivo">🔧 Motivo da resolução *</label>
+          <textarea id="modal-motivo" placeholder="Descreva o que foi feito..." required rows="3" style="width:100%;padding:10px;border:1px solid var(--color-border);border-radius:var(--radius-sm);font-family:inherit;font-size:0.88rem;resize:vertical;background:var(--color-surface);color:var(--color-text);">
+          </textarea>
+        </div>`;
       } else if (novoStatus === 'Aguardando Fornecedor') {
         try {
           const fornecedores = await api('/api/fornecedores');
@@ -405,8 +413,55 @@
         showToast('Erro: '+e.message, 'error');
       }
     }
-    function formatarTempo(ms) { if (ms < 0) ms = 0; const seg = Math.floor(ms / 1000); if (seg < 60) return `${seg}s`; const min = Math.floor(seg / 60); if (min < 60) return `${min}min`; const horas = Math.floor(min / 60); const minRest = min % 60; if (horas < 24) return `${horas}h ${minRest}min`; const dias = Math.floor(horas / 24); const hRest = horas % 24; return `${dias}d ${hRest}h`; }
-    async function carregarRelatorios() { try { const data = await api(`/api/relatorios/tempos?gestor_id=${painelUsuario.id}`); const { chamados, metricas } = data; document.getElementById('met-media').textContent = formatarTempo(metricas.tempo_medio_util_ms); document.getElementById('met-media-total').textContent = formatarTempo(metricas.tempo_medio_total_ms); document.getElementById('met-lento').textContent = metricas.mais_demorado_ms ? formatarTempo(metricas.mais_demorado_ms) : '—'; document.getElementById('met-rapido').textContent = metricas.mais_rapido_ms ? formatarTempo(metricas.mais_rapido_ms) : '—'; const taxa = metricas.total_chamados > 0 ? Math.round((metricas.total_resolvidos / metricas.total_chamados) * 100) : 0; document.getElementById('met-taxa').textContent = `${taxa}%`; const tbody = document.getElementById('tabela-tempos'); if (!chamados.length) { tbody.innerHTML = '<tr><td colspan="9"><div class="empty-state"><div class="empty-icon"><iconify-icon icon="mdi:chart-timeline" width="40" height="40"></iconify-icon></div><h3>Nenhum chamado concluído</h3></div></td></tr>'; return; } tbody.innerHTML = chamados.map(c=>`<tr><td><strong>#${c.id}</strong></td><td>${c.titulo}</td><td>${c.usuario_nome}</td><td>${c.tecnico_nome}</td><td>${formatarData(c.aberto_em)}</td><td>${formatarData(c.concluido_em)}</td><td><strong>${formatarTempo(c.tempo_util_ms)}</strong></td><td>${c.tempo_espera_ms > 0 ? formatarTempo(c.tempo_espera_ms) : '<span class="text-secondary">—</span>'}</td><td>${formatarTempo(c.tempo_aberto_ms)}</td></tr>`).join(''); } catch (e) { showToast('Erro: '+e.message, 'error'); } }
+    function formatarTempo(ms) { 
+      if (ms < 0) ms = 0; 
+      const seg = Math.floor(ms / 1000); 
+      if (seg < 60) return `${seg}s`; 
+      const min = Math.floor(seg / 60); 
+      if (min < 60) return `${min}min`; 
+      const horas = Math.floor(min / 60); 
+      const minRest = min % 60; 
+      if (horas < 24) return `${horas}h ${minRest}min`; 
+      const dias = Math.floor(horas / 24); 
+      const hRest = horas % 24; return `${dias}d ${hRest}h`;
+    }
+    async function carregarRelatorios() { 
+      try { 
+        const data = await api(`/api/relatorios/tempos?gestor_id=${painelUsuario.id}`);
+        const { chamados, metricas } = data; 
+        document.getElementById('met-media').textContent = formatarTempo(metricas.tempo_medio_util_ms); 
+        document.getElementById('met-media-total').textContent = formatarTempo(metricas.tempo_medio_total_ms); 
+        document.getElementById('met-lento').textContent = metricas.mais_demorado_ms ? formatarTempo(metricas.mais_demorado_ms) : '—'; 
+        document.getElementById('met-rapido').textContent = metricas.mais_rapido_ms ? formatarTempo(metricas.mais_rapido_ms) : '—'; 
+        const taxa = metricas.total_chamados > 0 ? Math.round((metricas.total_resolvidos / metricas.total_chamados) * 100) : 0; 
+        document.getElementById('met-taxa').textContent = `${taxa}%`; 
+        const tbody = document.getElementById('tabela-tempos'); 
+        if (!chamados.length) { 
+          tbody.innerHTML = `<tr><td colspan="9">
+            <div class="empty-state">
+              <div class="empty-icon">
+                <iconify-icon icon="mdi:chart-timeline" width="40" height="40">
+                </iconify-icon>
+              </div>
+              <h3>Nenhum chamado concluído</h3>
+            </div>
+          </td></tr>`; 
+          return; 
+        } tbody.innerHTML = chamados.map(c=>`<tr><td>
+          <strong>#${c.id}</strong></td>
+          <td>${c.titulo}</td>
+          <td>${c.usuario_nome}</td>
+          <td>${c.tecnico_nome}</td>
+          <td>${formatarData(c.aberto_em)}</td>
+          <td>${formatarData(c.concluido_em)}</td>
+          <td><strong>${formatarTempo(c.tempo_util_ms)}</strong></td>
+          <td>${c.tempo_espera_ms > 0 ? formatarTempo(c.tempo_espera_ms) : '<span class="text-secondary">—</span>'}</td>
+          <td>${formatarTempo(c.tempo_aberto_ms)}</td>
+        </tr>`).join(''); 
+      } catch (e) { 
+        showToast('Erro: '+e.message, 'error'); 
+      } 
+    }
 
     // Logout com confirmação
     document.getElementById('sidebar-logout').addEventListener('click', function(e) {
