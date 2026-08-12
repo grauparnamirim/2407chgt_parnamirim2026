@@ -245,7 +245,13 @@ function schema() {
     `ALTER TABLE manutencoes ADD COLUMN nome_servico TEXT`,
     `ALTER TABLE manutencoes ADD COLUMN categoria_servico_id INTEGER`,
     `ALTER TABLE manutencoes ADD COLUMN custo REAL`,
-    `ALTER TABLE manutencoes ADD COLUMN data_realizada_em TEXT`
+    `ALTER TABLE manutencoes ADD COLUMN data_realizada_em TEXT`,
+    `ALTER TABLE fornecedores ADD COLUMN status TEXT DEFAULT 'Ativo'`,
+    `ALTER TABLE fornecedores ADD COLUMN tipo_servico TEXT`,
+    `ALTER TABLE fornecedores ADD COLUMN whatsapp TEXT`,
+    `ALTER TABLE fornecedores ADD COLUMN observacoes TEXT`,
+    `ALTER TABLE chamados ADD COLUMN bem_id INTEGER`,
+    `ALTER TABLE manutencoes ADD COLUMN chamado_id INTEGER`
   ]) { try { db.exec(sql); } catch (_) {} }
 }
 
@@ -297,6 +303,7 @@ function seedPermissoes() {
     ['ativos.excluir', 'Excluir ativos'],
     ['ativos.manutencoes', 'Gerenciar manutenções'],
     ['ativos.movimentar', 'Movimentar ativos'],
+    ['projetores.ver', 'Ver controle de projetores'],
     ['relatorios.ver_dashboard', 'Ver dashboard de relatórios'],
     ['relatorios.ver_tempos', 'Ver relatório de tempos'],
     ['impressoras.ver', 'Ver controle de impressões'],

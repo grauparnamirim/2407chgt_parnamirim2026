@@ -191,12 +191,19 @@ router.get('/ativos/:id/manutencoes', autenticar, operational, (req, res) => {
 });
 
 // Registra uma nova manutenção para um ativo
+// Suporta entrada manual de manutenção concluída: data_quebra (→criado_em),
+// data_retorno (→data_realizada_em) e custo (conclui automaticamente quando
+// informado sem status). Sem esses campos mantém o comportamento original.
 router.post('/ativos/:id/manutencoes', autenticar, operational, (req, res) => {
   const db = getDb();
-  const result = db.prepare('INSERT INTO manutencoes (bem_id, tipo, categoria_servico_id, nome_servico, descricao, data_prevista, status, tecnico_responsavel_id, criado_em, atualizado_em) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
+  const custo = req.body.custo !== undefined && req.body.custo !== null && req.body.custo !== '' ? Number(req.body.custo) : null;
+  const status = req.body.status || (custo != null ? 'concluida' : 'agendada');
+  const criadoEm = req.body.data_quebra ? String(req.body.data_quebra).trim() : now();
+  const realizadoEm = status === 'concluida' ? (req.body.data_retorno ? String(req.body.data_retorno).trim() : now()) : null;
+  const result = db.prepare('INSERT INTO manutencoes (bem_id, tipo, categoria_servico_id, nome_servico, descricao, data_prevista, status, custo, tecnico_responsavel_id, criado_em, atualizado_em, data_realizada_em) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)').run(
     id(req.params.id), req.body.tipo || 'corretiva', id(req.body.categoria_servico_id) || null,
     String(req.body.nome_servico || '').trim(), String(req.body.descricao || '').trim(),
-    req.body.data_prevista || null, req.body.status || 'agendada', req.usuario.id, now(), now());
+    req.body.data_prevista || null, status, custo, req.usuario.id, criadoEm, now(), realizadoEm);
   res.status(201).json({ sucesso: true, id: result.lastInsertRowid, mensagem: 'Manutenção registrada!' });
 });
 
@@ -216,6 +223,80 @@ router.put('/manutencoes/:id', autenticar, operational, (req, res) => {
   }
   if (sets.length) { sets.push('atualizado_em = ?'); vals.push(now()); vals.push(m.id); db.prepare(`UPDATE manutencoes SET ${sets.join(', ')} WHERE id = ?`).run(...vals); }
   res.json({ sucesso: true, mensagem: 'Manutenção atualizada!' });
+});
+
+// ============================================================
+// PROJETORES — Controle de manutenção
+// ============================================================
+// Projetores são ativos do tipo 'projetor' na tabela computadores; as
+// manutenções ficam na tabela manutencoes (bem_id = computadores.id).
+// Rotas top-level (/projetores) para não colidir com /ativos/:id e
+// /ativos/:id/manutencoes, cuja ordem de registro no Express é relevante.
+
+// Libera quem tem a permissão própria ou os módulos que já cobrem o inventário
+function podeVerProjetores(req) {
+  if (req.usuario.perfil === 'admin') return true;
+  return (req.usuario.permissoes || []).some(p => ['projetores.ver', 'inventario.ver', 'ativos.ver'].includes(p));
+}
+
+// Lista todos os projetores com resumo do dashboard e ranking de despesa
+router.get('/projetores', autenticar, operational, (req, res, next) => {
+  if (!podeVerProjetores(req)) return res.status(403).json({ erro: 'Acesso negado.' });
+  next();
+}, (req, res) => {
+  const db = getDb();
+  const isAdmin = req.usuario.perfil === 'admin';
+  const unitFilter = isAdmin ? '' : ' AND c.unidade_id = ?';
+  const unitParams = isAdmin ? [] : [req.usuario.unidade_id];
+  const rows = db.prepare(`SELECT c.*, l.nome AS local_nome, l.tipo AS local_tipo,
+      u.nome AS usuario_nome,
+      (SELECT COUNT(*) FROM manutencoes m WHERE m.bem_id = c.id) AS total_manutencoes,
+      (SELECT COUNT(*) FROM manutencoes m WHERE m.bem_id = c.id AND m.status != 'concluida') AS manutencoes_abertas,
+      (SELECT SUM(m.custo) FROM manutencoes m WHERE m.bem_id = c.id) AS total_gasto
+    FROM computadores c
+    LEFT JOIN locais l ON l.id = c.local_id
+    LEFT JOIN usuarios u ON u.id = c.usuario_id
+    WHERE c.tipo = 'projetor'${unitFilter} ORDER BY c.patrimonio COLLATE NOCASE`).all(...unitParams);
+  const projetores = rows.map(p => {
+    const ultima = db.prepare('SELECT * FROM manutencoes WHERE bem_id = ? ORDER BY criado_em DESC, id DESC LIMIT 1').get(p.id);
+    return {
+      ...p,
+      total_manutencoes: p.total_manutencoes || 0,
+      manutencoes_abertas: p.manutencoes_abertas || 0,
+      total_gasto: p.total_gasto || 0,
+      data_quebra: ultima?.criado_em || null,
+      data_retorno: ultima && ultima.status === 'concluida' ? (ultima.data_realizada_em || ultima.atualizado_em) : null,
+      valor_manutencao: ultima?.custo || 0,
+      status_manutencao: ultima?.status || null,
+      servico_nome: ultima?.nome_servico || null
+    };
+  });
+  const resumo = {
+    total_projetores: projetores.length,
+    em_manutencao: projetores.filter(p => p.manutencoes_abertas > 0).length,
+    foram_para_conserto: projetores.filter(p => p.total_manutencoes > 0).length,
+    total_manutencoes: projetores.reduce((s, p) => s + p.total_manutencoes, 0),
+    total_gasto: projetores.reduce((s, p) => s + p.total_gasto, 0)
+  };
+  const ranking = projetores
+    .filter(p => p.total_manutencoes > 0)
+    .map(p => ({ id: p.id, patrimonio: p.patrimonio, modelo: p.modelo, fabricante: p.fabricante, local_nome: p.local_nome, total_manutencoes: p.total_manutencoes, total_gasto: p.total_gasto }))
+    .sort((a, b) => b.total_gasto - a.total_gasto || b.total_manutencoes - a.total_manutencoes);
+  res.json({ projetores, resumo, ranking });
+});
+
+// Retorna um projetor específico com o histórico completo de manutenções
+router.get('/projetores/:id', autenticar, operational, (req, res, next) => {
+  if (!podeVerProjetores(req)) return res.status(403).json({ erro: 'Acesso negado.' });
+  next();
+}, (req, res) => {
+  const db = getDb();
+  const p = db.prepare("SELECT * FROM computadores WHERE id = ? AND tipo = 'projetor'").get(id(req.params.id));
+  if (!p) return res.status(404).json({ erro: 'Projetor não encontrado.' });
+  if (!unitScope(req, p)) return res.status(403).json({ erro: 'Acesso negado.' });
+  const manutencoes = db.prepare('SELECT * FROM manutencoes WHERE bem_id = ? ORDER BY criado_em DESC, id DESC').all(p.id)
+    .map(m => ({ ...m, data_retorno: m.status === 'concluida' ? (m.data_realizada_em || m.atualizado_em) : null }));
+  res.json({ ...enrichAsset(db, p), manutencoes });
 });
 
 // ============================================================

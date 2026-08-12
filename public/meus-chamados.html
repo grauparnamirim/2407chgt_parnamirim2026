@@ -219,6 +219,7 @@
       }
     }
     // Carrega lista de categorias para o formulário
+    let ncEquipamentos = [];
     async function carregarCategorias() {
       try { categorias = await api('/api/categorias'); } catch(e) { categorias = []; }
     }
@@ -237,18 +238,54 @@
       } catch(e) { console.error("Erro ao carregar subcategorias:", e); }
     }
 
+    // Capitaliza o tipo de equipamento (ex.: "caixa de som" -> "Caixa de Som")
+    function capitalizarTipo(t) {
+      if (!t) return 'Equipamento';
+      return String(t).split(/[\s_-]+/).filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+    }
+    // Rótulo do equipamento: código — tipo — marca
+    function rotuloEquipamento(eq) {
+      return (eq.patrimonio || '#' + eq.id) + ' — ' + capitalizarTipo(eq.tipo) + (eq.fabricante ? ' — ' + eq.fabricante : '');
+    }
+
+    // Filtra o select de equipamento conforme o local físico escolhido
+    function filtrarBemPorLocal() {
+      const sel = document.getElementById('nc-bem');
+      if (!sel) return;
+      const localEl = document.getElementById('nc-local');
+      const localId = localEl && localEl.value ? String(localEl.value) : '';
+      if (!localId) {
+        sel.innerHTML = '<option value="">Selecione um local para listar equipamentos</option>';
+        return;
+      }
+      const lista = ncEquipamentos.filter(eq => String(eq.local_id) === localId);
+      if (lista.length) {
+        sel.innerHTML = '<option value="">Nenhum</option>' + lista.map(eq => `<option value="${eq.id}">${escapeHTML(rotuloEquipamento(eq))}</option>`).join('');
+      } else {
+        sel.innerHTML = '<option value="">Nenhum equipamento neste local</option>';
+      }
+    }
+
     // Abre modal de criação de novo chamado
     async function abrirModalNovoChamado() {
       await carregarCategorias();
       let locais = [];
       try { locais = await api('/api/locais'); } catch (_) {}
+      if (['admin','gestor','tecnico'].includes(AppState.usuario.perfil)) {
+        try {
+          const ativos = await api('/api/ativos');
+          ncEquipamentos = (Array.isArray(ativos) ? ativos : []).filter(eq => !['Desativado','Baixado'].includes(eq.status));
+        } catch (_) { ncEquipamentos = []; }
+      }
       const optsCat = categorias.length
         ? '<option value="">Selecione...</option>' + categorias.map(c => `<option value="${c.id}">${c.nome}</option>`).join('')
         : '<option value="">Nenhuma categoria cadastrada</option>';
+      const bemGroup = ['admin','gestor','tecnico'].includes(AppState.usuario.perfil) ? `<div class="form-group"><label>Equipamento (opcional)</label><select id="nc-bem"><option value="">Selecione um local para listar equipamentos</option></select><small class="text-secondary">Ao escolher um local, a lista mostra os equipamentos daquele ambiente. Ao resolver o chamado, a manutenção será registrada automaticamente no equipamento.</small></div>` : '';
       openModal('➕ Novo Chamado', `<form id="fnc" class="form-grid col-1">
-        <div class="form-group"><label>Local físico</label><select id="nc-local"><option value="">Problema individual / sem local</option>${locais.map(local => `<option value="${local.id}">${escapeHTML(local.nome)}</option>`).join('')}</select><small class="text-secondary">Escolha o ambiente quando o problema afetar uma sala ou laboratório.</small></div>
+        <div class="form-group"><label>Local físico</label><select id="nc-local" onchange="filtrarBemPorLocal()"><option value="">Problema individual / sem local</option>${locais.map(local => `<option value="${local.id}">${escapeHTML(local.nome)}</option>`).join('')}</select><small class="text-secondary">Escolha o ambiente quando o problema afetar uma sala ou laboratório.</small></div>
         <div class="form-group"><label>Categoria</label><select id="nc-categoria" onchange="carregarSubcategorias(this.value)">${optsCat}</select></div>
         <div class="form-group"><label>Subcategoria</label><select id="nc-subcategoria"><option value="">Selecione uma categoria primeiro</option></select></div>
+        ${bemGroup}
         <div class="form-group"><label>Descrição detalhada</label><textarea id="nc-descricao" placeholder="Descreva o problema com detalhes..." required></textarea></div>
       </form>`, [
         { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-chamado', onClick: closeModal },
@@ -256,8 +293,10 @@
           const descricao = document.getElementById('nc-descricao').value.trim();
           const subcategoria_id = document.getElementById('nc-subcategoria').value || null;
           const local_id = document.getElementById('nc-local').value || null;
+          const bemEl = document.getElementById('nc-bem');
+          const bem_id = bemEl && bemEl.value ? parseInt(bemEl.value) : null;
           try {
-            const r = await api('/api/chamados', { method:'POST', body:{ titulo: descricao.substring(0, 100), descricao, subcategoria_id: subcategoria_id ? parseInt(subcategoria_id) : null, local_id: local_id ? Number(local_id) : null } });
+            const r = await api('/api/chamados', { method:'POST', body:{ titulo: descricao.substring(0, 100), descricao, subcategoria_id: subcategoria_id ? parseInt(subcategoria_id) : null, local_id: local_id ? Number(local_id) : null, bem_id } });
             showToast(r.mensagem, 'success');
             closeModal();
             carregarChamados();

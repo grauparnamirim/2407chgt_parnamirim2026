@@ -191,7 +191,7 @@
       }
 
       // --- Gestão ---
-      const mostraGestao = temAlgumaPermissao('relatorios.ver_dashboard', 'relatorios.ver_tempos', 'impressoras.ver', 'fornecedores.ver', 'dispositivos.ver') || isAdminOrGestor;
+      const mostraGestao = temAlgumaPermissao('relatorios.ver_dashboard', 'relatorios.ver_tempos', 'impressoras.ver', 'fornecedores.ver', 'projetores.ver', 'dispositivos.ver') || isAdminOrGestor;
       if (mostraGestao) {
         html += '<div class="nav-section">Gestão</div>';
         if (temAlgumaPermissao('relatorios.ver_dashboard', 'relatorios.ver_tempos')) {
@@ -205,6 +205,9 @@
         }
         if (temPermissao('dispositivos.ver')) {
           html += `<a href="dispositivos"><span class="nav-icon"><iconify-icon icon="mdi:cellphone-link" width="20" height="20"></iconify-icon></span> Dispositivos</a>`;
+        }
+        if (temAlgumaPermissao('projetores.ver', 'inventario.ver', 'ativos.ver')) {
+          html += `<a href="projetores"><span class="nav-icon"><iconify-icon icon="mdi:projector" width="20" height="20"></iconify-icon></span> Controle Projetores</a>`;
         }
       }
 
@@ -273,7 +276,7 @@
                </select>`
             : '<span class="text-secondary">—</span>';
           const temFin = temPermissao('financeiro.ver') || temPermissao('financeiro.criar');
-          const custoBtn = temFin ? `<button class="btn btn-outline btn-sm" onclick="abrirModalCustosChamado(${c.id},'${escapeHTML(c.titulo)}')" style="padding:4px 8px;font-size:0.7rem" title="Custos"><iconify-icon icon="mdi:currency-usd" width="14" height="14"></iconify-icon></button>` : '';
+          const custoBtn = temFin ? `<button class="btn btn-outline btn-sm" onclick="abrirModalCustosChamado(${c.id},'${escapeHTML(c.titulo)}','${c.status}')" style="padding:4px 8px;font-size:0.7rem" title="Custos"><iconify-icon icon="mdi:currency-usd" width="14" height="14"></iconify-icon></button>` : '';
           const acoesBtn = `<button class="btn btn-outline btn-sm" onclick="abrirComentarios(${c.id},'${escapeHTML(c.titulo)}')" style="padding:4px 8px;font-size:0.7rem"><iconify-icon icon="mdi:comment-text-outline" width="14" height="14"></iconify-icon></button>`;
           const historicoBtn = `<button class="btn btn-outline btn-sm" onclick="abrirHistorico(${c.id},'${escapeHTML(c.titulo)}')" style="padding:4px 8px;font-size:0.7rem" title="Ver histórico"><iconify-icon icon="mdi:clock-outline" width="14" height="14"></iconify-icon></button>`;
           const detalhesBtn = `<button class="btn btn-outline btn-sm" onclick="abrirModalDetalhesChamado(${c.id})" style="padding:4px 8px;font-size:0.7rem" title="Detalhes"><iconify-icon icon="mdi:information-outline" width="14" height="14"></iconify-icon></button>`;
@@ -489,19 +492,20 @@
     }
 
     // --- CUSTOS POR CHAMADO ---
-    async function abrirModalCustosChamado(chamadoId, titulo) {
+    async function abrirModalCustosChamado(chamadoId, titulo, status) {
       const podeCriar = temPermissao('financeiro.criar');
+      const resolvido = status === 'Resolvido';
       const custos = await api(`/api/custos-chamado?chamado_id=${chamadoId}`);
       const lista = custos.length ? custos.map(c => `
         <div style="display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid var(--color-border);font-size:0.85rem">
           <div><strong>${c.descricao}</strong><br><span class="badge badge-andamento">${c.tipo}</span> ${c.fornecedor_nome ? '— '+c.fornecedor_nome : ''}</div>
           <div style="text-align:right"><strong>R$ ${parseFloat(c.valor).toFixed(2).replace('.',',')}</strong><br>
-            ${podeCriar ? `<span style="cursor:pointer;color:var(--color-danger);font-size:0.75rem" onclick="excluirCustoChamado(${c.id})">✕ remover</span>` : ''}
+            ${podeCriar && !resolvido ? `<span style="cursor:pointer;color:var(--color-danger);font-size:0.75rem" onclick="excluirCustoChamado(${c.id})">✕ remover</span>` : ''}
           </div>
         </div>
       `).join('') : '<div class="text-secondary text-center">Nenhum custo registrado</div>';
 
-      const formAdd = podeCriar ? `
+      const formAdd = podeCriar && !resolvido ? `
         <div style="margin-top:12px;padding-top:12px;border-top:2px solid var(--color-border)">
           <h4 style="margin-bottom:8px">Adicionar Custo</h4>
           <div style="display:grid;grid-template-columns:1fr 1fr;gap:8px">
@@ -509,7 +513,7 @@
             <input type="number" id="cc-valor" placeholder="Valor (R$)" step="0.01" min="0" style="padding:8px;border:1px solid var(--color-border);border-radius:6px;background:var(--color-surface);color:var(--color-text)">
           </div>
           <button class="btn btn-primary btn-sm" style="margin-top:8px" onclick="adicionarCustoChamado(${chamadoId})">➕ Adicionar</button>
-        </div>` : '';
+        </div>` : (resolvido ? '<div class="text-secondary text-center" style="margin-top:10px;font-size:0.8rem">🔒 Chamado resolvido — custos bloqueados.</div>' : '');
 
       openModal(`💰 Custos — #${chamadoId} ${titulo ? '— '+escapeHTML(titulo) : ''}`, `<div style="max-height:400px;overflow-y:auto">${lista}${formAdd}</div>`, [
         {text:'Fechar',cls:'btn-outline',id:'btn-fechar-custos',onClick:closeModal}
@@ -775,22 +779,20 @@
     async function abrirModalDetalhesChamado(chamadoId) {
       try {
         const d = await api(`/api/chamados/${chamadoId}/detalhes`);
-        const pcSection = d.computador_id ? `
+        const aparelhoSection = d.bem_id ? `
           <div class="detail-section">
-            <div class="detail-section-title"><iconify-icon icon="mdi:desktop-classic" width="18" height="18"></iconify-icon> Computador</div>
+            <div class="detail-section-title"><iconify-icon icon="${d.bem_tipo === 'projetor' ? 'mdi:projector' : 'mdi:devices'}" width="18" height="18"></iconify-icon> Aparelho</div>
             <div class="detail-grid">
-              <div class="detail-item"><span class="detail-label">Patrimônio</span><span class="detail-value">${escapeHTML(d.patrimonio || '—')}</span></div>
-              <div class="detail-item"><span class="detail-label">Local do bem</span><span class="detail-value">${escapeHTML(d.pc_local || 'Sem local')}</span></div>
-              <div class="detail-item"><span class="detail-label">Processador</span><span class="detail-value">${escapeHTML(d.processador || '—')}</span></div>
-              <div class="detail-item"><span class="detail-label">Memória RAM</span><span class="detail-value">${escapeHTML(d.memoria_ram || '—')}</span></div>
-              <div class="detail-item"><span class="detail-label">Armazenamento</span><span class="detail-value">${escapeHTML(d.armazenamento_tipo || '')} ${escapeHTML(d.armazenamento_tamanho || '')}</span></div>
-              <div class="detail-item"><span class="detail-label">AnyDesk</span><span class="detail-value">${d.anydesk_id ? `<span class="detail-copy" onclick="navigator.clipboard.writeText('${escapeHTML(d.anydesk_id)}'); showToast('AnyDesk copiado!')">${escapeHTML(d.anydesk_id)} <iconify-icon icon="mdi:content-copy" width="12" height="12"></iconify-icon></span>` : '—'}</span></div>
-              <div class="detail-item"><span class="detail-label">TeamViewer</span><span class="detail-value">${d.teamviewer_id ? escapeHTML(d.teamviewer_id) : '—'}</span></div>
+              <div class="detail-item"><span class="detail-label">Código</span><span class="detail-value">${escapeHTML(d.bem_patrimonio || '#' + d.bem_id)}</span></div>
+              <div class="detail-item"><span class="detail-label">Tipo</span><span class="detail-value">${escapeHTML(capitalizarTipo(d.bem_tipo))}</span></div>
+              <div class="detail-item"><span class="detail-label">Marca</span><span class="detail-value">${escapeHTML(d.bem_fabricante || '—')}</span></div>
+              <div class="detail-item"><span class="detail-label">Modelo</span><span class="detail-value">${escapeHTML(d.bem_modelo || '—')}</span></div>
+              <div class="detail-item"><span class="detail-label">Local do aparelho</span><span class="detail-value">${escapeHTML(d.bem_local || 'Sem local')}</span></div>
             </div>
           </div>` : `
           <div class="detail-section">
-            <div class="detail-section-title"><iconify-icon icon="mdi:desktop-classic" width="18" height="18"></iconify-icon> Computador</div>
-            <div class="detail-empty">Nenhum computador cadastrado para este usuário.</div>
+            <div class="detail-section-title"><iconify-icon icon="mdi:devices" width="18" height="18"></iconify-icon> Aparelho</div>
+            <div class="detail-empty">Nenhum aparelho vinculado a este chamado.</div>
           </div>`;
 
         openModal(`📋 Chamado #${chamadoId}`, `
@@ -815,7 +817,7 @@
                 <div class="detail-item"><span class="detail-label">Perfil</span><span class="detail-value">${perfilBadgeHTML(d.usuario_perfil)}</span></div>
               </div>
             </div>
-            ${pcSection}
+            ${aparelhoSection}
           </div>`, [{ text:'Fechar', cls:'btn-outline', id:'btn-fechar-detalhes', onClick: closeModal }], 'modal-lg');
       } catch (e) {
         showToast('Erro ao carregar detalhes: ' + e.message, 'error');
@@ -824,6 +826,7 @@
 
     // --- NOVO CHAMADO ---
     let categorias = [];
+    let ncEquipamentos = [];
     async function carregarCategorias() {
       try { categorias = await api('/api/categorias'); } catch(e) { categorias = []; }
     }
@@ -839,17 +842,51 @@
         }
       } catch(e) { console.error("Erro ao carregar subcategorias:", e); }
     }
+    // Capitaliza o tipo de equipamento (ex.: "caixa de som" -> "Caixa de Som")
+    function capitalizarTipo(t) {
+      if (!t) return 'Equipamento';
+      return String(t).split(/[\s_-]+/).filter(Boolean).map(w => w[0].toUpperCase() + w.slice(1).toLowerCase()).join(' ');
+    }
+    // Rótulo do equipamento: código — tipo — marca
+    function rotuloEquipamento(eq) {
+      return (eq.patrimonio || '#' + eq.id) + ' — ' + capitalizarTipo(eq.tipo) + (eq.fabricante ? ' — ' + eq.fabricante : '');
+    }
+    // Filtra o select de equipamento conforme o local físico escolhido
+    function filtrarBemPorLocal() {
+      const sel = document.getElementById('nc-bem');
+      if (!sel) return;
+      const localEl = document.getElementById('nc-local');
+      const localId = localEl && localEl.value ? String(localEl.value) : '';
+      if (!localId) {
+        sel.innerHTML = '<option value="">Selecione um local para listar equipamentos</option>';
+        return;
+      }
+      const lista = ncEquipamentos.filter(eq => String(eq.local_id) === localId);
+      if (lista.length) {
+        sel.innerHTML = '<option value="">Nenhum</option>' + lista.map(eq => `<option value="${eq.id}">${escapeHTML(rotuloEquipamento(eq))}</option>`).join('');
+      } else {
+        sel.innerHTML = '<option value="">Nenhum equipamento neste local</option>';
+      }
+    }
     async function abrirModalNovoChamado() {
       await carregarCategorias();
       let locais = [];
       try { locais = await api('/api/locais'); } catch (_) {}
+      if (['admin','gestor','tecnico'].includes(AppState.usuario.perfil)) {
+        try {
+          const ativos = await api('/api/ativos');
+          ncEquipamentos = (Array.isArray(ativos) ? ativos : []).filter(eq => !['Desativado','Baixado'].includes(eq.status));
+        } catch (_) { ncEquipamentos = []; }
+      }
       const optsCat = categorias.length
         ? '<option value="">Selecione...</option>' + categorias.map(c => `<option value="${c.id}">${c.nome}</option>`).join('')
         : '<option value="">Nenhuma categoria cadastrada</option>';
+      const bemGroup = ['admin','gestor','tecnico'].includes(AppState.usuario.perfil) ? `<div class="form-group"><label>Equipamento (opcional)</label><select id="nc-bem"><option value="">Selecione um local para listar equipamentos</option></select><small class="text-secondary">Ao escolher um local, a lista mostra os equipamentos daquele ambiente. Ao resolver o chamado, a manutenção será registrada automaticamente no equipamento.</small></div>` : '';
       openModal('➕ Novo Chamado', `<form id="fnc" class="form-grid col-1">
-        <div class="form-group"><label>Local físico</label><select id="nc-local"><option value="">Problema individual / sem local</option>${locais.map(local => `<option value="${local.id}">${escapeHTML(local.nome)}</option>`).join('')}</select><small class="text-secondary">Use para problemas que afetam uma sala, laboratório ou ambiente.</small></div>
+        <div class="form-group"><label>Local físico</label><select id="nc-local" onchange="filtrarBemPorLocal()"><option value="">Problema individual / sem local</option>${locais.map(local => `<option value="${local.id}">${escapeHTML(local.nome)}</option>`).join('')}</select><small class="text-secondary">Use para problemas que afetam uma sala, laboratório ou ambiente.</small></div>
         <div class="form-group"><label>Categoria</label><select id="nc-categoria" onchange="carregarSubcategorias(this.value)">${optsCat}</select></div>
         <div class="form-group"><label>Subcategoria</label><select id="nc-subcategoria"><option value="">Selecione uma categoria primeiro</option></select></div>
+        ${bemGroup}
         <div class="form-group"><label>Descrição detalhada</label><textarea id="nc-descricao" placeholder="Descreva o problema com detalhes..." required></textarea></div>
       </form>`, [
         { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-chamado', onClick: closeModal },
@@ -857,8 +894,10 @@
           const descricao = document.getElementById('nc-descricao').value.trim();
           const subcategoria_id = document.getElementById('nc-subcategoria').value || null;
           const local_id = document.getElementById('nc-local').value || null;
+          const bemEl = document.getElementById('nc-bem');
+          const bem_id = bemEl && bemEl.value ? parseInt(bemEl.value) : null;
           try {
-            const r = await api('/api/chamados', { method:'POST', body:{ titulo: descricao.substring(0, 100), descricao, subcategoria_id: subcategoria_id ? parseInt(subcategoria_id) : null, local_id: local_id ? Number(local_id) : null } });
+            const r = await api('/api/chamados', { method:'POST', body:{ titulo: descricao.substring(0, 100), descricao, subcategoria_id: subcategoria_id ? parseInt(subcategoria_id) : null, local_id: local_id ? Number(local_id) : null, bem_id } });
             showToast(r.mensagem, 'success');
             closeModal();
             carregarChamados();

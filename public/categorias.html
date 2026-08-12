@@ -106,7 +106,7 @@
         }
       }
 
-      const mostraGestao = temAlgumaPermissao('relatorios.ver_dashboard', 'relatorios.ver_tempos', 'impressoras.ver', 'fornecedores.ver', 'dispositivos.ver') || isAdminOrGestor;
+      const mostraGestao = temAlgumaPermissao('relatorios.ver_dashboard', 'relatorios.ver_tempos', 'impressoras.ver', 'fornecedores.ver', 'projetores.ver', 'dispositivos.ver') || isAdminOrGestor;
       if (mostraGestao) {
         html += '<div class="nav-section">Gestão</div>';
         if (temAlgumaPermissao('relatorios.ver_dashboard', 'relatorios.ver_tempos')) {
@@ -120,6 +120,9 @@
         }
         if (temPermissao('dispositivos.ver')) {
           html += `<a href="dispositivos"><span class="nav-icon"><iconify-icon icon="mdi:cellphone-link" width="20" height="20"></iconify-icon></span> Dispositivos</a>`;
+        }
+        if (temAlgumaPermissao('projetores.ver', 'inventario.ver', 'ativos.ver')) {
+          html += `<a href="projetores"><span class="nav-icon"><iconify-icon icon="mdi:projector" width="20" height="20"></iconify-icon></span> Controle Projetores</a>`;
         }
       }
 

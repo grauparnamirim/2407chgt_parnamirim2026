@@ -57,14 +57,21 @@ function requireStatusPermission(req, res, next) {
   next();
 }
 
-// Enriquece dados do chamado com nomes relacionados (usuário, técnico, fornecedor, local)
+// Enriquece dados do chamado com nomes relacionados (usuário, técnico, fornecedor, local, equipamento)
 function enrichChamado(db, c) {
+  const bem = c.bem_id ? db.prepare('SELECT * FROM computadores WHERE id = ?').get(c.bem_id) : null;
   return {
     ...c,
     usuario_nome: db.prepare('SELECT nome FROM usuarios WHERE id = ?').get(c.usuario_id)?.nome || '',
     tecnico_nome: c.tecnico_id ? db.prepare('SELECT nome FROM usuarios WHERE id = ?').get(c.tecnico_id)?.nome || '' : '',
     fornecedor_nome: c.fornecedor_id ? db.prepare('SELECT nome FROM fornecedores WHERE id = ?').get(c.fornecedor_id)?.nome || '' : '',
     local_nome: c.local_id ? db.prepare('SELECT nome FROM locais WHERE id = ?').get(c.local_id)?.nome || '' : '',
+    bem_nome: bem?.patrimonio || '',
+    bem_patrimonio: bem?.patrimonio || '',
+    bem_tipo: bem?.tipo || '',
+    bem_fabricante: bem?.fabricante || '',
+    bem_modelo: bem?.modelo || '',
+    bem_local: bem?.local_id ? db.prepare('SELECT nome FROM locais WHERE id = ?').get(bem.local_id)?.nome || '' : '',
     tempo_espera_ms: 0
   };
 }
@@ -79,9 +86,16 @@ router.post('/chamados', autenticar, (req, res) => {
   const titulo = String(req.body.titulo || '').trim(), descricao = String(req.body.descricao || '').trim();
   if (!titulo || !descricao) return res.status(400).json({ erro: 'Título e descrição são obrigatórios.' });
   const db = getDb();
+  // Vínculo opcional com um equipamento (ex.: projetor) para registrar manutenção ao resolver
+  const bemId = validId(req.body.bem_id) ? id(req.body.bem_id) : null;
+  if (bemId) {
+    const bem = db.prepare('SELECT * FROM computadores WHERE id = ?').get(bemId);
+    if (!bem) return res.status(400).json({ erro: 'Equipamento inválido.' });
+    if (req.usuario.perfil !== 'admin' && Number(bem.unidade_id) !== Number(unidadeId)) return res.status(400).json({ erro: 'Equipamento não pertence à sua unidade.' });
+  }
   const insert = db.transaction(() => {
-    const result = db.prepare(`INSERT INTO chamados (titulo, descricao, usuario_id, tecnico_id, unidade_id, subcategoria_id, local_id, status, criado_em, atualizado_em)
-      VALUES (?, ?, ?, NULL, ?, ?, ?, 'Aberto', ?, ?)`).run(titulo, descricao, req.usuario.id, unidadeId, validId(req.body.subcategoria_id) ? id(req.body.subcategoria_id) : null, validId(req.body.local_id) ? id(req.body.local_id) : null, now(), now());
+    const result = db.prepare(`INSERT INTO chamados (titulo, descricao, usuario_id, tecnico_id, unidade_id, subcategoria_id, local_id, bem_id, status, criado_em, atualizado_em)
+      VALUES (?, ?, ?, NULL, ?, ?, ?, ?, 'Aberto', ?, ?)`).run(titulo, descricao, req.usuario.id, unidadeId, validId(req.body.subcategoria_id) ? id(req.body.subcategoria_id) : null, validId(req.body.local_id) ? id(req.body.local_id) : null, bemId, now(), now());
     const chamadoId = result.lastInsertRowid;
     // Atribui automaticamente ao técnico ativo da unidade com menos chamados em aberto
     const tecnico = db.prepare(`SELECT u.id FROM usuarios u
@@ -125,6 +139,18 @@ router.put('/chamados/:id/status', autenticar, requireStatusPermission, operatio
   const before = db.prepare('SELECT * FROM chamados WHERE id = ?').get(id(req.params.id));
   db.prepare('UPDATE chamados SET status = ?, motivo = ?, fornecedor_id = ?, tecnico_id = COALESCE(tecnico_id, ?), atualizado_em = ? WHERE id = ?').run(status, String(req.body.motivo || '').trim() || null, validId(req.body.fornecedor_id) ? id(req.body.fornecedor_id) : null, req.usuario.id, now(), id(req.params.id));
   db.prepare('INSERT INTO notificacoes_log (chamado_id, usuario_id, alterado_por, status_anterior, status_novo, enviada_em) VALUES (?, ?, ?, ?, ?, ?)').run(before.id, before.usuario_id, req.usuario.id, before.status, status, now());
+  // Se o chamado estava vinculado a um equipamento (ex.: projetor), registra a
+  // manutenção automaticamente ao resolver — apenas uma vez por chamado.
+  // O custo da manutenção recebe a soma dos custos registrados no chamado.
+  if (status === 'Resolvido' && before.bem_id) {
+    const jaRegistrada = db.prepare('SELECT 1 FROM manutencoes WHERE chamado_id = ?').get(before.id);
+    if (!jaRegistrada) {
+      const somaCustos = db.prepare('SELECT COALESCE(SUM(valor), 0) AS total FROM custos_chamado WHERE chamado_id = ?').get(before.id).total || 0;
+      db.prepare(`INSERT INTO manutencoes (bem_id, tipo, categoria_servico_id, nome_servico, descricao, data_prevista, status, custo, tecnico_responsavel_id, criado_em, atualizado_em, data_realizada_em, chamado_id)
+        VALUES (?, 'corretiva', NULL, ?, ?, NULL, 'concluida', ?, ?, ?, ?, ?, ?)`).run(
+        before.bem_id, `Resolvido via chamado #${before.id}`, String(req.body.motivo || '').trim() || null, somaCustos || null, req.usuario.id, now(), now(), now(), before.id);
+    }
+  }
   res.json({ sucesso: true, mensagem: `Status alterado para "${status}".` });
 });
 

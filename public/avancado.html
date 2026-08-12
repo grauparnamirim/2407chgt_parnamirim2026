@@ -124,13 +124,14 @@
           if (temAlgumaPermissao('ativos.ver') || temAlgumaPermissao('inventario.ver')) html += '<a href="inventario"><span class="nav-icon"><iconify-icon icon="mdi:desktop-tower-monitor" width="20" height="20"></iconify-icon></span> Inventário</a>';
           if (temAlgumaPermissao('usuarios.ver')) html += '<a href="usuarios"><span class="nav-icon"><iconify-icon icon="mdi:account-group" width="20" height="20"></iconify-icon></span> Usuários</a>';
         }
-        const mostraGestao = temAlgumaPermissao('relatorios.ver_dashboard', 'relatorios.ver_tempos', 'impressoras.ver', 'fornecedores.ver', 'dispositivos.ver') || isAdminOrGestor;
+        const mostraGestao = temAlgumaPermissao('relatorios.ver_dashboard', 'relatorios.ver_tempos', 'impressoras.ver', 'fornecedores.ver', 'projetores.ver', 'dispositivos.ver') || isAdminOrGestor;
         if (mostraGestao) {
           html += '<div class="nav-section">Gestão</div>';
           if (temAlgumaPermissao('relatorios.ver_dashboard', 'relatorios.ver_tempos')) html += '<a href="relatorios"><span class="nav-icon"><iconify-icon icon="mdi:chart-bar" width="20" height="20"></iconify-icon></span> Relatórios</a>';
           if (temAlgumaPermissao('impressoras.ver') || isAdminOrGestor) html += '<a href="impressoras"><span class="nav-icon"><iconify-icon icon="mdi:printer" width="20" height="20"></iconify-icon></span> Controle Impressões</a>';
           if (temAlgumaPermissao('fornecedores.ver') || isAdminOrGestor) html += '<a href="fornecedores"><span class="nav-icon"><iconify-icon icon="mdi:truck-delivery" width="20" height="20"></iconify-icon></span> Fornecedores</a>';
           if (temPermissao('dispositivos.ver')) html += '<a href="dispositivos"><span class="nav-icon"><iconify-icon icon="mdi:cellphone-link" width="20" height="20"></iconify-icon></span> Dispositivos</a>';
+          if (temAlgumaPermissao('projetores.ver', 'inventario.ver', 'ativos.ver')) html += '<a href="projetores"><span class="nav-icon"><iconify-icon icon="mdi:projector" width="20" height="20"></iconify-icon></span> Controle Projetores</a>';
         }
         const mostraFinanceiro = temAlgumaPermissao('financeiro.ver', 'financeiro.criar', 'financeiro.aprovar') || isAdminOrGestor;
         if (mostraFinanceiro) {

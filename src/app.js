@@ -39,7 +39,7 @@ function createApp() {
     }
   }));
 
-  const staticPages = ['painel', 'impressoras', 'fornecedores', 'dispositivos', 'meus-chamados', 'setores', 'categorias', 'financeiro', 'relatorios', 'inventario', 'usuarios', 'notas-fiscais', 'avancado'];
+  const staticPages = ['painel', 'impressoras', 'fornecedores', 'dispositivos', 'projetores', 'meus-chamados', 'setores', 'categorias', 'financeiro', 'relatorios', 'inventario', 'usuarios', 'notas-fiscais', 'avancado'];
   for (const page of staticPages) {
     app.get(`/${page}`, autenticarPagina, (_, res) => res.sendFile(path.join(__dirname, '..', 'public', `${page}.html`)));
   }
@@ -68,7 +68,7 @@ function createApp() {
 
   app.use('/api', createCrudRoutes({ path: 'categorias', table: 'categorias', fields: ['nome'], message: 'Categoria' }));
   app.use('/api', createCrudRoutes({ path: 'subcategorias', table: 'subcategorias', fields: ['nome', 'categoria_id'], message: 'Subcategoria' }));
-  app.use('/api', createCrudRoutes({ path: 'fornecedores', table: 'fornecedores', fields: ['nome', 'cnpj', 'telefone', 'email', 'endereco'], message: 'Fornecedor' }));
+  app.use('/api', createCrudRoutes({ path: 'fornecedores', table: 'fornecedores', fields: ['nome', 'cnpj', 'telefone', 'email', 'endereco', 'status', 'tipo_servico', 'whatsapp', 'observacoes'], message: 'Fornecedor' }));
   app.use('/api', createCrudRoutes({ path: 'setores', table: 'setores', fields: ['nome'], message: 'Setor' }));
   app.use('/api', createCrudRoutes({ path: 'locais', table: 'locais', fields: ['nome', 'tipo', 'ativo'], unit: true, message: 'Local' }));
 

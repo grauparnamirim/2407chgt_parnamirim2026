@@ -52,12 +52,12 @@ function safeUser(user) {
 const PERMISSOES_PADRAO_PERFIL = {
   tecnico: [
     'chamados.ver_atribuidos', 'chamados.ver_todos_unidade', 'chamados.alterar_status',
-    'chamados.ver_proprios', 'categorias.ver'
+    'chamados.ver_proprios', 'categorias.ver', 'projetores.ver'
   ],
   gestor: [
     'chamados.ver_atribuidos', 'chamados.ver_todos_unidade', 'chamados.alterar_status',
     'chamados.ver_proprios', 'categorias.ver', 'setores.ver',
-    'relatorios.ver_dashboard', 'relatorios.ver_tempos'
+    'relatorios.ver_dashboard', 'relatorios.ver_tempos', 'projetores.ver'
   ],
   usuario: ['chamados.ver_proprios']
 };
