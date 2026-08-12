@@ -113,13 +113,14 @@
         if (temAlgumaPermissao('usuarios.ver')) html += `<a href="usuarios"><span class="nav-icon"><iconify-icon icon="mdi:account-group" width="20" height="20"></iconify-icon></span> Usuários</a>`;
       }
 
-      const mostraGestao = temAlgumaPermissao('relatorios.ver_dashboard', 'relatorios.ver_tempos', 'impressoras.ver', 'fornecedores.ver', 'dispositivos.ver') || isAdminOrGestor;
+      const mostraGestao = temAlgumaPermissao('relatorios.ver_dashboard', 'relatorios.ver_tempos', 'impressoras.ver', 'fornecedores.ver', 'projetores.ver', 'dispositivos.ver') || isAdminOrGestor;
       if (mostraGestao) {
         html += '<div class="nav-section">Gestão</div>';
         if (temAlgumaPermissao('relatorios.ver_dashboard', 'relatorios.ver_tempos')) html += `<a href="relatorios"><span class="nav-icon"><iconify-icon icon="mdi:chart-bar" width="20" height="20"></iconify-icon></span> Relatórios</a>`;
         if (temAlgumaPermissao('impressoras.ver') || isAdminOrGestor) html += `<a href="impressoras"><span class="nav-icon"><iconify-icon icon="mdi:printer" width="20" height="20"></iconify-icon></span> Controle Impressões</a>`;
         if (temAlgumaPermissao('fornecedores.ver') || isAdminOrGestor) html += `<a href="fornecedores"><span class="nav-icon"><iconify-icon icon="mdi:truck-delivery" width="20" height="20"></iconify-icon></span> Fornecedores</a>`;
         if (temPermissao('dispositivos.ver')) html += `<a href="dispositivos"><span class="nav-icon"><iconify-icon icon="mdi:cellphone-link" width="20" height="20"></iconify-icon></span> Dispositivos</a>`;
+        if (temAlgumaPermissao('projetores.ver', 'inventario.ver', 'ativos.ver')) html += `<a href="projetores"><span class="nav-icon"><iconify-icon icon="mdi:projector" width="20" height="20"></iconify-icon></span> Controle Projetores</a>`;
       }
 
       const mostraFinanceiro = temAlgumaPermissao('financeiro.ver', 'financeiro.criar', 'financeiro.aprovar') || isAdminOrGestor;
@@ -160,7 +161,7 @@
         const tbody = document.getElementById('tabela-custos');
         if (!custos.length) { tbody.innerHTML = '<tr><td colspan="8"><div class="empty-state"><h3>Nenhum custo registrado</h3></div></td></tr>'; return; }
         tbody.innerHTML = custos.map(c => {
-          const btnExcluir = podeExcluir ? `<button class="btn btn-danger btn-sm" onclick="excluirCusto(${c.id})" style="padding:4px 6px;font-size:0.7rem"><iconify-icon icon="mdi:delete" width="14" height="14"></iconify-icon></button>` : '';
+          const btnExcluir = (podeExcluir && c.chamado_status !== 'Resolvido') ? `<button class="btn btn-danger btn-sm" onclick="excluirCusto(${c.id})" style="padding:4px 6px;font-size:0.7rem"><iconify-icon icon="mdi:delete" width="14" height="14"></iconify-icon></button>` : '';
           return `<tr>
             <td><strong>#${c.id}</strong></td>
             <td>#${c.chamado_id}</td>
@@ -178,7 +179,10 @@
     async function abrirModalAdicionarCusto() {
       const chamados = await api('/api/chamados');
       const fornecedores = await api('/api/fornecedores');
-      const optsChamados = chamados.map(c => `<option value="${c.id}">#${c.id} — ${c.titulo}</option>`).join('');
+      const abertos = (Array.isArray(chamados) ? chamados : []).filter(c => c.status !== 'Resolvido');
+      const optsChamados = abertos.length
+        ? abertos.map(c => `<option value="${c.id}">#${c.id} — ${c.titulo}</option>`).join('')
+        : '<option value="">Nenhum chamado em aberto</option>';
       const optsForn = fornecedores.filter(f => f.status === 'Ativo').map(f => `<option value="${f.id}">${f.nome}</option>`).join('');
       openModal('💰 Adicionar Custo', `<form id="fcusto" class="form-grid col-1">
         <div class="form-group"><label>Chamado *</label><select id="custo-chamado"><option value="">Selecione...</option>${optsChamados}</select></div>

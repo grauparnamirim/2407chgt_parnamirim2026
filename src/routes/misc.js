@@ -6,14 +6,33 @@ const { createCrudRoutes } = require('./crud');
 const router = Router();
 
 // === FINANCEIRO ===
-router.use(createCrudRoutes({ path: 'custos-chamado', table: 'custos_chamado', fields: ['chamado_id', 'descricao', 'tipo', 'valor', 'fornecedor_id'], message: 'Custo' }));
-// Lista custos de chamados (com filtro opcional por chamado_id)
+// Custo só pode ser criado/editado/removido enquanto o chamado não está resolvido.
+function custoChamadoBloqueado(chamadoId) {
+  const c = getDb().prepare('SELECT status FROM chamados WHERE id = ?').get(validChamadoId(chamadoId) ? chamadoId : 0);
+  if (!c) return 'Chamado inválido.';
+  if (c.status === 'Resolvido') return 'Chamado resolvido: não é mais possível adicionar ou alterar custos.';
+  return null;
+}
+function validChamadoId(v) { const n = Number(v); return Number.isInteger(n) && n > 0; }
+// Lista custos de chamados (com filtro opcional por chamado_id) — registrada ANTES do
+// CRUD genérico para não ser ofuscada e o filtro do chamado específico funcionar.
 router.get('/custos-chamado', autenticar, (req, res) => {
   const db = getDb();
   let rows = db.prepare('SELECT * FROM custos_chamado').all();
   if (req.query.chamado_id) rows = rows.filter(x => Number(x.chamado_id) === id(req.query.chamado_id));
-  res.json(rows.filter(c => ticketAllowed(req, db.prepare('SELECT * FROM chamados WHERE id = ?').get(c.chamado_id))));
+  res.json(rows.filter(c => ticketAllowed(req, db.prepare('SELECT * FROM chamados WHERE id = ?').get(c.chamado_id)))
+    .map(c => ({
+      ...c,
+      fornecedor_nome: db.prepare('SELECT nome FROM fornecedores WHERE id = ?').get(c.fornecedor_id)?.nome || '',
+      chamado_status: db.prepare('SELECT status FROM chamados WHERE id = ?').get(c.chamado_id)?.status || ''
+    })));
 });
+router.use(createCrudRoutes({
+  path: 'custos-chamado', table: 'custos_chamado', fields: ['chamado_id', 'descricao', 'tipo', 'valor', 'fornecedor_id'], message: 'Custo',
+  beforeCreate: (req, body) => custoChamadoBloqueado(body.chamado_id),
+  beforeUpdate: (req, existing) => custoChamadoBloqueado(existing.chamado_id),
+  beforeDelete: (req, existing) => custoChamadoBloqueado(existing.chamado_id)
+}));
 
 router.use(createCrudRoutes({ path: 'orcamentos-chamado', table: 'orcamentos_chamado', fields: ['chamado_id', 'fornecedor_id', 'descricao', 'valor', 'status'], message: 'Orçamento' }));
 

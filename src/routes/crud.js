@@ -4,15 +4,19 @@ const { autenticar, operational, now, id, validId, currentUnit, unitScope, valid
 
 // Gera rotas CRUD automáticas (GET, POST, PUT, DELETE) para uma tabela
 // Parâmetros:
-//   path    - caminho da rota (ex: "locais")
-//   table   - nome da tabela no banco
-//   fields  - array de campos permitidos (opcional)
-//   unit    - se true, aplica filtro por unidade do usuário
-//   message - nome amigável para mensagens de resposta
-function createCrudRoutes({ path, table, fields, unit, message }) {
+//   path         - caminho da rota (ex: "locais")
+//   table        - nome da tabela no banco
+//   fields       - array de campos permitidos (opcional)
+//   unit         - se true, aplica filtro por unidade do usuário
+//   message      - nome amigável para mensagens de resposta
+//   beforeCreate - hook (req, body) => string de erro | null (bloqueia criação)
+//   beforeUpdate - hook (req, existing, body) => string de erro | null
+//   beforeDelete - hook (req, existing) => string de erro | null
+function createCrudRoutes({ path, table, fields, unit, message, beforeCreate, beforeUpdate, beforeDelete }) {
   validTable(table);
   const router = Router();
   const manage = operational;
+  const bloquear = (req, res, erro) => res.status(400).json({ erro });
 
   router.get(`/${path}`, autenticar, (req, res) => {
     const db = getDb();
@@ -39,6 +43,7 @@ function createCrudRoutes({ path, table, fields, unit, message }) {
     if (unit) { unidadeId = currentUnit(req, res); if (!unidadeId) return; }
     const body = fields ? Object.fromEntries(fields.filter(k => req.body[k] !== undefined).map(k => [k, req.body[k]])) : { ...req.body };
     if (body.nome !== undefined && !String(body.nome).trim()) return res.status(400).json({ erro: 'Nome é obrigatório.' });
+    if (beforeCreate) { const erro = beforeCreate(req, body); if (erro) return bloquear(req, res, erro); }
     const cols = [...Object.keys(body), ...(unit ? ['unidade_id'] : []), 'criado_em', 'atualizado_em'];
     validColumns(cols, [...(fields || Object.keys(body)), ...(unit ? ['unidade_id'] : []), 'criado_em', 'atualizado_em']);
     const vals = [...Object.values(body), ...(unit ? [unidadeId] : []), now(), now()];
@@ -52,6 +57,7 @@ function createCrudRoutes({ path, table, fields, unit, message }) {
     const existing = db.prepare(`SELECT * FROM ${validTable(table)} WHERE id = ?`).get(id(req.params.id));
     if (!existing) return res.status(404).json({ erro: `${message} não encontrado.` });
     if (unit && !unitScope(req, existing)) return res.status(403).json({ erro: 'Acesso negado.' });
+    if (beforeUpdate) { const erro = beforeUpdate(req, existing, req.body); if (erro) return bloquear(req, res, erro); }
     const body = fields ? Object.fromEntries(fields.filter(k => req.body[k] !== undefined).map(k => [k, req.body[k]])) : { ...req.body };
     const allowed = [...(fields || Object.keys(body)), 'atualizado_em'];
     const sets = Object.keys(body).map(k => { validColumns([k], allowed); return `${k} = ?`; });
@@ -65,6 +71,7 @@ function createCrudRoutes({ path, table, fields, unit, message }) {
     const existing = db.prepare(`SELECT * FROM ${validTable(table)} WHERE id = ?`).get(id(req.params.id));
     if (!existing) return res.status(404).json({ erro: `${message} não encontrado.` });
     if (unit && !unitScope(req, existing)) return res.status(403).json({ erro: 'Acesso negado.' });
+    if (beforeDelete) { const erro = beforeDelete(req, existing); if (erro) return bloquear(req, res, erro); }
     db.prepare(`DELETE FROM ${validTable(table)} WHERE id = ?`).run(id(req.params.id));
     res.json({ sucesso: true, mensagem: `${message} removido!` });
   });
