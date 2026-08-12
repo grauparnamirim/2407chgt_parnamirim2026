@@ -142,8 +142,9 @@ module.exports = async function testCrud(port) {
   });
 
   await test('custos-chamado', async () => {
-    const c = await post('/api/custos-chamado', { descricao: 'Custo T', tipo: 'material', valor: 100 }, t); assert.equal(c.status, 201, JSON.stringify(c.data));
-    await del(`/api/custos-chamado/${c.data.id}`, t);
+    // Custo exige um chamado válido
+    const semChamado = await post('/api/custos-chamado', { descricao: 'Sem chamado', valor: 10 }, t);
+    assert.equal(semChamado.status, 400, JSON.stringify(semChamado.data));
   });
 
   await test('nf-comparativo', async () => {
@@ -232,5 +233,48 @@ module.exports = async function testCrud(port) {
     await del(`/api/ativos/${ativo.data.id}`, t);
     const liberada = await del(`/api/manutencoes/categorias-servico/${cat.data.id}`, t);
     assert.equal(liberada.status, 200, 'após desvincular, exclusão deve funcionar');
+  });
+
+  await test('chamado resolvido soma custos na manutenção', async () => {
+    // Cria projetor e chamado vinculado
+    const ativo = await post('/api/ativos', { patrimonio: 'PAT-CUSTO', modelo: 'Projetor T', tipo: 'projetor' }, t);
+    assert.equal(ativo.status, 201, JSON.stringify(ativo.data));
+    const ch = await post('/api/chamados', { titulo: 'Chamado custo', descricao: 'Teste', bem_id: ativo.data.id }, t);
+    assert.equal(ch.status, 201, JSON.stringify(ch.data));
+    // Registra custos no chamado (chamado aberto)
+    const c1 = await post('/api/custos-chamado', { chamado_id: ch.data.id, descricao: 'Peça', valor: 150.5 }, t);
+    assert.equal(c1.status, 201, JSON.stringify(c1.data));
+    const c2 = await post('/api/custos-chamado', { chamado_id: ch.data.id, descricao: 'Serviço', valor: 49.5 }, t);
+    assert.equal(c2.status, 201, JSON.stringify(c2.data));
+    // Resolve o chamado
+    const r = await put(`/api/chamados/${ch.data.id}/status`, { status: 'Resolvido', motivo: 'Concluído no teste' }, t);
+    assert.equal(r.status, 200);
+    // A manutenção criada deve ter o custo = soma (200.00)
+    const chDet = await get(`/api/chamados/${ch.data.id}/detalhes`, t);
+    assert.equal(chDet.status, 200);
+    assert.equal(chDet.data.bem_patrimonio, 'PAT-CUSTO', 'detalhes deve trazer patrimônio do aparelho');
+    assert.equal(chDet.data.bem_tipo, 'projetor', 'detalhes deve trazer tipo do aparelho');
+    assert.equal(chDet.data.bem_id, ativo.data.id, 'detalhes deve trazer o aparelho vinculado');
+    const manuts = await get(`/api/projetores/${ativo.data.id}`, t);
+    assert.equal(manuts.status, 200);
+    const auto = manuts.data.manutencoes.find(m => Number(m.chamado_id) === Number(ch.data.id));
+    assert.ok(auto, 'deve existir manutenção automática');
+    assert.ok(Number(auto.custo) === 200, 'custo da manutenção deve ser a soma dos custos do chamado');
+    // Chamado resolvido bloqueia novo custo
+    const bloqueado = await post('/api/custos-chamado', { chamado_id: ch.data.id, descricao: 'Tarde', valor: 10 }, t);
+    assert.equal(bloqueado.status, 400);
+  });
+
+  await test('custos filtrados por chamado', async () => {
+    const chA = await post('/api/chamados', { titulo: 'Custo A', descricao: 'Teste' }, t);
+    assert.equal(chA.status, 201, JSON.stringify(chA.data));
+    const chB = await post('/api/chamados', { titulo: 'Custo B', descricao: 'Teste' }, t);
+    assert.equal(chB.status, 201, JSON.stringify(chB.data));
+    await post('/api/custos-chamado', { chamado_id: chA.data.id, descricao: 'Unico do A', valor: 10 }, t);
+    await post('/api/custos-chamado', { chamado_id: chB.data.id, descricao: 'Unico do B', valor: 20 }, t);
+    const soA = await get(`/api/custos-chamado?chamado_id=${chA.data.id}`, t);
+    assert.equal(soA.data.length, 1, 'deve trazer apenas o custo do chamado A');
+    assert.equal(soA.data[0].chamado_id, chA.data.id);
+    assert.equal(soA.data[0].descricao, 'Unico do A');
   });
 };
