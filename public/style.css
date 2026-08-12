@@ -2792,11 +2792,9 @@ html[data-theme="escuro"] .page-dispositivos .dispositivo-excluir-aviso>span {
 }
 
 .login-logo-img {
-  width: 180px;
   height: auto;
-  margin: 0 auto 24px;
+  width: clamp(236px, 255vw, 390px);
   display: block;
-  filter: brightness(0) invert(1);
   opacity: 0.95;
 }
 
@@ -4320,12 +4318,6 @@ html[data-theme="escuro"] .page-notas-fiscais .comp-card {
   font-size: .68rem;
   font-weight: 800;
   letter-spacing: .12em;
-}
-
-.login-logo-img {
-  width: clamp(136px, 16vw, 190px);
-  margin: 0 0 26px;
-  filter: brightness(0) invert(1) drop-shadow(0 10px 20px rgba(0, 0, 0, .16));
 }
 
 .login-subtitle {

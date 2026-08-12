@@ -83,7 +83,7 @@ const appLoading = (() => {
     overlay.innerHTML = `
       <div class="app-loading-brand">
         <div class="app-loading-logo-wrap">
-          <img src="/midia/logo_grau_rn.png" alt="Grau Técnico" class="app-loading-logo">
+          <img src="/midia/logo-chgt-carregamento.png" alt="Grau Técnico" class="app-loading-logo">
         </div>
         <div class="app-loading-spinner" aria-hidden="true"></div>
         <p class="app-loading-message">Carregando...</p>
