@@ -46,12 +46,18 @@ router.post('/usuarios', autenticar, admin, async (req, res) => {
   res.status(201).json({ sucesso: true, id: result.lastInsertRowid, mensagem: 'Usuário cadastrado com sucesso!' });
 });
 
-// Atualiza dados de um usuário (admin apenas, não altera conta admin)
+// Atualiza dados de um usuário (admin apenas)
 router.put('/usuarios/:id', autenticar, admin, async (req, res) => {
   const db = getDb();
   const target = db.prepare('SELECT * FROM usuarios WHERE id = ?').get(id(req.params.id));
   if (!target) return res.status(404).json({ erro: 'Usuário não encontrado.' });
-  if (target.perfil === 'admin') return res.status(403).json({ erro: 'A conta demonstrativa administrativa não pode ser alterada por esta rota.' });
+  if (req.body.perfil && target.perfil === 'admin' && req.body.perfil !== 'admin') {
+    if (Number(req.params.id) === Number(req.usuario.id)) {
+      return res.status(403).json({ erro: 'Você não pode rebaixar seu próprio perfil de administrador.' });
+    }
+    const { c } = db.prepare("SELECT COUNT(*) AS c FROM usuarios WHERE perfil = 'admin' AND ativo = 1").get();
+    if (c <= 1) return res.status(403).json({ erro: 'Não é possível rebaixar o único administrador ativo.' });
+  }
   const sets = [], vals = [];
   if (req.body.nome !== undefined) { sets.push('nome = ?'); vals.push(String(req.body.nome).trim()); }
   if (req.body.email !== undefined) { sets.push('email = ?'); vals.push(String(req.body.email).trim().toLowerCase()); }
@@ -65,24 +71,40 @@ router.put('/usuarios/:id', autenticar, admin, async (req, res) => {
   res.json({ sucesso: true, mensagem: 'Usuário atualizado!' });
 });
 
-// Ativa ou desativa um usuário (admin apenas, não inativa conta admin)
+// Ativa ou desativa um usuário (admin apenas)
 router.put('/usuarios/:id/ativo', autenticar, admin, (req, res) => {
   const db = getDb();
   const target = db.prepare('SELECT * FROM usuarios WHERE id = ?').get(id(req.params.id));
   if (!target) return res.status(404).json({ erro: 'Usuário não encontrado.' });
-  if (target.perfil === 'admin') return res.status(403).json({ erro: 'A conta demonstrativa administrativa não pode ser inativada.' });
+  if (Number(req.params.id) === Number(req.usuario.id)) {
+    return res.status(403).json({ erro: 'Você não pode alterar o status da sua própria conta.' });
+  }
+  if (!req.body.ativo && target.ativo && target.perfil === 'admin') {
+    const { c } = db.prepare("SELECT COUNT(*) AS c FROM usuarios WHERE perfil = 'admin' AND ativo = 1").get();
+    if (c <= 1) return res.status(403).json({ erro: 'Não é possível inativar o único administrador ativo.' });
+  }
   db.prepare('UPDATE usuarios SET ativo = ? WHERE id = ?').run(req.body.ativo ? 1 : 0, id(req.params.id));
   res.json({ sucesso: true, mensagem: 'Status do usuário atualizado.' });
 });
 
-// Exclui um usuário (admin apenas, não exclui conta admin)
+// Exclui um usuário (admin apenas)
 router.delete('/usuarios/:id', autenticar, admin, (req, res) => {
   const db = getDb();
   const target = db.prepare('SELECT * FROM usuarios WHERE id = ?').get(id(req.params.id));
   if (!target) return res.status(404).json({ erro: 'Usuário não encontrado.' });
-  if (target.perfil === 'admin') return res.status(403).json({ erro: 'A conta demonstrativa administrativa não pode ser excluída.' });
-  db.prepare('DELETE FROM usuarios_grupos WHERE usuario_id = ?').run(id(req.params.id));
-  db.prepare('DELETE FROM usuarios WHERE id = ?').run(id(req.params.id));
+  if (Number(req.params.id) === Number(req.usuario.id)) {
+    return res.status(403).json({ erro: 'Você não pode excluir sua própria conta.' });
+  }
+  if (target.ativo && target.perfil === 'admin') {
+    const { c } = db.prepare("SELECT COUNT(*) AS c FROM usuarios WHERE perfil = 'admin' AND ativo = 1").get();
+    if (c <= 1) return res.status(403).json({ erro: 'Não é possível excluir o único administrador ativo.' });
+  }
+  try {
+    db.prepare('DELETE FROM usuarios_grupos WHERE usuario_id = ?').run(id(req.params.id));
+    db.prepare('DELETE FROM usuarios WHERE id = ?').run(id(req.params.id));
+  } catch (_) {
+    return res.status(409).json({ erro: 'Não é possível excluir este usuário: há registros vinculados a ele.' });
+  }
   res.json({ sucesso: true, mensagem: 'Usuário excluído!' });
 });
 

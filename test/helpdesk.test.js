@@ -78,9 +78,24 @@ module.exports = async function testHelpdesk(port) {
   // Promoção para admin é permitida ao admin
   const promote = await request(port, 'PUT', `/api/usuarios/${createdUser.data.id}`, { perfil: 'admin' }, login.data.token);
   assert.equal(promote.status, 200);
-  // Conta admin demo (id 1) é protegida contra alterações
-  const protectedAdmin = await request(port, 'PUT', '/api/usuarios/1', { perfil: 'usuario' }, login.data.token);
-  assert.equal(protectedAdmin.status, 403);
+  // Conta admin (id 1) pode ser editada por outro admin
+  const editAdmin = await request(port, 'PUT', '/api/usuarios/1', { nome: 'Administrador de demonstração' }, login.data.token);
+  assert.equal(editAdmin.status, 200);
+  // Admin não pode rebaixar, inativar ou excluir a si mesmo
+  const selfDemote = await request(port, 'PUT', '/api/usuarios/1', { perfil: 'usuario' }, login.data.token);
+  assert.equal(selfDemote.status, 403);
+  const selfInactive = await request(port, 'PUT', '/api/usuarios/1/ativo', { ativo: false }, login.data.token);
+  assert.equal(selfInactive.status, 403);
+  const selfDelete = await request(port, 'DELETE', '/api/usuarios/1', undefined, login.data.token);
+  assert.equal(selfDelete.status, 403);
+  // Conta admin pode ser excluída por outro admin (não é mais protegida)
+  const deleteAdmin = await request(port, 'DELETE', `/api/usuarios/${createdUser.data.id}`, undefined, login.data.token);
+  assert.equal(deleteAdmin.status, 200);
+  // Único administrador ativo restante não pode ser excluído nem inativado
+  const lastAdminDelete = await request(port, 'DELETE', '/api/usuarios/1', undefined, login.data.token);
+  assert.equal(lastAdminDelete.status, 403);
+  const lastAdminInactive = await request(port, 'PUT', '/api/usuarios/1/ativo', { ativo: false }, login.data.token);
+  assert.equal(lastAdminInactive.status, 403);
 
   // ============================================================
   // MÓDULOS VAZIOS — TODOS DEVEM RETORNAR 200
