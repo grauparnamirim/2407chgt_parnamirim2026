@@ -233,6 +233,8 @@ function schema() {
     `ALTER TABLE impressoras ADD COLUMN num_serie TEXT`,
     `ALTER TABLE impressoras ADD COLUMN ip_endereco TEXT`,
     `ALTER TABLE impressoras ADD COLUMN observacoes TEXT`,
+    `ALTER TABLE impressoras ADD COLUMN tipo TEXT`,
+    `ALTER TABLE impressoras ADD COLUMN mac TEXT`,
     `ALTER TABLE leituras_mensais ADD COLUMN contagem INTEGER`,
     `ALTER TABLE leituras_mensais ADD COLUMN observacoes TEXT`,
     `ALTER TABLE checklist_laboratorio_itens ADD COLUMN estado TEXT`,
