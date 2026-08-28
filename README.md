@@ -102,9 +102,9 @@ npm run reset-local-data
 | --- | --- |
 | `admin@local.test` | `Admin123!` |
 
-No login, selecione uma das unidades fictícias: **Parnamirim/RN**, **Natal Centro** ou **Natal Zona Norte**.
+No login, escolha a unidade pertecente : **Parnamirim/RN**, **Natal Centro** ou **Natal Zona Norte**.
 
-> Esta é uma conta pública de demonstração. **Não a utilize em produção** — altere a senha ou crie seus próprios usuários antes de usar com dados reais.
+> Esta é uma conta pública de demonstração. **Não a utilize em produção** — após criar um administrador próprio, edite ou exclua esta conta no módulo **Usuários** (o sistema impede excluir o único administrador ativo , so podendo ser alterado por outro admin).
 
 ---
 
