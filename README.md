@@ -2,7 +2,7 @@
 
 Sistema de helpdesk executado localmente para gerenciamento de chamados, inventário de equipamentos, impressoras, dispositivos e fluxos financeiros da Central de HelpDesk Grau Técnico — unidades Parnamirim/RN, Natal Centro e Natal Zona Norte.
 
-A aplicação roda somente no computador onde é instalada. Usa **SQLite** como banco de dados — não requer MySQL, não depende de serviços externos e os dados ficam armazenados localmente.
+A aplicação roda somente no computador onde é instalada. Usa **PostgreSQL** como banco de dados — os dados ficam armazenados localmente (ou em um container) e não dependem de serviços em nuvem. Em produção simples, o PostgreSQL roda no próprio equipamento via Docker.
 
 ---
 
@@ -45,12 +45,13 @@ A aplicação roda somente no computador onde é instalada. Usa **SQLite** como 
 
 | Camada | Tecnologia |
 | --- | --- |
-| Backend | Node.js, Express 4, better-sqlite3 |
+| Backend | Node.js, Express 4, `pg` (PostgreSQL) |
 | Autenticação | JWT (jsonwebtoken) + bcrypt |
 | Segurança | Helmet, express-rate-limit, sanitização de entrada |
 | Frontend | HTML5, CSS3 e JavaScript puro (sem frameworks) |
 | Ícones | Iconify (CDN) |
 | QR Code | qrcode-generator (Kazuhiko Arase) — geração 100% no navegador |
+| Banco de dados | PostgreSQL 16 (via Docker) |
 | Testes | Node.js nativo com `http` (sem jest/mocha) |
 
 ---
@@ -65,11 +66,29 @@ A aplicação roda somente no computador onde é instalada. Usa **SQLite** como 
 
 ## Instalação e Execução
 
+### Opção A — Docker (recomendada)
+
 ```bash
-# 1. Instalar as dependências
+# 1. Instalar as dependências (apenas para desenvolvimento fora do container)
 npm install
 
-# 2. Iniciar o servidor
+# 2. Subir PostgreSQL + aplicação com Docker Compose
+npm run docker:up
+```
+
+Isso sobe um container `db` (PostgreSQL 16) e o `app`. O app aguarda o PostgreSQL ficar saudável antes de criar o schema e os dados iniciais. Para encerrar: `npm run docker:down`.
+
+### Opção B — PostgreSQL local + Node
+
+```bash
+# 1. Criar o banco de dados PostgreSQL (ex.: via psql)
+createdb chgt_helpdesk
+
+# 2. Definir as variáveis de ambiente (ver .env.example)
+export PGUSER=postgres PGPASSWORD=postgres PGDATABASE=chgt_helpdesk PGHOST=localhost PGPORT=5432
+
+# 3. Instalar dependências e iniciar
+npm install
 npm start
 ```
 
@@ -78,21 +97,21 @@ Abra o navegador em `http://127.0.0.1:3000` ou, pela rede local, no IP da máqui
 > O servidor escuta no **IP do hospedeiro** (detectado dinamicamente), permitindo que outros computadores da rede acessem o sistema. Para usar o nome `chgt.helpdesk.local` no navegador, use o servidor DNS integrado:
 
 ```bash
-# Sobe o sistema e o servidor DNS local juntos
+# Sobe o sistema e o servidor DNS local juntos (app + DNS)
 npm run start:all
 ```
 
 Com o DNS rodando, qualquer PC da rede com DNS apontado para o IP do hospedeiro acessa o sistema em `http://chgt.helpdesk.local:3000`.
 
-### Reset dos dados locais
+### Reset dos dados
 
-Para apagar o banco de dados e recomeçar com dados limpos (o banco é recriado na próxima inicialização):
+Para apagar o schema e recomeçar com dados limpos (recriado na próxima inicialização):
 
 ```bash
 npm run reset-local-data
 ```
 
-> Este comando remove **apenas** o `data/local.db`. Ele não acessa nem altera qualquer outro banco de dados.
+> Este comando remove e recria o schema `public` do banco configurado pelas variáveis de ambiente. Ele não afeta outros schemas ou bancos.
 
 ---
 
@@ -160,13 +179,14 @@ No login, escolha a unidade pertecente : **Parnamirim/RN**, **Natal Centro** ou 
 
 ## Banco de Dados
 
-O banco é um arquivo SQLite local em `data/local.db`, criado automaticamente na primeira execução. As três unidades fictícias e a conta de administrador de demonstração são semeadas nesse momento.
+O banco é um **PostgreSQL** acessado via variáveis de ambiente (`PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD`, `PGDATABASE`), criado automaticamente na primeira execução. As três unidades fictícias e a conta de administrador de demonstração são semeadas nesse momento.
 
 Características:
 
-- **WAL mode** (`journal_mode = WAL`) — permite leitura durante gravação e melhor desempenho em uso local concorrente leve.
-- **Foreign keys ativadas** (`foreign_keys = ON`).
-- **Migrações automáticas** — colunas novas são adicionadas em tabelas existentes via `ALTER TABLE ... ADD COLUMN` com `try/catch`, sem exigir intervenção manual.
+- **Conexão via `pg`** (`Pool`) — o app aguarda o PostgreSQL ficar disponível (retry de até 30s) antes de criar o schema.
+- **Foreign keys** — integridade referencial garantida pelo PostgreSQL (`ON DELETE CASCADE`).
+- **Migrações automáticas** — colunas novas são adicionadas em tabelas existentes via `ALTER TABLE ... ADD COLUMN IF NOT EXISTS`, sem exigir intervenção manual.
+- **Backups** — o endpoint de backup gera um `pg_dump` (arquivo `.sql`) no diretório `backups/`.
 
 ### Principais tabelas
 
@@ -358,7 +378,13 @@ A suíte executa **20 testes** em 4 arquivos:
 - **security** — SQL injection, XSS, validação de entrada, controle de acesso, rate limit (HTTP 429) e erros de atualização sem vazar detalhes técnicos.
 - **atualizacoes** — validação da config (versão e link do GitHub), `/api/versao`, verificação de atualizações e consulta real à release do GitHub.
 
-Os testes sobem um servidor em porta aleatória com **banco temporário** em `os.tmpdir()` e não modificam o `data/local.db`.
+Os testes sobem um servidor em porta aleatória com **banco de teste** (`chgt_helpdesk_test`, via variáveis de ambiente) e não modificam o banco de produção. É necessário criar esse banco previamente:
+
+```bash
+createdb chgt_helpdesk_test
+```
+
+> Requer um PostgreSQL em execução e as variáveis `PG*` apontando para ele.
 
 ---
 
