@@ -12,18 +12,28 @@ const { spawn } = require('child_process');
 // SERVIDOR DE TESTE
 // ============================================================
 
-// Inicia uma instância do servidor com banco temporário e porta aleatória
+// Inicia uma instância do servidor com banco PostgreSQL de teste e porta aleatória
 // extraEnv permite injetar variáveis de ambiente específicas (ex.: RATE_LIMIT_MAX)
 function startServer(extraEnv = {}) {
-  const tempDb = path.join(fs.mkdtempSync(path.join(os.tmpdir(), 'chgt-test-')), 'test.db');
   const port = 35117 + Math.floor(Math.random() * 500);
   const server = spawn(process.execPath, ['src/index.js'], {
     cwd: path.join(__dirname, '..'),
-    env: { ...process.env, PORT: String(port), DB_PATH: tempDb, TEST: '1', HOST: '127.0.0.1', ...extraEnv },
+    env: {
+      ...process.env,
+      PORT: String(port),
+      TEST: '1',
+      HOST: '127.0.0.1',
+      PGHOST: process.env.PGHOST || 'localhost',
+      PGPORT: process.env.PGPORT || 5432,
+      PGUSER: process.env.PGUSER || 'postgres',
+      PGPASSWORD: process.env.PGPASSWORD || 'postgres',
+      PGDATABASE: process.env.PGDATABASE || 'chgt_helpdesk_test',
+      ...extraEnv
+    },
     stdio: ['ignore', 'pipe', 'pipe']
   });
   server.stderr.on('data', chunk => process.stderr.write('[SERVER] ' + chunk));
-  return { server, port, tempDb };
+  return { server, port };
 }
 
 // Aguarda até que o servidor esteja pronto para receber requisições
@@ -32,7 +42,7 @@ function waitForServer(server) {
     const timer = setTimeout(() => reject(new Error('Servidor não iniciou.')), 10000);
     server.stdout.on('data', chunk => {
       process.stdout.write('[SERVER] ' + chunk);
-      if (chunk.toString().includes('CHGT HelpDesk SQLite disponível')) {
+      if (chunk.toString().includes('CHGT HelpDesk disponível')) {
         clearTimeout(timer); resolve();
       }
     });
