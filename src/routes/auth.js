@@ -19,28 +19,28 @@ const router = Router();
 
 // Retorna lista de unidades ativas para o formulário de login
 // Inclui a unidade fixa do servidor (intranet local), se definida pelo admin
-router.get('/unidades', (_, res) => {
-  const unidades = getDb().prepare('SELECT * FROM unidades WHERE ativo != 0').all();
-  const unidadeFixa = getConfig('unidade_fixa');
+router.get('/unidades',async  (_, res) => {
+  const unidades = (await getDb().prepare('SELECT * FROM unidades WHERE ativo != 0').all());
+  const unidadeFixa = await getConfig('unidade_fixa');
   res.json({ unidades, unidade_fixa: unidadeFixa ? id(unidadeFixa) : null });
 });
 
 // Retorna a unidade fixa do servidor (pública — usada pelo formulário de login)
-router.get('/config/unidade-fixa', (_, res) => {
-  const unidadeFixa = getConfig('unidade_fixa');
+router.get('/config/unidade-fixa',async  (_, res) => {
+  const unidadeFixa = await getConfig('unidade_fixa');
   res.json({ unidade_fixa: unidadeFixa ? id(unidadeFixa) : null });
 });
 
 // Define (ou remove, com null) a unidade fixa do servidor — somente admin
-router.put('/config/unidade-fixa', autenticar, admin, (req, res) => {
+router.put('/config/unidade-fixa', autenticar, admin,async  (req, res) => {
   const valor = req.body.unidade_id === null || req.body.unidade_id === undefined || req.body.unidade_id === ''
     ? null
     : id(req.body.unidade_id);
   if (valor !== null) {
-    const unidade = getDb().prepare('SELECT id FROM unidades WHERE id = ? AND ativo != 0').get(valor);
+    const unidade = (await getDb().prepare('SELECT id FROM unidades WHERE id = ? AND ativo != 0').get(valor));
     if (!unidade) return res.status(400).json({ erro: 'Unidade inválida ou inativa.' });
   }
-  setConfig('unidade_fixa', valor);
+  await setConfig('unidade_fixa', valor);
   res.json({ sucesso: true, mensagem: valor ? 'Unidade fixa definida!' : 'Unidade fixa removida.' });
 });
 
@@ -57,12 +57,12 @@ router.post('/login', loginLimiter, async (req, res) => {
   const unidadeId = id(req.body.unidade_id);
   if (!email || !senha || !validId(unidadeId)) return res.status(400).json({ erro: 'Email, senha e unidade são obrigatórios.' });
   const db = getDb();
-  const user = db.prepare('SELECT * FROM usuarios WHERE email = ?').get(email);
-  const unidade = db.prepare('SELECT * FROM unidades WHERE id = ?').get(unidadeId);
+  const user = (await db.prepare('SELECT * FROM usuarios WHERE email = ?').get(email));
+  const unidade = (await db.prepare('SELECT * FROM unidades WHERE id = ?').get(unidadeId));
   if (!user || !user.ativo || !unidade || unidade.ativo === 0) return res.status(401).json({ erro: 'Email ou senha inválidos.' });
   if (user.perfil !== 'admin' && Number(user.unidade_id) !== unidadeId) return res.status(403).json({ erro: 'Esta conta não pertence à unidade selecionada.' });
   if (!(await bcrypt.compare(senha, user.senha_hash))) return res.status(401).json({ erro: 'Email ou senha inválidos.' });
-  const permissoes = userPermissions(db, user);
+  const permissoes = await userPermissions(db, user);
   const usuario = { ...safeUser(user), unidade_id: unidadeId, permissoes };
   const token = jwt.sign({ id: user.id, unidade_id: unidadeId }, JWT_SECRET, { expiresIn: JWT_EXPIRES });
   res.cookie('token', token, { httpOnly: true, sameSite: 'strict', maxAge: 8 * 60 * 60 * 1000 });

@@ -72,14 +72,14 @@ const PERMISSOES_USUARIO_BASICAS = new Set([
 // As permissões padrão do perfil são somadas às do grupo: entrar em um grupo
 // NÃO revoga as capacidades básicas do perfil (ex.: técnico continua vendo
 // os próprios chamados e alterando status mesmo sem a permissão no grupo).
-function userPermissions(db, user) {
+async function userPermissions(db, user) {
   if (user.perfil === 'admin') return ['*'];
   const base = PERMISSOES_PADRAO_PERFIL[user.perfil] || [];
-  const groupIds = db.prepare('SELECT grupo_id FROM usuarios_grupos WHERE usuario_id = ?').all(user.id).map(r => r.grupo_id);
+  const groupIds = (await db.prepare('SELECT grupo_id FROM usuarios_grupos WHERE usuario_id = ?').all(user.id)).map(r => r.grupo_id);
   if (!groupIds.length) return base;
-  const permIds = db.prepare(`SELECT permissao_id FROM grupos_permissoes WHERE grupo_id IN (${groupIds.map(() => '?').join(',')})`).all(...groupIds).map(r => r.permissao_id);
+  const permIds = (await db.prepare(`SELECT permissao_id FROM grupos_permissoes WHERE grupo_id IN (${groupIds.map(() => '?').join(',')})`).all(...groupIds)).map(r => r.permissao_id);
   if (!permIds.length) return base;
-  const grupoPerms = db.prepare(`SELECT chave FROM permissoes WHERE id IN (${permIds.map(() => '?').join(',')})`).all(...permIds).map(r => r.chave);
+  const grupoPerms = (await db.prepare(`SELECT chave FROM permissoes WHERE id IN (${permIds.map(() => '?').join(',')})`).all(...permIds)).map(r => r.chave);
   return [...new Set([...base, ...grupoPerms])];
 }
 
@@ -92,18 +92,18 @@ function temCapacidadeOperacional(req) {
 }
 
 // Middleware de autenticação via JWT — valida token e carrega usuário
-function autenticar(req, res, next) {
+async function autenticar(req, res, next) {
   const header = req.headers.authorization || '';
   if (!header.startsWith('Bearer ')) return res.status(401).json({ erro: 'Token de acesso não fornecido.' });
   try {
     const token = jwt.verify(header.slice(7), JWT_SECRET);
     const db = getDb();
-    const current = db.prepare('SELECT * FROM usuarios WHERE id = ?').get(token.id);
+    const current = (await db.prepare('SELECT * FROM usuarios WHERE id = ?').get(token.id));
     if (!current || !current.ativo) return res.status(401).json({ erro: 'Este usuário está inativo.' });
     let unidade = null;
-    if (token.unidade_id) unidade = db.prepare('SELECT * FROM unidades WHERE id = ?').get(token.unidade_id);
+    if (token.unidade_id) unidade = (await db.prepare('SELECT * FROM unidades WHERE id = ?').get(token.unidade_id));
     if (token.unidade_id && !unidade) return res.status(401).json({ erro: 'Unidade de acesso inválida.' });
-    req.usuario = { ...safeUser(current), unidade_id: token.unidade_id || null, permissoes: userPermissions(db, current) };
+    req.usuario = { ...safeUser(current), unidade_id: token.unidade_id || null, permissoes: await userPermissions(db, current) };
     next();
   } catch (_) {
     return res.status(401).json({ erro: 'Token inválido ou expirado.' });
@@ -166,13 +166,13 @@ function parseCookies(header) {
 
 // Middleware que protege páginas HTML — redireciona ao login se o cookie JWT for inválido
 // Middleware para proteger páginas HTML — redireciona ao login se o cookie JWT for inválido
-function autenticarPagina(req, res, next) {
+async function autenticarPagina(req, res, next) {
   const token = parseCookies(req.headers.cookie).token;
   if (!token) return res.redirect('/');
   try {
     const decoded = jwt.verify(token, JWT_SECRET);
     const db = getDb();
-    const user = db.prepare('SELECT * FROM usuarios WHERE id = ?').get(decoded.id);
+    const user = (await db.prepare('SELECT * FROM usuarios WHERE id = ?').get(decoded.id));
     if (!user || !user.ativo) return res.redirect('/');
     req.usuario = { ...safeUser(user), unidade_id: decoded.unidade_id || null };
     next();

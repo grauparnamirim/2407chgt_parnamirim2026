@@ -11,24 +11,24 @@ const router = Router();
 
 // Lista todos os usuários (filtrados por unidade quando aplicável),
 // incluindo o nome do setor vinculado
-router.get('/usuarios', autenticar, admin, (req, res) => {
+router.get('/usuarios', autenticar, admin,async  (req, res) => {
   const db = getDb();
   const select = `SELECT u.*, s.nome AS setor_nome FROM usuarios u LEFT JOIN setores s ON u.setor_id = s.id`;
   let rows;
   if (req.usuario.perfil === 'admin' && !req.usuario.unidade_id) {
-    rows = db.prepare(select).all();
+    rows = (await db.prepare(select).all());
   } else {
-    rows = db.prepare(`${select} WHERE u.unidade_id = ? OR u.unidade_id IS NULL`).all(req.usuario.unidade_id);
+    rows = (await db.prepare(`${select} WHERE u.unidade_id = ? OR u.unidade_id IS NULL`).all(req.usuario.unidade_id));
   }
   res.json(rows.map(safeUser));
 });
 
 // Lista usuários com perfil técnico disponíveis
-router.get('/tecnicos', autenticar, operational, (req, res) => {
+router.get('/tecnicos', autenticar, operational,async  (req, res) => {
   const db = getDb();
   const rows = req.usuario.perfil === 'admin'
-    ? db.prepare("SELECT id, nome, email FROM usuarios WHERE perfil = 'tecnico' AND ativo = 1").all()
-    : db.prepare("SELECT id, nome, email FROM usuarios WHERE perfil = 'tecnico' AND ativo = 1 AND unidade_id = ?").all(req.usuario.unidade_id);
+    ? (await db.prepare("SELECT id, nome, email FROM usuarios WHERE perfil = 'tecnico' AND ativo = 1").all())
+    : (await db.prepare("SELECT id, nome, email FROM usuarios WHERE perfil = 'tecnico' AND ativo = 1 AND unidade_id = ?").all(req.usuario.unidade_id));
   res.json(rows);
 });
 
@@ -39,23 +39,23 @@ router.post('/usuarios', autenticar, admin, async (req, res) => {
   if (!unidadeId) return;
   if (!nome || !email || senha.length < 8 || !['admin', 'gestor', 'tecnico', 'usuario'].includes(perfil)) return res.status(400).json({ erro: 'Informe nome, email, senha com ao menos 8 caracteres e perfil válido.' });
   const db = getDb();
-  const exists = db.prepare('SELECT id FROM usuarios WHERE email = ?').get(email);
+  const exists = (await db.prepare('SELECT id FROM usuarios WHERE email = ?').get(email));
   if (exists) return res.status(400).json({ erro: 'Email já cadastrado.' });
   const senha_hash = await bcrypt.hash(senha, 10);
-  const result = db.prepare('INSERT INTO usuarios (nome, email, senha_hash, perfil, setor_id, unidade_id, ativo, criado_em) VALUES (?, ?, ?, ?, ?, ?, 1, ?)').run(nome, email, senha_hash, perfil, validId(req.body.setor) ? id(req.body.setor) : null, unidadeId, now());
+  const result = (await db.prepare('INSERT INTO usuarios (nome, email, senha_hash, perfil, setor_id, unidade_id, ativo, criado_em) VALUES (?, ?, ?, ?, ?, ?, 1, ?)').run(nome, email, senha_hash, perfil, validId(req.body.setor) ? id(req.body.setor) : null, unidadeId, now()));
   res.status(201).json({ sucesso: true, id: result.lastInsertRowid, mensagem: 'Usuário cadastrado com sucesso!' });
 });
 
 // Atualiza dados de um usuário (admin apenas)
 router.put('/usuarios/:id', autenticar, admin, async (req, res) => {
   const db = getDb();
-  const target = db.prepare('SELECT * FROM usuarios WHERE id = ?').get(id(req.params.id));
+  const target = (await db.prepare('SELECT * FROM usuarios WHERE id = ?').get(id(req.params.id)));
   if (!target) return res.status(404).json({ erro: 'Usuário não encontrado.' });
   if (req.body.perfil && target.perfil === 'admin' && req.body.perfil !== 'admin') {
     if (Number(req.params.id) === Number(req.usuario.id)) {
       return res.status(403).json({ erro: 'Você não pode rebaixar seu próprio perfil de administrador.' });
     }
-    const { c } = db.prepare("SELECT COUNT(*) AS c FROM usuarios WHERE perfil = 'admin' AND ativo = 1").get();
+    const { c } = (await db.prepare("SELECT COUNT(*) AS c FROM usuarios WHERE perfil = 'admin' AND ativo = 1").get());
     if (c <= 1) return res.status(403).json({ erro: 'Não é possível rebaixar o único administrador ativo.' });
   }
   const sets = [], vals = [];
@@ -67,41 +67,41 @@ router.put('/usuarios/:id', autenticar, admin, async (req, res) => {
     sets.push('perfil = ?'); vals.push(req.body.perfil);
   }
   if (req.body.senha) { sets.push('senha_hash = ?'); vals.push(await bcrypt.hash(String(req.body.senha), 10)); }
-  if (sets.length) { sets.push('atualizado_em = ?'); vals.push(now()); vals.push(id(req.params.id)); db.prepare(`UPDATE usuarios SET ${sets.join(', ')} WHERE id = ?`).run(...vals); }
+  if (sets.length) { sets.push('atualizado_em = ?'); vals.push(now()); vals.push(id(req.params.id)); (await db.prepare(`UPDATE usuarios SET ${sets.join(', ')} WHERE id = ?`).run(...vals)); }
   res.json({ sucesso: true, mensagem: 'Usuário atualizado!' });
 });
 
 // Ativa ou desativa um usuário (admin apenas)
-router.put('/usuarios/:id/ativo', autenticar, admin, (req, res) => {
+router.put('/usuarios/:id/ativo', autenticar, admin,async  (req, res) => {
   const db = getDb();
-  const target = db.prepare('SELECT * FROM usuarios WHERE id = ?').get(id(req.params.id));
+  const target = (await db.prepare('SELECT * FROM usuarios WHERE id = ?').get(id(req.params.id)));
   if (!target) return res.status(404).json({ erro: 'Usuário não encontrado.' });
   if (Number(req.params.id) === Number(req.usuario.id)) {
     return res.status(403).json({ erro: 'Você não pode alterar o status da sua própria conta.' });
   }
   if (!req.body.ativo && target.ativo && target.perfil === 'admin') {
-    const { c } = db.prepare("SELECT COUNT(*) AS c FROM usuarios WHERE perfil = 'admin' AND ativo = 1").get();
+    const { c } = (await db.prepare("SELECT COUNT(*) AS c FROM usuarios WHERE perfil = 'admin' AND ativo = 1").get());
     if (c <= 1) return res.status(403).json({ erro: 'Não é possível inativar o único administrador ativo.' });
   }
-  db.prepare('UPDATE usuarios SET ativo = ? WHERE id = ?').run(req.body.ativo ? 1 : 0, id(req.params.id));
+  (await db.prepare('UPDATE usuarios SET ativo = ? WHERE id = ?').run(req.body.ativo ? 1 : 0, id(req.params.id)));
   res.json({ sucesso: true, mensagem: 'Status do usuário atualizado.' });
 });
 
 // Exclui um usuário (admin apenas)
-router.delete('/usuarios/:id', autenticar, admin, (req, res) => {
+router.delete('/usuarios/:id', autenticar, admin,async  (req, res) => {
   const db = getDb();
-  const target = db.prepare('SELECT * FROM usuarios WHERE id = ?').get(id(req.params.id));
+  const target = (await db.prepare('SELECT * FROM usuarios WHERE id = ?').get(id(req.params.id)));
   if (!target) return res.status(404).json({ erro: 'Usuário não encontrado.' });
   if (Number(req.params.id) === Number(req.usuario.id)) {
     return res.status(403).json({ erro: 'Você não pode excluir sua própria conta.' });
   }
   if (target.ativo && target.perfil === 'admin') {
-    const { c } = db.prepare("SELECT COUNT(*) AS c FROM usuarios WHERE perfil = 'admin' AND ativo = 1").get();
+    const { c } = (await db.prepare("SELECT COUNT(*) AS c FROM usuarios WHERE perfil = 'admin' AND ativo = 1").get());
     if (c <= 1) return res.status(403).json({ erro: 'Não é possível excluir o único administrador ativo.' });
   }
   try {
-    db.prepare('DELETE FROM usuarios_grupos WHERE usuario_id = ?').run(id(req.params.id));
-    db.prepare('DELETE FROM usuarios WHERE id = ?').run(id(req.params.id));
+    (await db.prepare('DELETE FROM usuarios_grupos WHERE usuario_id = ?').run(id(req.params.id)));
+    (await db.prepare('DELETE FROM usuarios WHERE id = ?').run(id(req.params.id)));
   } catch (_) {
     return res.status(409).json({ erro: 'Não é possível excluir este usuário: há registros vinculados a ele.' });
   }

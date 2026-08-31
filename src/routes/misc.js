@@ -7,8 +7,8 @@ const router = Router();
 
 // === FINANCEIRO ===
 // Custo só pode ser criado/editado/removido enquanto o chamado não está resolvido.
-function custoChamadoBloqueado(chamadoId) {
-  const c = getDb().prepare('SELECT status FROM chamados WHERE id = ?').get(validChamadoId(chamadoId) ? chamadoId : 0);
+async function custoChamadoBloqueado(chamadoId) {
+  const c = (await getDb().prepare('SELECT status FROM chamados WHERE id = ?').get(validChamadoId(chamadoId) ? chamadoId : 0));
   if (!c) return 'Chamado inválido.';
   if (c.status === 'Resolvido') return 'Chamado resolvido: não é mais possível adicionar ou alterar custos.';
   return null;
@@ -16,16 +16,20 @@ function custoChamadoBloqueado(chamadoId) {
 function validChamadoId(v) { const n = Number(v); return Number.isInteger(n) && n > 0; }
 // Lista custos de chamados (com filtro opcional por chamado_id) — registrada ANTES do
 // CRUD genérico para não ser ofuscada e o filtro do chamado específico funcionar.
-router.get('/custos-chamado', autenticar, (req, res) => {
+router.get('/custos-chamado', autenticar,async  (req, res) => {
   const db = getDb();
-  let rows = db.prepare('SELECT * FROM custos_chamado').all();
+  let rows = await db.prepare('SELECT * FROM custos_chamado').all();
   if (req.query.chamado_id) rows = rows.filter(x => Number(x.chamado_id) === id(req.query.chamado_id));
-  res.json(rows.filter(c => ticketAllowed(req, db.prepare('SELECT * FROM chamados WHERE id = ?').get(c.chamado_id)))
-    .map(c => ({
+  const permitidos = await Promise.all(rows.map(async c => {
+    const chamado = await db.prepare('SELECT * FROM chamados WHERE id = ?').get(c.chamado_id);
+    if (!ticketAllowed(req, chamado)) return null;
+    return {
       ...c,
-      fornecedor_nome: db.prepare('SELECT nome FROM fornecedores WHERE id = ?').get(c.fornecedor_id)?.nome || '',
-      chamado_status: db.prepare('SELECT status FROM chamados WHERE id = ?').get(c.chamado_id)?.status || ''
-    })));
+      fornecedor_nome: (await db.prepare('SELECT nome FROM fornecedores WHERE id = ?').get(c.fornecedor_id))?.nome || '',
+      chamado_status: (await db.prepare('SELECT status FROM chamados WHERE id = ?').get(c.chamado_id))?.status || ''
+    };
+  }));
+  res.json(permitidos.filter(Boolean));
 });
 router.use(createCrudRoutes({
   path: 'custos-chamado', table: 'custos_chamado', fields: ['chamado_id', 'descricao', 'tipo', 'valor', 'fornecedor_id'], message: 'Custo',
@@ -37,22 +41,22 @@ router.use(createCrudRoutes({
 router.use(createCrudRoutes({ path: 'orcamentos-chamado', table: 'orcamentos_chamado', fields: ['chamado_id', 'fornecedor_id', 'descricao', 'valor', 'status'], message: 'Orçamento' }));
 
 // Aprova um orçamento de chamado (apenas admin)
-router.put('/orcamentos-chamado/:id/aprovar', autenticar, admin, (req, res) => {
-  getDb().prepare("UPDATE orcamentos_chamado SET status = 'aprovado' WHERE id = ?").run(id(req.params.id));
+router.put('/orcamentos-chamado/:id/aprovar', autenticar, admin,async  (req, res) => {
+  (await getDb().prepare("UPDATE orcamentos_chamado SET status = 'aprovado' WHERE id = ?").run(id(req.params.id)));
   res.json({ sucesso: true, mensagem: 'Orçamento aprovado!' });
 });
 
 // Rejeita um orçamento de chamado (apenas admin)
-router.put('/orcamentos-chamado/:id/rejeitar', autenticar, admin, (req, res) => {
-  getDb().prepare("UPDATE orcamentos_chamado SET status = 'rejeitado' WHERE id = ?").run(id(req.params.id));
+router.put('/orcamentos-chamado/:id/rejeitar', autenticar, admin,async  (req, res) => {
+  (await getDb().prepare("UPDATE orcamentos_chamado SET status = 'rejeitado' WHERE id = ?").run(id(req.params.id)));
   res.json({ sucesso: true, mensagem: 'Orçamento rejeitado!' });
 });
 
 router.use(createCrudRoutes({ path: 'compras-mensais', table: 'compras_mensais', fields: ['mes', 'ano', 'fornecedor_id', 'item', 'objetivo', 'valor_estimado', 'status'], message: 'Compra' }));
 
 // Atualiza o status de uma compra mensal
-router.put('/compras-mensais/:id/status', autenticar, operational, (req, res) => {
-  getDb().prepare('UPDATE compras_mensais SET status = ? WHERE id = ?').run(req.body.status, id(req.params.id));
+router.put('/compras-mensais/:id/status', autenticar, operational,async  (req, res) => {
+  (await getDb().prepare('UPDATE compras_mensais SET status = ? WHERE id = ?').run(req.body.status, id(req.params.id)));
   res.json({ sucesso: true, mensagem: 'Status atualizado!' });
 });
 
@@ -66,8 +70,8 @@ router.use(createCrudRoutes({ path: 'notas-fiscais', table: 'notas_fiscais', fie
 router.get('/notas-fiscais/estatisticas', autenticar, operational, (_, res) => res.json({ total: 0, pendentes: 0, pagas: 0, atrasadas: 0, valor_total: 0 }));
 
 // Atualiza o status e data de pagamento de uma nota fiscal
-router.put('/notas-fiscais/:id/status', autenticar, operational, (req, res) => {
-  getDb().prepare('UPDATE notas_fiscais SET status = ?, data_pagamento = ? WHERE id = ?').run(req.body.status, req.body.data_pagamento || null, id(req.params.id));
+router.put('/notas-fiscais/:id/status', autenticar, operational,async  (req, res) => {
+  (await getDb().prepare('UPDATE notas_fiscais SET status = ?, data_pagamento = ? WHERE id = ?').run(req.body.status, req.body.data_pagamento || null, id(req.params.id)));
   res.json({ sucesso: true, mensagem: 'Status atualizado!' });
 });
 
@@ -75,8 +79,8 @@ router.put('/notas-fiscais/:id/status', autenticar, operational, (req, res) => {
 router.use(createCrudRoutes({ path: 'nf-comparativo', table: 'nf_comparativo_mensal', fields: ['mes', 'ano', 'valor_acadweb', 'valor_prefeitura', 'observacoes'], message: 'Comparativo' }));
 
 // Retorna um registro de comparativo NF pelo ID
-router.get('/nf-comparativo/:id', autenticar, operational, (req, res) => {
-  const item = getDb().prepare('SELECT * FROM nf_comparativo_mensal WHERE id = ?').get(id(req.params.id));
+router.get('/nf-comparativo/:id', autenticar, operational,async  (req, res) => {
+  const item = (await getDb().prepare('SELECT * FROM nf_comparativo_mensal WHERE id = ?').get(id(req.params.id)));
   if (!item) return res.status(404).json({ erro: 'Comparativo não encontrado.' });
   res.json(item);
 });
@@ -84,16 +88,16 @@ router.get('/nf-comparativo/:id', autenticar, operational, (req, res) => {
 // === MANUTENÇÃO CATEGORIAS ===
 // DELETE customizado: bloqueia a exclusão de uma categoria de serviço que
 // ainda esteja vinculada a manutenções, evitando o erro de foreign key.
-router.delete('/manutencoes/categorias-servico/:id', autenticar, operational, (req, res) => {
+router.delete('/manutencoes/categorias-servico/:id', autenticar, operational,async  (req, res) => {
   const db = getDb();
   const categoriaId = id(req.params.id);
-  const categoria = db.prepare('SELECT * FROM categorias_servico_manutencao WHERE id = ?').get(categoriaId);
+  const categoria = (await db.prepare('SELECT * FROM categorias_servico_manutencao WHERE id = ?').get(categoriaId));
   if (!categoria) return res.status(404).json({ erro: 'Categoria de serviço não encontrada.' });
-  const emUso = db.prepare('SELECT COUNT(*) AS c FROM manutencoes WHERE categoria_servico_id = ?').get(categoriaId).c;
+  const emUso = (await db.prepare('SELECT COUNT(*) AS c FROM manutencoes WHERE categoria_servico_id = ?').get(categoriaId)).c;
   if (emUso > 0) {
     return res.status(409).json({ erro: `Não é possível excluir "${categoria.nome}" pois está vinculada a ${emUso} manutenção(ões).` });
   }
-  db.prepare('DELETE FROM categorias_servico_manutencao WHERE id = ?').run(categoriaId);
+  (await db.prepare('DELETE FROM categorias_servico_manutencao WHERE id = ?').run(categoriaId));
   res.json({ sucesso: true, mensagem: 'Categoria de serviço removida!' });
 });
 
@@ -115,29 +119,29 @@ function relatoriosAllowed(req, res, next) {
 // - usuario: apenas os chamados que ele mesmo abriu.
 // gestorId (query): permite a admin/gestor filtrar por um técnico específico.
 // Quando gestorId é o próprio id, o filtro é ignorado (visão completa da unidade).
-function relatorioChamados(req, gestorId) {
+async function relatorioChamados(req, gestorId) {
   const db = getDb();
   const filtroTecnico = chamados => gestorId && gestorId !== req.usuario.id
     ? chamados.filter(c => Number(c.tecnico_id) === gestorId)
     : chamados;
   if (req.usuario.perfil === 'admin') {
-    return filtroTecnico(db.prepare('SELECT * FROM chamados').all());
+    return filtroTecnico((await db.prepare('SELECT * FROM chamados').all()));
   }
   if (req.usuario.perfil === 'usuario') {
-    return db.prepare('SELECT * FROM chamados WHERE usuario_id = ?').all(req.usuario.id);
+    return (await db.prepare('SELECT * FROM chamados WHERE usuario_id = ?').all(req.usuario.id));
   }
   if (req.usuario.perfil === 'tecnico') {
-    return db.prepare('SELECT * FROM chamados WHERE tecnico_id = ?').all(req.usuario.id);
+    return (await db.prepare('SELECT * FROM chamados WHERE tecnico_id = ?').all(req.usuario.id));
   }
-  return filtroTecnico(db.prepare('SELECT * FROM chamados WHERE unidade_id = ?').all(req.usuario.unidade_id));
+  return filtroTecnico((await db.prepare('SELECT * FROM chamados WHERE unidade_id = ?').all(req.usuario.unidade_id)));
 }
 
 // Reconstrói a linha do tempo de status de um chamado a partir do notificacoes_log
 // e calcula tempo aberto, tempo aguardando fornecedor e tempo útil (em ms).
-function calcularTemposChamado(db, c) {
+async function calcularTemposChamado(db, c) {
   const inicio = new Date(c.criado_em).getTime();
   const fim = c.status === 'Resolvido' ? new Date(c.atualizado_em || c.criado_em).getTime() : Date.now();
-  const logs = db.prepare('SELECT * FROM notificacoes_log WHERE chamado_id = ? ORDER BY enviada_em ASC').all(c.id);
+  const logs = (await db.prepare('SELECT * FROM notificacoes_log WHERE chamado_id = ? ORDER BY enviada_em ASC').all(c.id));
   const eventos = [{ t: inicio, status: 'Aberto' }];
   logs.forEach(l => eventos.push({ t: new Date(l.enviada_em).getTime(), status: l.status_novo }));
   eventos.push({ t: fim, status: c.status });
@@ -155,17 +159,17 @@ function calcularTemposChamado(db, c) {
 }
 
 // Retorna relatório geral de chamados agrupados por status e técnico
-router.get('/relatorios', autenticar, relatoriosAllowed, (req, res) => {
+router.get('/relatorios', autenticar, relatoriosAllowed, async (req, res) => {
   const db = getDb();
   const gestorId = id(req.query.gestor_id);
   const chamados = relatorioChamados(req, gestorId);
   const count = status => chamados.filter(c => c.status === status).length;
   const porTecnicoMap = {};
-  chamados.forEach(c => {
+  await Promise.all(chamados.map(async c => {
     if (!c.tecnico_id) return;
-    const nome = db.prepare('SELECT nome FROM usuarios WHERE id = ?').get(c.tecnico_id)?.nome || `Técnico #${c.tecnico_id}`;
+    const nome = (await db.prepare('SELECT nome FROM usuarios WHERE id = ?').get(c.tecnico_id))?.nome || `Técnico #${c.tecnico_id}`;
     porTecnicoMap[nome] = (porTecnicoMap[nome] || 0) + 1;
-  });
+  }));
   res.json({
     porStatus: ['Aberto', 'Em andamento', 'Resolvido'].map(status => ({ status, total: count(status) })),
     porTecnico: Object.entries(porTecnicoMap).map(([tecnico, total]) => ({ tecnico, total })),
@@ -174,24 +178,24 @@ router.get('/relatorios', autenticar, relatoriosAllowed, (req, res) => {
 });
 
 // Retorna relatório de tempos de chamados concluídos com métricas reais
-router.get('/relatorios/tempos', autenticar, relatoriosAllowed, (req, res) => {
+router.get('/relatorios/tempos', autenticar, relatoriosAllowed, async (req, res) => {
   const db = getDb();
   const gestorId = id(req.query.gestor_id);
   const todosChamados = relatorioChamados(req, gestorId);
   const concluidos = todosChamados.filter(c => c.status === 'Resolvido');
-  const chamados = concluidos.map(c => {
+  const chamados = await Promise.all(concluidos.map(async c => {
     const t = calcularTemposChamado(db, c);
     return {
       id: c.id, titulo: c.titulo,
-      usuario_nome: db.prepare('SELECT nome FROM usuarios WHERE id = ?').get(c.usuario_id)?.nome || '',
-      tecnico_nome: c.tecnico_id ? db.prepare('SELECT nome FROM usuarios WHERE id = ?').get(c.tecnico_id)?.nome || '' : '',
+      usuario_nome: (await db.prepare('SELECT nome FROM usuarios WHERE id = ?').get(c.usuario_id))?.nome || '',
+      tecnico_nome: c.tecnico_id ? (await db.prepare('SELECT nome FROM usuarios WHERE id = ?').get(c.tecnico_id))?.nome || '' : '',
       aberto_em: c.criado_em,
       concluido_em: c.atualizado_em || c.criado_em,
       tempo_util_ms: t.tempo_util_ms,
       tempo_espera_ms: t.tempo_espera_ms,
       tempo_aberto_ms: t.tempo_aberto_ms
     };
-  });
+  }));
   const total = chamados.length;
   const totalChamados = todosChamados.length;
   const totalResolvidos = total;
@@ -212,9 +216,9 @@ router.get('/relatorios/tempos', autenticar, relatoriosAllowed, (req, res) => {
 
 // === ADMIN: GRUPOS E PERMISSÕES ===
 // Retorna todas as permissões disponíveis, agrupadas por módulo
-router.get('/permissoes', autenticar, admin, (_, res) => {
+router.get('/permissoes', autenticar, admin,async  (_, res) => {
   const db = getDb();
-  const lista = db.prepare('SELECT * FROM permissoes').all();
+  const lista = (await db.prepare('SELECT * FROM permissoes').all());
   const agrupadas = {};
   lista.forEach(p => {
     const modulo = p.chave.split('.')[0];
@@ -224,76 +228,77 @@ router.get('/permissoes', autenticar, admin, (_, res) => {
 });
 
 // Retorna todos os grupos de usuários com permissões e flag de sistema
-router.get('/grupos', autenticar, admin, (_, res) => {
+router.get('/grupos', autenticar, admin,async  (_, res) => {
   const db = getDb();
-  const grupos = db.prepare('SELECT * FROM grupos').all();
-  res.json(grupos.map(g => ({
+  const grupos = (await db.prepare('SELECT * FROM grupos').all());
+  res.json(await Promise.all(grupos.map(async g => ({
     ...g,
     sistema: false,
-    permissoes: db.prepare(`SELECT p.chave FROM grupos_permissoes gp JOIN permissoes p ON p.id = gp.permissao_id WHERE gp.grupo_id = ?`).all(g.id).map(r => r.chave)
-  })));
+    permissoes: (await db.prepare(`SELECT p.chave FROM grupos_permissoes gp JOIN permissoes p ON p.id = gp.permissao_id WHERE gp.grupo_id = ?`).all(g.id)).map(r => r.chave)
+  }))));
 });
 router.use(createCrudRoutes({ path: 'grupos', table: 'grupos', fields: ['nome', 'descricao'], message: 'Grupo', manage: admin }));
 
 // Retorna os IDs das permissões de um grupo
-router.get('/grupos/:id/permissoes', autenticar, admin, (req, res) => {
-  const rows = getDb().prepare('SELECT permissao_id FROM grupos_permissoes WHERE grupo_id = ?').all(id(req.params.id));
+router.get('/grupos/:id/permissoes', autenticar, admin,async  (req, res) => {
+  const rows = (await getDb().prepare('SELECT permissao_id FROM grupos_permissoes WHERE grupo_id = ?').all(id(req.params.id)));
   res.json(rows.map(r => r.permissao_id));
 });
 
 // Retorna os usuários de um grupo
-router.get('/grupos/:id/usuarios', autenticar, admin, (req, res) => {
-  const rows = getDb().prepare(`SELECT u.id, u.nome, u.email, u.perfil FROM usuarios u
-    JOIN usuarios_grupos ug ON ug.usuario_id = u.id WHERE ug.grupo_id = ?`).all(id(req.params.id));
+router.get('/grupos/:id/usuarios', autenticar, admin,async  (req, res) => {
+  const rows = (await getDb().prepare(`SELECT u.id, u.nome, u.email, u.perfil FROM usuarios u
+    JOIN usuarios_grupos ug ON ug.usuario_id = u.id WHERE ug.grupo_id = ?`).all(id(req.params.id)));
   res.json(rows);
 });
 
 // Atualiza as permissões de um grupo (substitui todas as associações).
 // Aceita tanto IDs numéricos quanto chaves de permissão.
-router.put('/grupos/:id/permissoes', autenticar, admin, (req, res) => {
+router.put('/grupos/:id/permissoes', autenticar, admin,async  (req, res) => {
   const db = getDb();
   const grupoId = id(req.params.id);
   const raw = Array.isArray(req.body.permissoes) ? req.body.permissoes : [];
-  const permissionIds = raw.map(v => {
+  const permissionIds = await Promise.all(raw.map(async v => {
     if (Number.isInteger(Number(v))) return Number(v);
-    const found = db.prepare('SELECT id FROM permissoes WHERE chave = ?').get(String(v));
+    const found = (await db.prepare('SELECT id FROM permissoes WHERE chave = ?').get(String(v)));
     return found ? found.id : null;
-  }).filter(v => v !== null);
-  db.prepare('DELETE FROM grupos_permissoes WHERE grupo_id = ?').run(grupoId);
+  }));
+  const validos = permissionIds.filter(v => v !== null);
+  await db.prepare('DELETE FROM grupos_permissoes WHERE grupo_id = ?').run(grupoId);
   const insert = db.prepare('INSERT INTO grupos_permissoes (grupo_id, permissao_id) VALUES (?, ?)');
-  permissionIds.forEach(permissao_id => insert.run(grupoId, permissao_id));
+  for (const permissao_id of validos) await insert.run(grupoId, permissao_id);
   res.json({ sucesso: true, mensagem: 'Permissões atualizadas!' });
 });
 
 // Retorna os grupos de um usuário (com nome, para exibição)
-router.get('/usuarios/:id/grupos', autenticar, admin, (req, res) => {
-  const rows = getDb().prepare(`SELECT g.id, g.nome FROM grupos g JOIN usuarios_grupos ug ON ug.grupo_id = g.id WHERE ug.usuario_id = ?`).all(id(req.params.id));
+router.get('/usuarios/:id/grupos', autenticar, admin,async  (req, res) => {
+  const rows = (await getDb().prepare(`SELECT g.id, g.nome FROM grupos g JOIN usuarios_grupos ug ON ug.grupo_id = g.id WHERE ug.usuario_id = ?`).all(id(req.params.id)));
   res.json(rows);
 });
 
 // Atualiza os grupos de um usuário (substitui todas as associações)
-router.put('/usuarios/:id/grupos', autenticar, admin, (req, res) => {
+router.put('/usuarios/:id/grupos', autenticar, admin,async  (req, res) => {
   const db = getDb();
   const groups = Array.isArray(req.body.grupos) ? req.body.grupos.map(id) : [];
-  db.prepare('DELETE FROM usuarios_grupos WHERE usuario_id = ?').run(id(req.params.id));
+  (await db.prepare('DELETE FROM usuarios_grupos WHERE usuario_id = ?').run(id(req.params.id)));
   const insert = db.prepare('INSERT INTO usuarios_grupos (usuario_id, grupo_id) VALUES (?, ?)');
-  groups.forEach(grupo_id => insert.run(id(req.params.id), grupo_id));
+  await Promise.all((groups || []).map(grupo_id => insert.run(id(req.params.id), grupo_id)));
   res.json({ sucesso: true, mensagem: 'Grupos atualizados!' });
 });
 
 // === PESQUISA ===
 // Pesquisa global por chamados e ativos (mínimo 2 caracteres)
-router.get('/pesquisa', autenticar, (req, res) => {
+router.get('/pesquisa', autenticar,async  (req, res) => {
   const q = String(req.query.q || '').trim().toLowerCase();
   if (q.length < 2) return res.json({ chamados: [], ativos: [] });
   const db = getDb();
   let chamados, ativos;
   if (req.usuario.perfil === 'admin') {
-    chamados = db.prepare("SELECT id, titulo, descricao FROM chamados WHERE titulo || ' ' || COALESCE(descricao,'') LIKE ?").all(`%${q}%`).slice(0, 8).map(c => ({ id: c.id, titulo: c.titulo, resumo: c.descricao || '', destino: '/painel' }));
-    ativos = db.prepare("SELECT id, patrimonio, modelo FROM computadores WHERE COALESCE(patrimonio,'') || ' ' || COALESCE(modelo,'') LIKE ?").all(`%${q}%`).slice(0, 8).map(c => ({ id: c.id, titulo: c.patrimonio || c.modelo || 'Ativo', resumo: c.modelo || '', destino: '/inventario' }));
+    chamados = (await db.prepare("SELECT id, titulo, descricao FROM chamados WHERE titulo || ' ' || COALESCE(descricao,'') LIKE ?").all(`%${q}%`)).slice(0, 8).map(c => ({ id: c.id, titulo: c.titulo, resumo: c.descricao || '', destino: '/painel' }));
+    ativos = (await db.prepare("SELECT id, patrimonio, modelo FROM computadores WHERE COALESCE(patrimonio,'') || ' ' || COALESCE(modelo,'') LIKE ?").all(`%${q}%`)).slice(0, 8).map(c => ({ id: c.id, titulo: c.patrimonio || c.modelo || 'Ativo', resumo: c.modelo || '', destino: '/inventario' }));
   } else {
-    chamados = db.prepare("SELECT id, titulo, descricao FROM chamados WHERE unidade_id = ? AND (titulo || ' ' || COALESCE(descricao,'') LIKE ?)").all(req.usuario.unidade_id, `%${q}%`).slice(0, 8).map(c => ({ id: c.id, titulo: c.titulo, resumo: c.descricao || '', destino: '/painel' }));
-    ativos = db.prepare("SELECT id, patrimonio, modelo FROM computadores WHERE unidade_id = ? AND (COALESCE(patrimonio,'') || ' ' || COALESCE(modelo,'') LIKE ?)").all(req.usuario.unidade_id, `%${q}%`).slice(0, 8).map(c => ({ id: c.id, titulo: c.patrimonio || c.modelo || 'Ativo', resumo: c.modelo || '', destino: '/inventario' }));
+    chamados = (await db.prepare("SELECT id, titulo, descricao FROM chamados WHERE unidade_id = ? AND (titulo || ' ' || COALESCE(descricao,'') LIKE ?)").all(req.usuario.unidade_id, `%${q}%`)).slice(0, 8).map(c => ({ id: c.id, titulo: c.titulo, resumo: c.descricao || '', destino: '/painel' }));
+    ativos = (await db.prepare("SELECT id, patrimonio, modelo FROM computadores WHERE unidade_id = ? AND (COALESCE(patrimonio,'') || ' ' || COALESCE(modelo,'') LIKE ?)").all(req.usuario.unidade_id, `%${q}%`)).slice(0, 8).map(c => ({ id: c.id, titulo: c.patrimonio || c.modelo || 'Ativo', resumo: c.modelo || '', destino: '/inventario' }));
   }
   res.json({ chamados, ativos });
 });

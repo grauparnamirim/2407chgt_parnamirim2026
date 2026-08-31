@@ -18,13 +18,13 @@ function createCrudRoutes({ path, table, fields, unit, message, beforeCreate, be
   const manage = operational;
   const bloquear = (req, res, erro) => res.status(400).json({ erro });
 
-  router.get(`/${path}`, autenticar, (req, res) => {
+  router.get(`/${path}`, autenticar,async  (req, res) => {
     const db = getDb();
     let rows;
     if (unit && req.usuario.perfil !== 'admin') {
-      rows = db.prepare(`SELECT * FROM ${validTable(table)} WHERE unidade_id = ?`).all(req.usuario.unidade_id);
+      rows = (await db.prepare(`SELECT * FROM ${validTable(table)} WHERE unidade_id = ?`).all(req.usuario.unidade_id));
     } else {
-      rows = db.prepare(`SELECT * FROM ${validTable(table)}`).all();
+      rows = (await db.prepare(`SELECT * FROM ${validTable(table)}`).all());
     }
     if (table === 'locais' && !req.query.incluir_inativos) rows = rows.filter(x => x.ativo !== 0);
     if (table === 'locais') {
@@ -32,12 +32,12 @@ function createCrudRoutes({ path, table, fields, unit, message, beforeCreate, be
         (SELECT COUNT(*) FROM computadores c WHERE c.local_id = ? AND c.status NOT IN ('Desativado','Baixado')) +
         (SELECT COUNT(*) FROM dispositivos d WHERE d.local_id = ? AND d.ativo = 1) +
         (SELECT COUNT(*) FROM impressoras i WHERE i.local_id = ? AND i.ativo = 1) AS total`);
-      for (const row of rows) row.total_bens = countStmt.get(row.id, row.id, row.id).total || 0;
+      for (const row of rows) row.total_bens = await countStmt.get(row.id, row.id, row.id).total || 0;
     }
     res.json(rows);
   });
 
-  router.post(`/${path}`, autenticar, manage, (req, res) => {
+  router.post(`/${path}`, autenticar, manage,async  (req, res) => {
     const db = getDb();
     let unidadeId;
     if (unit) { unidadeId = currentUnit(req, res); if (!unidadeId) return; }
@@ -48,13 +48,13 @@ function createCrudRoutes({ path, table, fields, unit, message, beforeCreate, be
     validColumns(cols, [...(fields || Object.keys(body)), ...(unit ? ['unidade_id'] : []), 'criado_em', 'atualizado_em']);
     const vals = [...Object.values(body), ...(unit ? [unidadeId] : []), now(), now()];
     const placeholders = cols.map(() => '?').join(', ');
-    const result = db.prepare(`INSERT INTO ${validTable(table)} (${cols.join(', ')}) VALUES (${placeholders})`).run(...vals);
+    const result = (await db.prepare(`INSERT INTO ${validTable(table)} (${cols.join(', ')}) VALUES (${placeholders})`).run(...vals));
     res.status(201).json({ sucesso: true, id: result.lastInsertRowid, mensagem: `${message} criado!` });
   });
 
-  router.put(`/${path}/:id`, autenticar, manage, (req, res) => {
+  router.put(`/${path}/:id`, autenticar, manage,async  (req, res) => {
     const db = getDb();
-    const existing = db.prepare(`SELECT * FROM ${validTable(table)} WHERE id = ?`).get(id(req.params.id));
+    const existing = (await db.prepare(`SELECT * FROM ${validTable(table)} WHERE id = ?`).get(id(req.params.id)));
     if (!existing) return res.status(404).json({ erro: `${message} não encontrado.` });
     if (unit && !unitScope(req, existing)) return res.status(403).json({ erro: 'Acesso negado.' });
     if (beforeUpdate) { const erro = beforeUpdate(req, existing, req.body); if (erro) return bloquear(req, res, erro); }
@@ -62,17 +62,17 @@ function createCrudRoutes({ path, table, fields, unit, message, beforeCreate, be
     const allowed = [...(fields || Object.keys(body)), 'atualizado_em'];
     const sets = Object.keys(body).map(k => { validColumns([k], allowed); return `${k} = ?`; });
     const vals = Object.values(body);
-    if (sets.length) { sets.push('atualizado_em = ?'); vals.push(now()); vals.push(id(req.params.id)); db.prepare(`UPDATE ${validTable(table)} SET ${sets.join(', ')} WHERE id = ?`).run(...vals); }
+    if (sets.length) { sets.push('atualizado_em = ?'); vals.push(now()); vals.push(id(req.params.id)); (await db.prepare(`UPDATE ${validTable(table)} SET ${sets.join(', ')} WHERE id = ?`).run(...vals)); }
     res.json({ sucesso: true, mensagem: `${message} atualizado!` });
   });
 
-  router.delete(`/${path}/:id`, autenticar, manage, (req, res) => {
+  router.delete(`/${path}/:id`, autenticar, manage,async  (req, res) => {
     const db = getDb();
-    const existing = db.prepare(`SELECT * FROM ${validTable(table)} WHERE id = ?`).get(id(req.params.id));
+    const existing = (await db.prepare(`SELECT * FROM ${validTable(table)} WHERE id = ?`).get(id(req.params.id)));
     if (!existing) return res.status(404).json({ erro: `${message} não encontrado.` });
     if (unit && !unitScope(req, existing)) return res.status(403).json({ erro: 'Acesso negado.' });
     if (beforeDelete) { const erro = beforeDelete(req, existing); if (erro) return bloquear(req, res, erro); }
-    db.prepare(`DELETE FROM ${validTable(table)} WHERE id = ?`).run(id(req.params.id));
+    (await db.prepare(`DELETE FROM ${validTable(table)} WHERE id = ?`).run(id(req.params.id)));
     res.json({ sucesso: true, mensagem: `${message} removido!` });
   });
 

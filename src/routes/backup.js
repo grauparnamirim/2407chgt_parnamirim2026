@@ -1,20 +1,21 @@
 const { Router } = require('express');
 const path = require('path');
 const fs = require('fs');
-const { getDb, DB_PATH } = require('../db');
+const { execFile } = require('child_process');
+const { promisify } = require('util');
+const { getDb, getConnectionString } = require('../db');
 const { autenticar } = require('../middleware');
 
+const execFileAsync = promisify(execFile);
 const router = Router();
 const BACKUP_DIR = path.join(__dirname, '..', '..', 'backups');
 
 if (!fs.existsSync(BACKUP_DIR)) fs.mkdirSync(BACKUP_DIR, { recursive: true });
 
-// Cria um backup do banco de dados com timestamp no nome do arquivo
-router.post('/backup', autenticar, (req, res) => {
+// Cria um backup lógico do PostgreSQL (pg_dump) com timestamp no nome do arquivo
+router.post('/backup', autenticar, async (req, res) => {
   if (req.usuario.perfil !== 'admin') return res.status(403).json({ erro: 'Apenas administradores podem fazer backup.' });
   try {
-    const db = getDb();
-    db.pragma('wal_checkpoint(TRUNCATE)');
     const data = new Date();
     const ts = data.getFullYear() +
       String(data.getMonth() + 1).padStart(2, '0') +
@@ -22,11 +23,11 @@ router.post('/backup', autenticar, (req, res) => {
       String(data.getHours()).padStart(2, '0') +
       String(data.getMinutes()).padStart(2, '0') +
       String(data.getSeconds()).padStart(2, '0');
-    const nome = `local-${ts}.db`;
-    fs.copyFileSync(DB_PATH, path.join(BACKUP_DIR, nome));
+    const nome = `local-${ts}.sql`;
+    await execFileAsync('pg_dump', ['--no-owner', '--no-privileges', '-f', path.join(BACKUP_DIR, nome), getConnectionString()]);
     res.json({ sucesso: true, mensagem: `Backup criado: ${nome}`, arquivo: nome });
   } catch (e) {
-    res.status(500).json({ erro: 'Erro ao criar backup.' });
+    res.status(500).json({ erro: 'Erro ao criar backup: ' + e.message });
   }
 });
 
@@ -35,7 +36,7 @@ router.get('/backups', autenticar, (req, res) => {
   if (req.usuario.perfil !== 'admin') return res.status(403).json({ erro: 'Apenas administradores podem listar backups.' });
   try {
     const arquivos = fs.readdirSync(BACKUP_DIR)
-      .filter(f => f.endsWith('.db'))
+      .filter(f => f.endsWith('.sql'))
       .map(f => {
         const stat = fs.statSync(path.join(BACKUP_DIR, f));
         return { nome: f, tamanho: stat.size, criado_em: stat.mtime.toISOString() };
@@ -51,7 +52,7 @@ router.get('/backups', autenticar, (req, res) => {
 router.delete('/backups/:nome', autenticar, (req, res) => {
   if (req.usuario.perfil !== 'admin') return res.status(403).json({ erro: 'Apenas administradores podem excluir backups.' });
   const arquivo = path.join(BACKUP_DIR, req.params.nome);
-  if (!arquivo.startsWith(BACKUP_DIR) || !req.params.nome.endsWith('.db')) return res.status(400).json({ erro: 'Arquivo inválido.' });
+  if (!arquivo.startsWith(BACKUP_DIR) || !req.params.nome.endsWith('.sql')) return res.status(400).json({ erro: 'Arquivo inválido.' });
   try {
     if (fs.existsSync(arquivo)) fs.unlinkSync(arquivo);
     res.json({ sucesso: true, mensagem: 'Backup excluído.' });
@@ -64,7 +65,7 @@ router.delete('/backups/:nome', autenticar, (req, res) => {
 router.get('/backups/:nome/download', autenticar, (req, res) => {
   if (req.usuario.perfil !== 'admin') return res.status(403).json({ erro: 'Apenas administradores podem baixar backups.' });
   const arquivo = path.join(BACKUP_DIR, req.params.nome);
-  if (!arquivo.startsWith(BACKUP_DIR) || !req.params.nome.endsWith('.db')) return res.status(400).json({ erro: 'Arquivo inválido.' });
+  if (!arquivo.startsWith(BACKUP_DIR) || !req.params.nome.endsWith('.sql')) return res.status(400).json({ erro: 'Arquivo inválido.' });
   if (!fs.existsSync(arquivo)) return res.status(404).json({ erro: 'Arquivo não encontrado.' });
   res.download(arquivo);
 });

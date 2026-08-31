@@ -1,95 +1,163 @@
-// Módulo de banco de dados SQLite — configuração, schema e dados iniciais
-const Database = require('better-sqlite3');
-const path = require('path');
+// Módulo de banco de dados PostgreSQL — configuração, schema e dados iniciais
+const { Pool } = require('pg');
 const bcrypt = require('bcrypt');
 
-const DB_PATH = process.env.DB_PATH || path.join(__dirname, '..', 'data', 'local.db');
-let db;
+const pool = new Pool({
+  host: process.env.PGHOST || 'localhost',
+  port: Number(process.env.PGPORT || 5432),
+  user: process.env.PGUSER || 'postgres',
+  password: process.env.PGPASSWORD || 'postgres',
+  database: process.env.PGDATABASE || 'chgt_helpdesk',
+  max: Number(process.env.PGMAX || 10),
+  ssl: process.env.PGSSL === 'true' ? { rejectUnauthorized: false } : false
+});
+
+let dbReady = false;
+let activeClient = null;
 
 // ============================================================
-// Configuração do banco de dados
+// Adapter compatível com a API síncrona do better-sqlite3
 // ============================================================
+
+// Converte marcadores posicionais "?" do SQLite para "$1, $2, ..." do PostgreSQL
+function convertPlaceholders(sql) {
+  let i = 0;
+  return sql.replace(/\?/g, () => `$${++i}`);
+}
+
+function getTarget() { return activeClient || pool; }
+
+// Cria uma "statement" com os métodos get/all/run (assíncronos)
+function makeStatement(sql) {
+  const converted = convertPlaceholders(sql);
+  return {
+    async get(...params) {
+      const r = await getTarget().query(converted, params);
+      return r.rows[0];
+    },
+    async all(...params) {
+      const r = await getTarget().query(converted, params);
+      return r.rows;
+    },
+    async run(...params) {
+      let q = converted;
+      // Insere RETURNING id para emular last_insert_rowid() do SQLite
+      if (/^\s*INSERT\s+INTO/i.test(q) && !/\bRETURNING\b/i.test(q)) q += ' RETURNING id';
+      const r = await getTarget().query(q, params);
+      return { lastInsertRowid: r.rows[0] ? r.rows[0].id : null, changes: r.rowCount };
+    }
+  };
+}
+
+// Objeto db exposto com a mesma forma da API antiga (prepare/exec)
+const db = {
+  prepare(sql) { return makeStatement(sql); },
+  async exec(sql) {
+    const stmts = sql.split(';').map(s => s.trim()).filter(Boolean);
+    for (const s of stmts) await getTarget().query(s);
+  },
+  // Executa um callback dentro de uma transação (emula db.transaction do SQLite)
+  async transaction(callback) {
+    const client = await pool.connect();
+    activeClient = client;
+    try {
+      await client.query('BEGIN');
+      const result = await callback();
+      await client.query('COMMIT');
+      return result;
+    } catch (e) {
+      await client.query('ROLLBACK');
+      throw e;
+    } finally {
+      activeClient = null;
+      client.release();
+    }
+  },
+  query: (...args) => pool.query(...args)
+};
 
 // Retorna a instância do banco (lança erro se não foi inicializado)
 function getDb() {
-  if (!db) throw new Error('Database not initialized');
+  if (!dbReady) throw new Error('Database not initialized');
   return db;
 }
 
-// Abre o banco SQLite, ativa WAL e chaves estrangeiras, cria schema e popula dados iniciais
-function initialize() {
-  db = new Database(DB_PATH);
-  db.pragma('journal_mode = WAL');
-  db.pragma('foreign_keys = ON');
-  schema();
-  if (db.prepare("SELECT COUNT(*) AS c FROM unidades").get().c === 0) seed();
-  seedPermissoes();
-  return db;
+// Monta uma connection string a partir das variáveis de ambiente (usada no backup)
+function getConnectionString() {
+  const ssl = process.env.PGSSL === 'true' ? '?sslmode=require' : '';
+  return `postgresql://${process.env.PGUSER || 'postgres'}:${encodeURIComponent(process.env.PGPASSWORD || 'postgres')}@${process.env.PGHOST || 'localhost'}:${Number(process.env.PGPORT || 5432)}/${process.env.PGDATABASE || 'chgt_helpdesk'}${ssl}`;
+}
+
+// Abre o banco, cria schema e popula dados iniciais
+async function initialize() {
+  let lastErr;
+  for (let attempt = 1; attempt <= 30; attempt++) {
+    try {
+      await schema();
+      const { rows } = await pool.query('SELECT COUNT(*)::int AS c FROM unidades');
+      if (rows[0].c === 0) await seed();
+      await seedPermissoes();
+      dbReady = true;
+      return db;
+    } catch (e) {
+      lastErr = e;
+      await new Promise(r => setTimeout(r, 1000));
+    }
+  }
+  throw new Error('Não foi possível conectar ao PostgreSQL: ' + (lastErr && lastErr.message));
 }
 
 // ============================================================
-// Criação das tabelas (schema)
+// Criação das tabelas (schema) — PostgreSQL
 // ============================================================
 
-function schema() {
-  // Unidades de atendimento
-  db.exec(`CREATE TABLE IF NOT EXISTS unidades (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, cidade TEXT, ativo INTEGER DEFAULT 1
+async function schema() {
+  await db.exec(`CREATE TABLE IF NOT EXISTS unidades (
+    id SERIAL PRIMARY KEY, nome TEXT NOT NULL, cidade TEXT, ativo INTEGER DEFAULT 1
   )`);
-  // Configurações do sistema (chave-valor)
-  db.exec(`CREATE TABLE IF NOT EXISTS config (
+  await db.exec(`CREATE TABLE IF NOT EXISTS config (
     chave TEXT PRIMARY KEY, valor TEXT
   )`);
-  // Setores dos usuários
-  db.exec(`CREATE TABLE IF NOT EXISTS setores (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, criado_em TEXT, atualizado_em TEXT
+  await db.exec(`CREATE TABLE IF NOT EXISTS setores (
+    id SERIAL PRIMARY KEY, nome TEXT NOT NULL, criado_em TEXT, atualizado_em TEXT
   )`);
-  // Usuários do sistema
-  db.exec(`CREATE TABLE IF NOT EXISTS usuarios (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, email TEXT NOT NULL UNIQUE,
+  await db.exec(`CREATE TABLE IF NOT EXISTS usuarios (
+    id SERIAL PRIMARY KEY, nome TEXT NOT NULL, email TEXT NOT NULL UNIQUE,
     senha_hash TEXT NOT NULL, perfil TEXT NOT NULL DEFAULT 'usuario',
     unidade_id INTEGER REFERENCES unidades(id), setor_id INTEGER REFERENCES setores(id),
     ativo INTEGER DEFAULT 1, criado_em TEXT, atualizado_em TEXT
   )`);
-  // Categorias de chamados
-  db.exec(`CREATE TABLE IF NOT EXISTS categorias (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, criado_em TEXT, atualizado_em TEXT
+  await db.exec(`CREATE TABLE IF NOT EXISTS categorias (
+    id SERIAL PRIMARY KEY, nome TEXT NOT NULL, criado_em TEXT, atualizado_em TEXT
   )`);
-  // Subcategorias vinculadas a categorias
-  db.exec(`CREATE TABLE IF NOT EXISTS subcategorias (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, categoria_id INTEGER NOT NULL REFERENCES categorias(id), criado_em TEXT, atualizado_em TEXT
+  await db.exec(`CREATE TABLE IF NOT EXISTS subcategorias (
+    id SERIAL PRIMARY KEY, nome TEXT NOT NULL, categoria_id INTEGER NOT NULL REFERENCES categorias(id), criado_em TEXT, atualizado_em TEXT
   )`);
-  // Fornecedores parceiros
-  db.exec(`CREATE TABLE IF NOT EXISTS fornecedores (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, cnpj TEXT, telefone TEXT, email TEXT, endereco TEXT,
+  await db.exec(`CREATE TABLE IF NOT EXISTS fornecedores (
+    id SERIAL PRIMARY KEY, nome TEXT NOT NULL, cnpj TEXT, telefone TEXT, email TEXT, endereco TEXT,
     criado_em TEXT, atualizado_em TEXT
   )`);
-  // Locais físicos dentro das unidades
-  db.exec(`CREATE TABLE IF NOT EXISTS locais (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, tipo TEXT, ativo INTEGER DEFAULT 1,
+  await db.exec(`CREATE TABLE IF NOT EXISTS locais (
+    id SERIAL PRIMARY KEY, nome TEXT NOT NULL, tipo TEXT, ativo INTEGER DEFAULT 1,
     unidade_id INTEGER REFERENCES unidades(id), criado_em TEXT, atualizado_em TEXT
   )`);
-  // Chamados de suporte técnico
-  db.exec(`CREATE TABLE IF NOT EXISTS chamados (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, titulo TEXT NOT NULL, descricao TEXT,
+  await db.exec(`CREATE TABLE IF NOT EXISTS chamados (
+    id SERIAL PRIMARY KEY, titulo TEXT NOT NULL, descricao TEXT,
     usuario_id INTEGER NOT NULL REFERENCES usuarios(id), tecnico_id INTEGER REFERENCES usuarios(id),
     unidade_id INTEGER NOT NULL REFERENCES unidades(id), subcategoria_id INTEGER REFERENCES subcategorias(id),
     local_id INTEGER REFERENCES locais(id), status TEXT DEFAULT 'Aberto', motivo TEXT,
     fornecedor_id INTEGER REFERENCES fornecedores(id), criado_em TEXT, atualizado_em TEXT
   )`);
-  // Comentários nos chamados
-  db.exec(`CREATE TABLE IF NOT EXISTS comentarios (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, chamado_id INTEGER NOT NULL REFERENCES chamados(id) ON DELETE CASCADE,
+  await db.exec(`CREATE TABLE IF NOT EXISTS comentarios (
+    id SERIAL PRIMARY KEY, chamado_id INTEGER NOT NULL REFERENCES chamados(id) ON DELETE CASCADE,
     usuario_id INTEGER NOT NULL REFERENCES usuarios(id), texto TEXT NOT NULL, criado_em TEXT
   )`);
-  // Log de notificações enviadas
-  db.exec(`CREATE TABLE IF NOT EXISTS notificacoes_log (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, chamado_id INTEGER NOT NULL REFERENCES chamados(id) ON DELETE CASCADE,
+  await db.exec(`CREATE TABLE IF NOT EXISTS notificacoes_log (
+    id SERIAL PRIMARY KEY, chamado_id INTEGER NOT NULL REFERENCES chamados(id) ON DELETE CASCADE,
     usuario_id INTEGER, alterado_por INTEGER, status_anterior TEXT, status_novo TEXT, enviada_em TEXT
   )`);
-  // Patrimônio de computadores
-  db.exec(`CREATE TABLE IF NOT EXISTS computadores (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, patrimonio TEXT, modelo TEXT, ip TEXT, ip_endereco TEXT,
+  await db.exec(`CREATE TABLE IF NOT EXISTS computadores (
+    id SERIAL PRIMARY KEY, patrimonio TEXT, modelo TEXT, ip TEXT, ip_endereco TEXT,
     usuario_id INTEGER REFERENCES usuarios(id), local_id INTEGER REFERENCES locais(id),
     setor_id INTEGER REFERENCES setores(id),
     unidade_id INTEGER NOT NULL REFERENCES unidades(id), tipo TEXT DEFAULT 'computador',
@@ -99,185 +167,169 @@ function schema() {
     anydesk_id TEXT, teamviewer_id TEXT,
     criado_em TEXT, atualizado_em TEXT
   )`);
-  // Movimentações de bens patrimoniais
-  db.exec(`CREATE TABLE IF NOT EXISTS movimentacoes_bens (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, bem_id INTEGER NOT NULL REFERENCES computadores(id) ON DELETE CASCADE,
+  await db.exec(`CREATE TABLE IF NOT EXISTS movimentacoes_bens (
+    id SERIAL PRIMARY KEY, bem_id INTEGER NOT NULL REFERENCES computadores(id) ON DELETE CASCADE,
     local_origem_id INTEGER, local_destino_id INTEGER,
     usuario_responsavel_id INTEGER, observacao TEXT, criado_em TEXT
   )`);
-  // Manutenções de equipamentos
-  db.exec(`CREATE TABLE IF NOT EXISTS manutencoes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, bem_id INTEGER NOT NULL REFERENCES computadores(id) ON DELETE CASCADE,
+  await db.exec(`CREATE TABLE IF NOT EXISTS manutencoes (
+    id SERIAL PRIMARY KEY, bem_id INTEGER NOT NULL REFERENCES computadores(id) ON DELETE CASCADE,
     tipo TEXT, categoria_servico_id INTEGER REFERENCES categorias_servico_manutencao(id),
     nome_servico TEXT, descricao TEXT, data_prevista TEXT, data_realizada_em TEXT,
     status TEXT DEFAULT 'agendada', tecnico_responsavel_id INTEGER, custo REAL,
     criado_em TEXT, atualizado_em TEXT
   )`);
-  // Categorias de serviços de manutenção
-  db.exec(`CREATE TABLE IF NOT EXISTS categorias_servico_manutencao (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT NOT NULL, criado_em TEXT, atualizado_em TEXT
+  await db.exec(`CREATE TABLE IF NOT EXISTS categorias_servico_manutencao (
+    id SERIAL PRIMARY KEY, nome TEXT NOT NULL, criado_em TEXT, atualizado_em TEXT
   )`);
-  // Checklists de laboratório
-  db.exec(`CREATE TABLE IF NOT EXISTS checklists_laboratorio (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, local_id INTEGER, unidade_id INTEGER,
+  await db.exec(`CREATE TABLE IF NOT EXISTS checklists_laboratorio (
+    id SERIAL PRIMARY KEY, local_id INTEGER, unidade_id INTEGER,
     turno TEXT, observacoes TEXT, usuario_id INTEGER, criado_em TEXT
   )`);
-  // Itens do checklist de laboratório
-  db.exec(`CREATE TABLE IF NOT EXISTS checklist_laboratorio_itens (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, checklist_id INTEGER NOT NULL REFERENCES checklists_laboratorio(id) ON DELETE CASCADE,
+  await db.exec(`CREATE TABLE IF NOT EXISTS checklist_laboratorio_itens (
+    id SERIAL PRIMARY KEY, checklist_id INTEGER NOT NULL REFERENCES checklists_laboratorio(id) ON DELETE CASCADE,
     estado TEXT, observacoes TEXT
   )`);
-  // Dispositivos de rede e periféricos
-  db.exec(`CREATE TABLE IF NOT EXISTS dispositivos (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, usuario_id INTEGER, setor_id INTEGER, local_id INTEGER,
+  await db.exec(`CREATE TABLE IF NOT EXISTS dispositivos (
+    id SERIAL PRIMARY KEY, nome TEXT, usuario_id INTEGER, setor_id INTEGER, local_id INTEGER,
     unidade_id INTEGER NOT NULL REFERENCES unidades(id), ativo INTEGER DEFAULT 1, status TEXT DEFAULT 'Ativo',
     fabricante TEXT, modelo TEXT, data_aquisicao TEXT, observacoes TEXT,
     criado_em TEXT, atualizado_em TEXT
   )`);
-  // Números de série/patrimônio dos dispositivos
-  db.exec(`CREATE TABLE IF NOT EXISTS numeros_dispositivos (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, dispositivo_id INTEGER NOT NULL REFERENCES dispositivos(id) ON DELETE CASCADE,
+  await db.exec(`CREATE TABLE IF NOT EXISTS numeros_dispositivos (
+    id SERIAL PRIMARY KEY, dispositivo_id INTEGER NOT NULL REFERENCES dispositivos(id) ON DELETE CASCADE,
     numero TEXT, observacoes TEXT, criado_em TEXT, atualizado_em TEXT
   )`);
-  // Custos associados a chamados
-  db.exec(`CREATE TABLE IF NOT EXISTS custos_chamado (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, chamado_id INTEGER REFERENCES chamados(id) ON DELETE CASCADE,
+  await db.exec(`CREATE TABLE IF NOT EXISTS custos_chamado (
+    id SERIAL PRIMARY KEY, chamado_id INTEGER REFERENCES chamados(id) ON DELETE CASCADE,
     descricao TEXT, tipo TEXT, valor REAL, fornecedor_id INTEGER REFERENCES fornecedores(id),
     criado_em TEXT, atualizado_em TEXT
   )`);
-  // Orçamentos para chamados
-  db.exec(`CREATE TABLE IF NOT EXISTS orcamentos_chamado (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, chamado_id INTEGER REFERENCES chamados(id) ON DELETE CASCADE,
+  await db.exec(`CREATE TABLE IF NOT EXISTS orcamentos_chamado (
+    id SERIAL PRIMARY KEY, chamado_id INTEGER REFERENCES chamados(id) ON DELETE CASCADE,
     fornecedor_id INTEGER REFERENCES fornecedores(id), descricao TEXT, valor REAL, status TEXT,
     criado_em TEXT, atualizado_em TEXT
   )`);
-  // Compras mensais planejadas
-  db.exec(`CREATE TABLE IF NOT EXISTS compras_mensais (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, mes INTEGER, ano INTEGER,
+  await db.exec(`CREATE TABLE IF NOT EXISTS compras_mensais (
+    id SERIAL PRIMARY KEY, mes INTEGER, ano INTEGER,
     fornecedor_id INTEGER REFERENCES fornecedores(id), item TEXT, objetivo TEXT,
     valor_estimado REAL, status TEXT, criado_em TEXT, atualizado_em TEXT
   )`);
-  // Impressoras cadastradas
-  db.exec(`CREATE TABLE IF NOT EXISTS impressoras (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, usuario_id INTEGER, setor_id INTEGER, local_id INTEGER,
+  await db.exec(`CREATE TABLE IF NOT EXISTS impressoras (
+    id SERIAL PRIMARY KEY, nome TEXT, usuario_id INTEGER, setor_id INTEGER, local_id INTEGER,
     unidade_id INTEGER NOT NULL REFERENCES unidades(id), ativo INTEGER DEFAULT 1,
     contagem_atual INTEGER DEFAULT 0, fabricante TEXT, modelo TEXT, num_serie TEXT, ip_endereco TEXT, observacoes TEXT,
     criado_em TEXT, atualizado_em TEXT
   )`);
-  // Leituras mensais de contadores de impressoras
-  db.exec(`CREATE TABLE IF NOT EXISTS leituras_mensais (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, impressora_id INTEGER REFERENCES impressoras(id) ON DELETE CASCADE,
+  await db.exec(`CREATE TABLE IF NOT EXISTS leituras_mensais (
+    id SERIAL PRIMARY KEY, impressora_id INTEGER REFERENCES impressoras(id) ON DELETE CASCADE,
     criado_por INTEGER, contagem INTEGER, observacoes TEXT, criado_em TEXT
   )`);
-  // Parâmetros de configuração de impressão
-  db.exec(`CREATE TABLE IF NOT EXISTS parametros_impressao (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, chave TEXT, valor TEXT
+  await db.exec(`CREATE TABLE IF NOT EXISTS parametros_impressao (
+    id SERIAL PRIMARY KEY, chave TEXT, valor TEXT
   )`);
-  // Notas fiscais
-  db.exec(`CREATE TABLE IF NOT EXISTS notas_fiscais (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, numero TEXT, fornecedor_id INTEGER REFERENCES fornecedores(id),
+  await db.exec(`CREATE TABLE IF NOT EXISTS notas_fiscais (
+    id SERIAL PRIMARY KEY, numero TEXT, fornecedor_id INTEGER REFERENCES fornecedores(id),
     chamado_id INTEGER REFERENCES chamados(id) ON DELETE CASCADE, valor REAL,
     data_emissao TEXT, data_vencimento TEXT, data_pagamento TEXT, status TEXT, observacoes TEXT,
     criado_em TEXT, atualizado_em TEXT
   )`);
-  // Comparativo mensal de notas fiscais
-  db.exec(`CREATE TABLE IF NOT EXISTS nf_comparativo_mensal (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, mes INTEGER, ano INTEGER,
+  await db.exec(`CREATE TABLE IF NOT EXISTS nf_comparativo_mensal (
+    id SERIAL PRIMARY KEY, mes INTEGER, ano INTEGER,
     valor_acadweb REAL, valor_prefeitura REAL, observacoes TEXT, criado_em TEXT, atualizado_em TEXT
   )`);
-  // Permissões do sistema
-  db.exec(`CREATE TABLE IF NOT EXISTS permissoes (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, chave TEXT, descricao TEXT
+  await db.exec(`CREATE TABLE IF NOT EXISTS permissoes (
+    id SERIAL PRIMARY KEY, chave TEXT, descricao TEXT
   )`);
-  // Grupos de usuários
-  db.exec(`CREATE TABLE IF NOT EXISTS grupos (
-    id INTEGER PRIMARY KEY AUTOINCREMENT, nome TEXT, descricao TEXT, criado_em TEXT, atualizado_em TEXT
+  await db.exec(`CREATE TABLE IF NOT EXISTS grupos (
+    id SERIAL PRIMARY KEY, nome TEXT, descricao TEXT, criado_em TEXT, atualizado_em TEXT
   )`);
-  // Associação grupos-permissões
-  db.exec(`CREATE TABLE IF NOT EXISTS grupos_permissoes (
+  await db.exec(`CREATE TABLE IF NOT EXISTS grupos_permissoes (
     grupo_id INTEGER NOT NULL REFERENCES grupos(id), permissao_id INTEGER NOT NULL REFERENCES permissoes(id),
     PRIMARY KEY (grupo_id, permissao_id)
   )`);
-  // Associação usuários-grupos
-  db.exec(`CREATE TABLE IF NOT EXISTS usuarios_grupos (
+  await db.exec(`CREATE TABLE IF NOT EXISTS usuarios_grupos (
     usuario_id INTEGER NOT NULL REFERENCES usuarios(id), grupo_id INTEGER NOT NULL REFERENCES grupos(id),
     PRIMARY KEY (usuario_id, grupo_id)
   )`);
-  // Índices para consultas frequentes
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_chamados_unidade ON chamados(unidade_id)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_chamados_status ON chamados(status)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_chamados_usuario ON chamados(usuario_id)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_computadores_unidade ON computadores(unidade_id)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_dispositivos_unidade ON dispositivos(unidade_id)`);
-  db.exec(`CREATE INDEX IF NOT EXISTS idx_impressoras_unidade ON impressoras(unidade_id)`);
+
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_chamados_unidade ON chamados(unidade_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_chamados_status ON chamados(status)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_chamados_usuario ON chamados(usuario_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_computadores_unidade ON computadores(unidade_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_dispositivos_unidade ON dispositivos(unidade_id)`);
+  await db.exec(`CREATE INDEX IF NOT EXISTS idx_impressoras_unidade ON impressoras(unidade_id)`);
 
   // Migração: adicionar colunas em tabelas existentes (ignora se já existem)
   for (const sql of [
-    `ALTER TABLE computadores ADD COLUMN fabricante TEXT`,
-    `ALTER TABLE computadores ADD COLUMN num_serie TEXT`,
-    `ALTER TABLE computadores ADD COLUMN observacoes TEXT`,
-    `ALTER TABLE computadores ADD COLUMN processador TEXT`,
-    `ALTER TABLE computadores ADD COLUMN memoria_ram TEXT`,
-    `ALTER TABLE computadores ADD COLUMN armazenamento_tipo TEXT`,
-    `ALTER TABLE computadores ADD COLUMN armazenamento_tamanho TEXT`,
-    `ALTER TABLE computadores ADD COLUMN anydesk_id TEXT`,
-    `ALTER TABLE computadores ADD COLUMN teamviewer_id TEXT`,
-    `ALTER TABLE dispositivos ADD COLUMN status TEXT DEFAULT 'Ativo'`,
-    `ALTER TABLE dispositivos ADD COLUMN fabricante TEXT`,
-    `ALTER TABLE dispositivos ADD COLUMN modelo TEXT`,
-    `ALTER TABLE dispositivos ADD COLUMN data_aquisicao TEXT`,
-    `ALTER TABLE dispositivos ADD COLUMN observacoes TEXT`,
-    `ALTER TABLE numeros_dispositivos ADD COLUMN observacoes TEXT`,
-    `ALTER TABLE impressoras ADD COLUMN fabricante TEXT`,
-    `ALTER TABLE impressoras ADD COLUMN modelo TEXT`,
-    `ALTER TABLE impressoras ADD COLUMN num_serie TEXT`,
-    `ALTER TABLE impressoras ADD COLUMN ip_endereco TEXT`,
-    `ALTER TABLE impressoras ADD COLUMN observacoes TEXT`,
-    `ALTER TABLE impressoras ADD COLUMN tipo TEXT`,
-    `ALTER TABLE impressoras ADD COLUMN mac TEXT`,
-    `ALTER TABLE leituras_mensais ADD COLUMN contagem INTEGER`,
-    `ALTER TABLE leituras_mensais ADD COLUMN observacoes TEXT`,
-    `ALTER TABLE checklist_laboratorio_itens ADD COLUMN estado TEXT`,
-    `ALTER TABLE checklist_laboratorio_itens ADD COLUMN observacoes TEXT`,
-    `ALTER TABLE checklists_laboratorio ADD COLUMN local_nome_snapshot TEXT`,
-    `ALTER TABLE checklist_laboratorio_itens ADD COLUMN tipo TEXT`,
-    `ALTER TABLE checklist_laboratorio_itens ADD COLUMN chave TEXT`,
-    `ALTER TABLE checklist_laboratorio_itens ADD COLUMN bem_id INTEGER`,
-    `ALTER TABLE checklist_laboratorio_itens ADD COLUMN nome_snapshot TEXT`,
-    `ALTER TABLE manutencoes ADD COLUMN nome_servico TEXT`,
-    `ALTER TABLE manutencoes ADD COLUMN categoria_servico_id INTEGER`,
-    `ALTER TABLE manutencoes ADD COLUMN custo REAL`,
-    `ALTER TABLE manutencoes ADD COLUMN data_realizada_em TEXT`,
-    `ALTER TABLE fornecedores ADD COLUMN status TEXT DEFAULT 'Ativo'`,
-    `ALTER TABLE fornecedores ADD COLUMN tipo_servico TEXT`,
-    `ALTER TABLE fornecedores ADD COLUMN whatsapp TEXT`,
-    `ALTER TABLE fornecedores ADD COLUMN observacoes TEXT`,
-    `ALTER TABLE chamados ADD COLUMN bem_id INTEGER`,
-    `ALTER TABLE manutencoes ADD COLUMN chamado_id INTEGER`
-  ]) { try { db.exec(sql); } catch (_) {} }
+    `ALTER TABLE computadores ADD COLUMN IF NOT EXISTS fabricante TEXT`,
+    `ALTER TABLE computadores ADD COLUMN IF NOT EXISTS num_serie TEXT`,
+    `ALTER TABLE computadores ADD COLUMN IF NOT EXISTS observacoes TEXT`,
+    `ALTER TABLE computadores ADD COLUMN IF NOT EXISTS processador TEXT`,
+    `ALTER TABLE computadores ADD COLUMN IF NOT EXISTS memoria_ram TEXT`,
+    `ALTER TABLE computadores ADD COLUMN IF NOT EXISTS armazenamento_tipo TEXT`,
+    `ALTER TABLE computadores ADD COLUMN IF NOT EXISTS armazenamento_tamanho TEXT`,
+    `ALTER TABLE computadores ADD COLUMN IF NOT EXISTS anydesk_id TEXT`,
+    `ALTER TABLE computadores ADD COLUMN IF NOT EXISTS teamviewer_id TEXT`,
+    `ALTER TABLE dispositivos ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Ativo'`,
+    `ALTER TABLE dispositivos ADD COLUMN IF NOT EXISTS fabricante TEXT`,
+    `ALTER TABLE dispositivos ADD COLUMN IF NOT EXISTS modelo TEXT`,
+    `ALTER TABLE dispositivos ADD COLUMN IF NOT EXISTS data_aquisicao TEXT`,
+    `ALTER TABLE dispositivos ADD COLUMN IF NOT EXISTS observacoes TEXT`,
+    `ALTER TABLE numeros_dispositivos ADD COLUMN IF NOT EXISTS observacoes TEXT`,
+    `ALTER TABLE impressoras ADD COLUMN IF NOT EXISTS fabricante TEXT`,
+    `ALTER TABLE impressoras ADD COLUMN IF NOT EXISTS modelo TEXT`,
+    `ALTER TABLE impressoras ADD COLUMN IF NOT EXISTS num_serie TEXT`,
+    `ALTER TABLE impressoras ADD COLUMN IF NOT EXISTS ip_endereco TEXT`,
+    `ALTER TABLE impressoras ADD COLUMN IF NOT EXISTS observacoes TEXT`,
+    `ALTER TABLE impressoras ADD COLUMN IF NOT EXISTS tipo TEXT`,
+    `ALTER TABLE impressoras ADD COLUMN IF NOT EXISTS mac TEXT`,
+    `ALTER TABLE leituras_mensais ADD COLUMN IF NOT EXISTS contagem INTEGER`,
+    `ALTER TABLE leituras_mensais ADD COLUMN IF NOT EXISTS observacoes TEXT`,
+    `ALTER TABLE checklist_laboratorio_itens ADD COLUMN IF NOT EXISTS estado TEXT`,
+    `ALTER TABLE checklist_laboratorio_itens ADD COLUMN IF NOT EXISTS observacoes TEXT`,
+    `ALTER TABLE checklists_laboratorio ADD COLUMN IF NOT EXISTS local_nome_snapshot TEXT`,
+    `ALTER TABLE checklist_laboratorio_itens ADD COLUMN IF NOT EXISTS tipo TEXT`,
+    `ALTER TABLE checklist_laboratorio_itens ADD COLUMN IF NOT EXISTS chave TEXT`,
+    `ALTER TABLE checklist_laboratorio_itens ADD COLUMN IF NOT EXISTS bem_id INTEGER`,
+    `ALTER TABLE checklist_laboratorio_itens ADD COLUMN IF NOT EXISTS nome_snapshot TEXT`,
+    `ALTER TABLE manutencoes ADD COLUMN IF NOT EXISTS nome_servico TEXT`,
+    `ALTER TABLE manutencoes ADD COLUMN IF NOT EXISTS categoria_servico_id INTEGER`,
+    `ALTER TABLE manutencoes ADD COLUMN IF NOT EXISTS custo REAL`,
+    `ALTER TABLE manutencoes ADD COLUMN IF NOT EXISTS data_realizada_em TEXT`,
+    `ALTER TABLE fornecedores ADD COLUMN IF NOT EXISTS status TEXT DEFAULT 'Ativo'`,
+    `ALTER TABLE fornecedores ADD COLUMN IF NOT EXISTS tipo_servico TEXT`,
+    `ALTER TABLE fornecedores ADD COLUMN IF NOT EXISTS whatsapp TEXT`,
+    `ALTER TABLE fornecedores ADD COLUMN IF NOT EXISTS observacoes TEXT`,
+    `ALTER TABLE chamados ADD COLUMN IF NOT EXISTS bem_id INTEGER`,
+    `ALTER TABLE manutencoes ADD COLUMN IF NOT EXISTS chamado_id INTEGER`
+  ]) { try { await db.exec(sql); } catch (_) {} }
 }
 
 // ============================================================
 // Dados iniciais (seed)
 // ============================================================
 
-function seed() {
+async function seed() {
   const now = new Date().toISOString();
   const senha_hash = bcrypt.hashSync('Admin123!', 10);
 
   // Unidades de atendimento iniciais
-  db.prepare(`INSERT INTO unidades (id, nome, cidade, ativo) VALUES (1, 'Parnamirim', 'Parnamirim/RN', 1),
+  await db.prepare(`INSERT INTO unidades (id, nome, cidade, ativo) VALUES (1, 'Parnamirim', 'Parnamirim/RN', 1),
     (2, 'Natal Centro', 'Natal/RN', 1), (3, 'Natal Zona Norte', 'Natal/RN', 1)`).run();
   // Usuário administrador padrão para acesso inicial
-  db.prepare(`INSERT INTO usuarios (id, nome, email, senha_hash, perfil, unidade_id, setor_id, ativo, criado_em)
+  await db.prepare(`INSERT INTO usuarios (id, nome, email, senha_hash, perfil, unidade_id, setor_id, ativo, criado_em)
     VALUES (1, 'Administrador de demonstração', 'admin@local.test', ?, 'admin', NULL, NULL, 1, ?)`).run(senha_hash, now);
 
-  // Permissões disponíveis para os grupos de usuários
-  seedPermissoes();
+  // Ajusta as sequências dos SERIALs para não colidir com os ids explícitos do seed
+  await db.exec(`SELECT setval(pg_get_serial_sequence('unidades', 'id'), (SELECT MAX(id) FROM unidades))`);
+  await db.exec(`SELECT setval(pg_get_serial_sequence('usuarios', 'id'), (SELECT MAX(id) FROM usuarios))`);
+
+  await seedPermissoes();
 }
 
 // Popula as permissões disponíveis (idempotente — só insere as que ainda não existem)
-function seedPermissoes() {
+async function seedPermissoes() {
   const permissoes = [
     ['chamados.ver_atribuidos', 'Ver chamados atribuídos a mim'],
     ['chamados.ver_todos_unidade', 'Ver todos os chamados da unidade'],
@@ -335,25 +387,24 @@ function seedPermissoes() {
   ];
   const insertPerm = db.prepare('INSERT INTO permissoes (chave, descricao) VALUES (?, ?)');
   const exists = db.prepare('SELECT 1 FROM permissoes WHERE chave = ?');
-  permissoes.forEach(([chave, descricao]) => {
-    if (!exists.get(chave)) insertPerm.run(chave, descricao);
-  });
+  for (const [chave, descricao] of permissoes) {
+    if (!(await exists.get(chave))) await insertPerm.run(chave, descricao);
+  }
 }
 
 // Retorna o valor de uma configuração (null se não existir)
-function getConfig(chave) {
-  const row = getDb().prepare('SELECT valor FROM config WHERE chave = ?').get(chave);
+async function getConfig(chave) {
+  const row = await db.prepare('SELECT valor FROM config WHERE chave = ?').get(chave);
   return row ? row.valor : null;
 }
 
 // Salva (ou remove, se valor for null) uma configuração
-function setConfig(chave, valor) {
-  const db = getDb();
+async function setConfig(chave, valor) {
   if (valor === null || valor === undefined || valor === '') {
-    db.prepare('DELETE FROM config WHERE chave = ?').run(chave);
+    await db.prepare('DELETE FROM config WHERE chave = ?').run(chave);
   } else {
-    db.prepare('INSERT INTO config (chave, valor) VALUES (?, ?) ON CONFLICT(chave) DO UPDATE SET valor = excluded.valor').run(chave, String(valor));
+    await db.prepare('INSERT INTO config (chave, valor) VALUES (?, ?) ON CONFLICT (chave) DO UPDATE SET valor = EXCLUDED.valor').run(chave, String(valor));
   }
 }
 
-module.exports = { getDb, initialize, DB_PATH, getConfig, setConfig };
+module.exports = { getDb, initialize, getConfig, setConfig, getConnectionString, pool, database: db };
