@@ -172,15 +172,15 @@ async function schema() {
     local_origem_id INTEGER, local_destino_id INTEGER,
     usuario_responsavel_id INTEGER, observacao TEXT, criado_em TEXT
   )`);
+  await db.exec(`CREATE TABLE IF NOT EXISTS categorias_servico_manutencao (
+    id SERIAL PRIMARY KEY, nome TEXT NOT NULL, criado_em TEXT, atualizado_em TEXT
+  )`);
   await db.exec(`CREATE TABLE IF NOT EXISTS manutencoes (
     id SERIAL PRIMARY KEY, bem_id INTEGER NOT NULL REFERENCES computadores(id) ON DELETE CASCADE,
     tipo TEXT, categoria_servico_id INTEGER REFERENCES categorias_servico_manutencao(id),
     nome_servico TEXT, descricao TEXT, data_prevista TEXT, data_realizada_em TEXT,
     status TEXT DEFAULT 'agendada', tecnico_responsavel_id INTEGER, custo REAL,
     criado_em TEXT, atualizado_em TEXT
-  )`);
-  await db.exec(`CREATE TABLE IF NOT EXISTS categorias_servico_manutencao (
-    id SERIAL PRIMARY KEY, nome TEXT NOT NULL, criado_em TEXT, atualizado_em TEXT
   )`);
   await db.exec(`CREATE TABLE IF NOT EXISTS checklists_laboratorio (
     id SERIAL PRIMARY KEY, local_id INTEGER, unidade_id INTEGER,

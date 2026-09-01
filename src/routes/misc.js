@@ -162,7 +162,7 @@ async function calcularTemposChamado(db, c) {
 router.get('/relatorios', autenticar, relatoriosAllowed, async (req, res) => {
   const db = getDb();
   const gestorId = id(req.query.gestor_id);
-  const chamados = relatorioChamados(req, gestorId);
+  const chamados = await relatorioChamados(req, gestorId);
   const count = status => chamados.filter(c => c.status === status).length;
   const porTecnicoMap = {};
   await Promise.all(chamados.map(async c => {
@@ -181,7 +181,7 @@ router.get('/relatorios', autenticar, relatoriosAllowed, async (req, res) => {
 router.get('/relatorios/tempos', autenticar, relatoriosAllowed, async (req, res) => {
   const db = getDb();
   const gestorId = id(req.query.gestor_id);
-  const todosChamados = relatorioChamados(req, gestorId);
+  const todosChamados = await relatorioChamados(req, gestorId);
   const concluidos = todosChamados.filter(c => c.status === 'Resolvido');
   const chamados = await Promise.all(concluidos.map(async c => {
     const t = calcularTemposChamado(db, c);
