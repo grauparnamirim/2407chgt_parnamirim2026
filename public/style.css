@@ -29,6 +29,9 @@
   --shadow: 0 1px 3px rgba(0, 0, 0, 0.04), 0 1px 2px rgba(0, 0, 0, 0.03);
   --shadow-lg: 0 10px 25px rgba(0, 0, 0, 0.06);
   --shadow-xl: 0 20px 60px rgba(0, 0, 0, 0.12);
+  /*-------- outras cores --------*/
+  --gray: #9ca3af;
+
 }
 
 * {
@@ -93,7 +96,7 @@ body {
 
 .sidebar-brand .brand-text span {
   font-size: 0.7rem;
-  color: #9ca3af;
+  color: var(--gray);
   letter-spacing: 0.5px;
 }
 
@@ -192,14 +195,14 @@ body {
 
 .sidebar-user-info .user-role {
   font-size: 0.7rem;
-  color: #9ca3af;
+  color: var(--gray);
   text-transform: capitalize;
 }
 
 .sidebar-logout {
   background: none;
   border: none;
-  color: #9ca3af;
+  color: var(--gray);
   font-size: 1.1rem;
   cursor: pointer;
   padding: 6px;
@@ -2881,6 +2884,7 @@ html[data-theme="escuro"] .page-dispositivos .dispositivo-excluir-aviso>span {
 /* Campo com ícone inline */
 .login-field {
   display: flex;
+  position: relative;
   align-items: center;
   background: #f9fafb;
   border: 1px solid #dce8d4;
@@ -2899,7 +2903,7 @@ html[data-theme="escuro"] .page-dispositivos .dispositivo-excluir-aviso>span {
 .login-field-icon {
   padding: 0 14px;
   font-size: 1.1rem;
-  color: #9ca3af;
+  color: var(--gray);
   flex-shrink: 0;
 }
 
@@ -2973,6 +2977,33 @@ html[data-theme="escuro"] .page-dispositivos .dispositivo-excluir-aviso>span {
   width: 70px;
   color: var(--color-text);
   font-size: 0.75rem;
+}
+
+/* Toggle de senhas em geral */
+.pwd-wrapper{
+  position: realtive;
+  display: flex;
+  align-items: center;
+}
+.pwd-wrapper input[type="password"],
+.pwd-wrapper input[type="text"]{
+  flex: 1;
+  padding-right: 36px;
+}
+.pwd-toggle{
+  position: absolute;
+  right: 8px;
+  top: 50%;
+  transform: translateY(-50%);
+  background: none;
+  border: none;
+  cursor: pointer;
+  color: var(--color-text-secondary);
+  padding: 4px;
+  display: flex;
+}
+.pwd-toggle:hover{
+  color: var(--color-primary);
 }
 
 /* Responsivo: empilha em mobile */

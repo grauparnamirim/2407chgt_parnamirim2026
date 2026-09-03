@@ -59,6 +59,19 @@ function abrirModalTemas() {
 aplicarTemaSalvo();
 
 // ============================================================
+// Visibilidade do campo senha via icone 
+// ============================================================
+function togglePassword(inputId, btn){
+  const input = document.getElementById(inputId);
+  if(!input)return;
+  const isPwd = input.type === "password";
+  input.type = isPwd ? "text" : "password";
+  btn.setAttribute('aria-label', isPwd ? "Esconder senha" : "Ver senha");
+  btn.innerHTML = `
+    <iconify-icon icon="${isPwd ? 'mdi:eye-off-outline' : 'mdi:eye-outline'}" width="19" height="19"></iconify-icon>
+  `;
+}
+// ============================================================
 // LOADING GLOBAL — entrada da página e operações demoradas
 // ============================================================
 const appLoading = (() => {

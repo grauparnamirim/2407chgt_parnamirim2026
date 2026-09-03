@@ -47,9 +47,12 @@
         </div>
 
         <!-- Campo de senha -->
-        <div class="login-field">
+        <div class="login-field pwd-wrapper">
           <span class="login-field-icon">&#128274;</span>
           <input type="password" id="senha" placeholder="Senha" required autocomplete="current-password">
+          <button type="button" class="pwd-toggle" onclick="togglePassword('senha' ,this)" aria-label="Ver senha" >
+              <iconify-icon icon="mdi:eye-outline" width="19" height="19"></iconify-icon>
+          </button>
         </div>
 
         <!-- Botão de envio -->
