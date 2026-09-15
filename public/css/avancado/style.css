@@ -1,0 +1,59 @@
+.backup-acoes {
+    display: flex;
+    gap: 12px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+}
+
+.backup-card {
+    background: #fff;
+    border-radius: 10px;
+    padding: 20px;
+    box-shadow: 0 1px 4px rgba(0, 0, 0, .06);
+}
+
+.backup-card h3 {
+    margin: 0 0 12px;
+    font-size: 1rem;
+    display: flex;
+    align-items: center;
+    gap: 8px;
+}
+
+.backup-lista {
+    margin-top: 16px;
+}
+
+.backup-item {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    padding: 10px 0;
+    border-bottom: 1px solid #eee;
+    font-size: .9rem;
+}
+
+.backup-item:last-child {
+    border: none;
+}
+
+.backup-info {
+    display: flex;
+    flex-direction: column;
+    gap: 2px;
+}
+
+.backup-info strong {
+    font-size: .95rem;
+}
+
+.backup-info small {
+    color: #888;
+}
+
+.backup-vazio {
+    text-align: center;
+    color: #888;
+    padding: 32px 0;
+}

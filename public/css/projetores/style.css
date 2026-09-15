@@ -1,0 +1,147 @@
+.cards-projetores {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 14px;
+    margin-bottom: 18px;
+}
+
+.card-stat {
+    background: var(--surface, #fff);
+    border: 1px solid var(--border, #e3e6ea);
+    border-radius: 12px;
+    padding: 16px;
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    box-shadow: 0 1px 3px rgba(0, 0, 0, .05);
+}
+
+.card-stat .stat-icon {
+    width: 44px;
+    height: 44px;
+    border-radius: 10px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-shrink: 0;
+}
+
+.card-stat .stat-icon small {
+    font-size: 0;
+}
+
+.card-stat h3 {
+    margin: 0;
+    font-size: 0.8rem;
+    color: var(--text-secondary, #6c757d);
+    font-weight: 500;
+}
+
+.card-stat .stat-value {
+    font-size: 1.5rem;
+    font-weight: 700;
+    margin-top: 2px;
+}
+
+.card-stat.gasto .stat-icon {
+    background: rgba(220, 53, 69, .1);
+    color: #dc3545;
+}
+
+.card-stat.manutencao .stat-icon {
+    background: rgba(255, 193, 7, .18);
+    color: #b8860b;
+}
+
+.card-stat.total .stat-icon {
+    background: rgba(13, 110, 253, .1);
+    color: #0d6efd;
+}
+
+.card-stat.conserto .stat-icon {
+    background: rgba(25, 135, 84, .12);
+    color: #198754;
+}
+
+.ranking-list {
+    display: flex;
+    flex-direction: column;
+    gap: 10px;
+}
+
+.ranking-item {
+    display: flex;
+    align-items: center;
+    gap: 12px;
+}
+
+.ranking-pos {
+    width: 26px;
+    height: 26px;
+    border-radius: 50%;
+    background: var(--border, #e3e6ea);
+    color: var(--text, #212529);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    font-weight: 700;
+    font-size: 0.8rem;
+    flex-shrink: 0;
+}
+
+.ranking-item.pos-1 .ranking-pos {
+    background: #f1c40f;
+    color: #7d5a00;
+}
+
+.ranking-item.pos-2 .ranking-pos {
+    background: #bdc3c7;
+    color: #495057;
+}
+
+.ranking-item.pos-3 .ranking-pos {
+    background: #cd7f32;
+    color: #fff;
+}
+
+.ranking-bar-bg {
+    flex: 1;
+    height: 20px;
+    border-radius: 6px;
+    background: var(--border, #e3e6ea);
+    overflow: hidden;
+    position: relative;
+}
+
+.ranking-bar {
+    height: 100%;
+    border-radius: 6px;
+    background: linear-gradient(90deg, #f8b26a, #e67e22);
+    min-width: 4px;
+}
+
+.ranking-info {
+    min-width: 180px;
+}
+
+.ranking-info strong {
+    display: block;
+    font-size: 0.85rem;
+}
+
+.ranking-info small {
+    color: var(--text-secondary, #6c757d);
+}
+
+.ranking-valor {
+    min-width: 110px;
+    text-align: right;
+    font-weight: 700;
+    white-space: nowrap;
+}
+
+@media (max-width:720px) {
+    .ranking-info {
+        min-width: 120px;
+    }
+}

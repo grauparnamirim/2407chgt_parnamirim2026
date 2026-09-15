@@ -1,0 +1,1245 @@
+// Scripts da página de inventário 
+
+// Previne submit acidental ao pressionar Enter
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); }
+});
+
+// Verifica autenticação e permissões
+verificarAutenticacao();
+const u = AppState.usuario;
+if (!u) { window.location.href = '/'; }
+else if (!['admin','gestor','tecnico'].includes(u.perfil) && !temPermissao('ativos.ver') && !temPermissao('inventario.ver')) {
+    window.location.href = u.perfil === 'usuario' ? '/meus-chamados' : '/';
+}
+
+// Configura a navegação da sidebar
+configurarSidebar([]);
+(function() {
+    const navEl = document.getElementById('sidebar-nav');
+    if (!navEl) return;
+    const perfil = AppState.usuario.perfil;
+    const isAdminOrGestor = ['admin','gestor','tecnico'].includes(perfil);
+    let html = '';
+
+    html += '<div class="nav-section">Principal</div>';
+    html += `<a href="painel"><span class="nav-icon"><iconify-icon icon="mdi:view-dashboard" width="20" height="20"></iconify-icon></span> Painel</a>`;
+    if (temAlgumaPermissao('chamados.ver_atribuidos', 'chamados.ver_todos_unidade', 'chamados.ver_proprios')) {
+    html += `<a href="painel"><span class="nav-icon"><iconify-icon icon="mdi:ticket-outline" width="20" height="20"></iconify-icon></span> Chamados</a>`;
+    }
+
+    const mostraCadastros = temAlgumaPermissao('setores.ver', 'categorias.ver', 'usuarios.ver', 'ativos.ver', 'inventario.ver');
+    if (mostraCadastros) {
+    html += '<div class="nav-section">Cadastros</div>';
+    if (temAlgumaPermissao('setores.ver')) {
+        html += `<a href="setores"><span class="nav-icon"><iconify-icon icon="mdi:domain" width="20" height="20"></iconify-icon></span> Setores</a>`;
+    }
+    if (temAlgumaPermissao('categorias.ver')) {
+        html += `<a href="categorias"><span class="nav-icon"><iconify-icon icon="mdi:shape-outline" width="20" height="20"></iconify-icon></span> Categorias</a>`;
+    }
+    if (temAlgumaPermissao('ativos.ver') || temAlgumaPermissao('inventario.ver')) {
+        html += `<a href="inventario" class="active"><span class="nav-icon"><iconify-icon icon="mdi:desktop-tower-monitor" width="20" height="20"></iconify-icon></span> Inventário</a>`;
+    }
+    if (temAlgumaPermissao('usuarios.ver')) {
+        html += `<a href="usuarios"><span class="nav-icon"><iconify-icon icon="mdi:account-group" width="20" height="20"></iconify-icon></span> Usuários</a>`;
+    }
+    }
+
+    const mostraGestao = temAlgumaPermissao('relatorios.ver_dashboard', 'relatorios.ver_tempos', 'impressoras.ver', 'fornecedores.ver', 'projetores.ver', 'dispositivos.ver') || isAdminOrGestor;
+    if (mostraGestao) {
+    html += '<div class="nav-section">Gestão</div>';
+    if (temAlgumaPermissao('relatorios.ver_dashboard', 'relatorios.ver_tempos')) {
+        html += `<a href="relatorios"><span class="nav-icon"><iconify-icon icon="mdi:chart-bar" width="20" height="20"></iconify-icon></span> Relatórios</a>`;
+    }
+    if (temAlgumaPermissao('impressoras.ver') || isAdminOrGestor) {
+        html += `<a href="impressoras"><span class="nav-icon"><iconify-icon icon="mdi:printer" width="20" height="20"></iconify-icon></span> Controle Impressões</a>`;
+    }
+    if (temAlgumaPermissao('fornecedores.ver') || isAdminOrGestor) {
+        html += `<a href="fornecedores"><span class="nav-icon"><iconify-icon icon="mdi:truck-delivery" width="20" height="20"></iconify-icon></span> Fornecedores</a>`;
+    }
+    if (temPermissao('dispositivos.ver')) {
+        html += `<a href="dispositivos"><span class="nav-icon"><iconify-icon icon="mdi:cellphone-link" width="20" height="20"></iconify-icon></span> Dispositivos</a>`;
+    }
+    if (temAlgumaPermissao('projetores.ver', 'inventario.ver', 'ativos.ver')) {
+        html += `<a href="projetores"><span class="nav-icon"><iconify-icon icon="mdi:projector" width="20" height="20"></iconify-icon></span> Controle Projetores</a>`;
+    }
+    }
+
+    const mostraFinanceiro = temAlgumaPermissao('financeiro.ver', 'financeiro.criar', 'financeiro.aprovar') || isAdminOrGestor;
+    if (mostraFinanceiro) {
+    html += '<div class="nav-section">Financeiro</div>';
+    html += `<a href="financeiro"><span class="nav-icon"><iconify-icon icon="mdi:currency-usd" width="20" height="20"></iconify-icon></span> Financeiro</a>`;
+    if (temAlgumaPermissao('notas_fiscais.ver') || isAdminOrGestor) {
+        html += `<a href="notas-fiscais"><span class="nav-icon"><iconify-icon icon="mdi:file-document" width="20" height="20"></iconify-icon></span> Notas Fiscais</a>`;
+    }
+    }
+
+    if (AppState.usuario.perfil === 'admin') {
+    html += '<div class="nav-section">Sistema</div>';
+    html += '<a href="avancado"><span class="nav-icon"><iconify-icon icon="mdi:cog-outline" width="20" height="20"></iconify-icon></span> Avançado</a>';
+    }
+
+    navEl.innerHTML = html;
+})();
+
+(function() {
+    const btnNovo = document.getElementById('btn-novo-ativo');
+    if (btnNovo && !temPermissao('ativos.criar')) btnNovo.style.display = 'none';
+    const btnServicos = document.getElementById('btn-servicos-manutencao');
+    if (btnServicos && !['admin', 'gestor'].includes(AppState.usuario.perfil)) btnServicos.style.display = 'none';
+    const btnLocais = document.getElementById('btn-locais-inventario');
+    if (btnLocais && !['admin', 'gestor'].includes(AppState.usuario.perfil)) btnLocais.style.display = 'none';
+    const btnPreventivaLocal = document.getElementById('btn-preventiva-local');
+    const podeManutencao = ['admin', 'gestor', 'tecnico'].includes(AppState.usuario.perfil) || temPermissao('ativos.manutencoes');
+    if (btnPreventivaLocal && !podeManutencao) btnPreventivaLocal.style.display = 'none';
+    const btnChecklists = document.getElementById('btn-checklists-inventario');
+    const podeChecklist = ['admin', 'gestor', 'tecnico'].includes(AppState.usuario.perfil) || temPermissao('inventario.checklists');
+    if (btnChecklists && !podeChecklist) btnChecklists.style.display = 'none';
+})();
+
+let todosAtivos = [];
+let agendamentosManutencao = [];
+let ativosRecorrentesManutencao = [];
+let locaisPreventiva = [];
+let locaisInventario = [];
+let mapaRedeInventario = { resumo:{}, itens:[], pode_ver_acesso_remoto:false };
+let laboratoriosChecklist = [];
+let itensChecklistAtual = [];
+let filtroAtivosTimer = null;
+
+const TIPOS_LOCAIS_LABEL = {
+    administrativo: 'Administrativo',
+    sala_aula: 'Sala de aula',
+    laboratorio: 'Laboratório',
+    outro: 'Outro'
+};
+
+function rotuloTipoLocal(tipo) { return TIPOS_LOCAIS_LABEL[tipo] || 'Outro'; }
+
+function iconeTipoLocal(tipo) {
+    return ({ administrativo:'mdi:office-building-outline', sala_aula:'mdi:school-outline', laboratorio:'mdi:flask-outline', outro:'mdi:map-marker-outline' })[tipo] || 'mdi:map-marker-outline';
+}
+
+async function carregarFiltroLocais() {
+    const campo = document.getElementById('filtro-local-ativo');
+    if (!campo) return;
+    const valorAtual = campo.value;
+    try {
+    const locais = await api('/api/locais');
+    campo.innerHTML = '<option value="">Todos os locais</option><option value="sem_local">Sem local</option>' + locais.map(local => `<option value="${local.id}">${escapeHTML(local.nome)} · ${escapeHTML(rotuloTipoLocal(local.tipo))}</option>`).join('');
+    if (valorAtual === 'sem_local' || locais.some(local => String(local.id) === valorAtual)) campo.value = valorAtual;
+    } catch (_) {
+    campo.innerHTML = '<option value="">Locais indisponíveis</option>';
+    }
+}
+
+function atualizarTelaInventario() {
+    const tab = document.querySelector('[data-inventario-tab].active')?.dataset.inventarioTab || 'bens';
+    if (tab === 'locais') return carregarLocaisAdministracao();
+    if (tab === 'servicos') return atualizarGerenciamentoServicos();
+    if (tab === 'rede') return carregarMapaRede();
+    if (tab === 'checklists') return carregarBaseChecklists();
+    carregarFiltroLocais();
+    return carregarAtivos();
+}
+
+function agendarFiltroAtivos() {
+    clearTimeout(filtroAtivosTimer);
+    filtroAtivosTimer = setTimeout(carregarAtivos, 280);
+}
+
+function limparFiltrosAtivos() {
+    document.getElementById('filtro-busca-ativos').value = '';
+    document.getElementById('filtro-tipo').value = '';
+    document.getElementById('filtro-status-ativo').value = '';
+    document.getElementById('filtro-local-ativo').value = '';
+    carregarAtivos();
+}
+
+function formatarMoedaInventario(valor) {
+    return new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' }).format(Number(valor || 0));
+}
+
+async function carregarIndicadoresManutencao() {
+    try {
+    const dados = await api('/api/ativos/indicadores-manutencao?meses=3');
+    document.getElementById('manutencao-concluidas').textContent = dados.resumo.concluidas || 0;
+    document.getElementById('manutencao-pendentes').textContent = dados.resumo.pendentes || 0;
+    document.getElementById('manutencao-custo-total').textContent = formatarMoedaInventario(dados.resumo.custo_total);
+    document.getElementById('manutencao-custo-medio').textContent = formatarMoedaInventario(dados.resumo.custo_medio);
+
+    const serie = dados.serie || [];
+    const maiorValor = Math.max(...serie.map(item => item.total), 1);
+    const grafico = document.getElementById('grafico-manutencoes');
+    grafico.innerHTML = serie.map(item => {
+        const altura = item.total ? Math.max((item.total / maiorValor) * 100, 12) : 2;
+        return `<div class="inventario-barra-item"><strong>${item.total}</strong><div class="inventario-barra-trilho"><span style="height:${altura}%" title="${item.total} manutenção(ões) concluída(s)"></span></div><small>${escapeHTML(item.rotulo)}</small></div>`;
+    }).join('') || '<div class="inventario-grafico-vazio">Nenhum dado no período.</div>';
+
+    const ranking = document.getElementById('ranking-recorrencias');
+    ativosRecorrentesManutencao = dados.recorrentes || [];
+    if (!ativosRecorrentesManutencao.length) {
+        ranking.innerHTML = '<div class="inventario-grafico-vazio">Nenhuma manutenção registrada no período.</div>';
+        return;
+    }
+    ranking.innerHTML = ativosRecorrentesManutencao.map((ativo, indice) => {
+        return `<div class="inventario-recorrencia-item"><span class="inventario-recorrencia-posicao">${indice + 1}</span><div><strong>${escapeHTML(ativo.patrimonio)}</strong><small>${escapeHTML([ativo.tipo, ativo.fabricante, ativo.modelo].filter(Boolean).join(' · ') || 'Bem patrimonial')}</small></div><span class="inventario-recorrencia-total">${ativo.total}<small>${ativo.total === 1 ? 'manutenção' : 'manutenções'}</small></span><button class="btn btn-outline btn-sm inventario-recorrencia-ver" type="button" onclick="verServicosAtivoRecorrente(${ativo.id})" title="Ver serviços deste bem" aria-label="Ver serviços do bem ${escapeHTML(ativo.patrimonio)}"><iconify-icon icon="mdi:eye-outline" width="16" height="16"></iconify-icon></button></div>`;
+    }).join('');
+    } catch (e) {
+    document.getElementById('grafico-manutencoes').innerHTML = '<div class="inventario-grafico-vazio">Não foi possível carregar o gráfico.</div>';
+    document.getElementById('ranking-recorrencias').innerHTML = '<div class="inventario-grafico-vazio">Não foi possível carregar o ranking.</div>';
+    }
+}
+
+function dataLocalInventario(valor) {
+    if (!valor) return null;
+    const data = new Date(`${String(valor).slice(0, 10)}T00:00:00`);
+    return Number.isNaN(data.getTime()) ? null : data;
+}
+
+function situacaoAgendamento(dataPrevista) {
+    const data = dataLocalInventario(dataPrevista);
+    if (!data) return { classe: 'sem-data', texto: 'Sem data definida', data: 'Sem data prevista' };
+    const hoje = new Date(); hoje.setHours(0, 0, 0, 0);
+    if (data < hoje) return { classe: 'atrasada', texto: 'Atrasada', data: data.toLocaleDateString('pt-BR') };
+    if (data.getTime() === hoje.getTime()) return { classe: 'hoje', texto: 'Hoje', data: data.toLocaleDateString('pt-BR') };
+    return { classe: 'futura', texto: 'Agendada', data: data.toLocaleDateString('pt-BR') };
+}
+
+async function carregarAgendamentosManutencao() {
+    const lista = document.getElementById('lista-agendamentos-manutencao');
+    try {
+    const agendamentos = await api('/api/ativos/manutencoes-agendadas');
+    agendamentosManutencao = agendamentos;
+    if (!agendamentos.length) {
+        lista.innerHTML = '<div class="inventario-grafico-vazio">Nenhum serviço pendente no momento.</div>';
+        return;
+    }
+    const podeConfirmar = ['admin', 'gestor', 'tecnico'].includes(AppState.usuario?.perfil) || temPermissao('ativos.manutencoes');
+    lista.innerHTML = agendamentos.map(agendamento => {
+        const situacao = situacaoAgendamento(agendamento.data_prevista);
+        const servico = [agendamento.categoria_servico_nome, agendamento.nome_servico].filter(Boolean).join(' · ') || agendamento.tipo;
+        return `<article class="inventario-agendamento-item ${situacao.classe}">
+        <div class="inventario-agendamento-data"><strong>${situacao.data}</strong><span>${situacao.texto}</span></div>
+        <div class="inventario-agendamento-info"><strong>${escapeHTML(agendamento.patrimonio)}</strong><span>${escapeHTML(servico)}</span><small>${escapeHTML(agendamento.descricao)}</small></div>
+        ${podeConfirmar ? `<button class="btn btn-sm btn-success" onclick="abrirConfirmacaoManutencao(${agendamento.id})"><iconify-icon icon="mdi:check-circle-outline" width="16" height="16"></iconify-icon> Confirmar serviço</button>` : ''}
+        </article>`;
+    }).join('');
+    } catch (err) {
+    lista.innerHTML = `<div class="inventario-grafico-vazio">${escapeHTML(err.message || 'Não foi possível carregar os agendamentos.')}</div>`;
+    }
+}
+
+function dataHoraAtualInput() {
+    const agora = new Date();
+    const preencher = numero => String(numero).padStart(2, '0');
+    return `${agora.getFullYear()}-${preencher(agora.getMonth() + 1)}-${preencher(agora.getDate())}T${preencher(agora.getHours())}:${preencher(agora.getMinutes())}`;
+}
+
+function iconeAtivo(tipo) {
+    const mapa = {
+    gabinete: 'mdi:desktop-tower-monitor',
+    monitor: 'mdi:monitor',
+    projetor: 'mdi:projector',
+    'caixa de som': 'mdi:speaker',
+    fones: 'mdi:headphones'
+    };
+    return mapa[tipo] || 'mdi:package-variant-closed';
+}
+
+function gerarQrAtivo(id) {
+    const ativo = todosAtivos.find(x => x.id === id);
+    if (!ativo) { showToast('Ativo não encontrado.', 'error'); return; }
+    try {
+    const texto = [
+        `Patrimônio: ${ativo.patrimonio || '—'}`,
+        `Tipo: ${ativo.tipo || '—'}`,
+        `Modelo: ${ativo.modelo || '—'}`,
+        ativo.fabricante ? `Fabricante: ${ativo.fabricante}` : null,
+        ativo.num_serie ? `Nº Série: ${ativo.num_serie}` : null,
+        `Local: ${ativo.local_nome || '—'}`,
+        `Status: ${ativo.status || '—'}`,
+        ativo.processador ? `Processador: ${ativo.processador}` : null,
+        ativo.memoria_ram ? `RAM: ${ativo.memoria_ram}` : null,
+        ativo.armazenamento_tipo || ativo.armazenamento_tamanho ? `Armazenamento: ${(ativo.armazenamento_tipo || '') + ' ' + (ativo.armazenamento_tamanho || '')}`.trim() : null
+    ].filter(Boolean).join('\n');
+    const qr = qrcode(0, 'M');
+    qr.addData(texto);
+    qr.make();
+    const imgData = qr.createDataURL(4, 4);
+    openModal(`QR Code — ${ativo.patrimonio}`,
+        `<div style="text-align:center;padding:16px">
+        <img src="${imgData}" alt="QR de ${ativo.patrimonio}" style="width:280px;height:280px;border-radius:12px;background:#fff;padding:8px;box-shadow:0 2px 12px rgba(0,0,0,.1)">
+        <p style="margin-top:12px;font-weight:600;font-size:1.1rem">${ativo.patrimonio}</p>
+        </div>`,
+        [{text:'📥 Baixar PNG',cls:'btn-primary',id:'btn-baixar-qr',onClick:() => {
+        const img = document.querySelector('#modal-overlay .modal-body img');
+        if (!img) return;
+        const c = document.createElement('canvas');
+        c.width = 400; c.height = 460;
+        const ctx = c.getContext('2d');
+        ctx.fillStyle = '#fff'; ctx.fillRect(0, 0, c.width, c.height);
+        ctx.drawImage(img, 50, 10, 300, 300);
+        ctx.fillStyle = '#222';
+        ctx.font = 'bold 22px sans-serif';
+        ctx.textAlign = 'center';
+        ctx.fillText(ativo.patrimonio, c.width/2, 370);
+        ctx.font = '14px sans-serif';
+        ctx.fillStyle = '#888';
+        ctx.fillText('Escaneie para ver as especificações', c.width/2, 398);
+        const a = document.createElement('a');
+        a.href = c.toDataURL('image/png');
+        a.download = `qr-${ativo.patrimonio}.png`;
+        a.click();
+        }},{text:'Fechar',cls:'btn-outline',id:'btn-fechar-qr',onClick:closeModal}]
+    );
+    } catch (e) { console.error('QR error:', e); showToast('Erro ao gerar QR Code.', 'error'); }
+}
+
+async function verServicosAtivoRecorrente(id) {
+    const ativo = ativosRecorrentesManutencao.find(item => Number(item.id) === Number(id));
+    if (!ativo) return;
+    const conteudoId = 'servicos-ativo-recorrente';
+    openModal(`Serviços — ${escapeHTML(ativo.patrimonio)}`, `<div class="text-secondary text-center" id="${conteudoId}">Carregando serviços...</div>`, [
+    { text:'Fechar', cls:'btn-outline', id:'btn-fechar-servicos-recorrente', onClick:closeModal }
+    ]);
+    try {
+    const manutencoes = await api(`/api/ativos/${id}/manutencoes`);
+    const conteudo = document.getElementById(conteudoId);
+    if (!conteudo) return;
+    if (!manutencoes.length) {
+        conteudo.innerHTML = '<div class="empty-state"><div class="empty-icon"><iconify-icon icon="mdi:wrench-outline" width="34" height="34"></iconify-icon></div><h3>Nenhum serviço registrado</h3><p>Este bem ainda não possui manutenções cadastradas.</p></div>';
+        return;
+    }
+    conteudo.innerHTML = `<div class="inventario-servicos-recorrente-lista">${manutencoes.map(manutencao => {
+        const servico = rotuloServicoManutencao(manutencao);
+        const realizado = manutencao.status === 'concluida';
+        return `<article><div><span class="badge ${realizado ? 'badge-sucesso' : 'badge-andamento'}">${realizado ? 'Concluída' : 'Agendada'}</span>${servico ? `<span class="badge badge-perfil-usuario">${escapeHTML(servico)}</span>` : ''}</div><strong>${escapeHTML(manutencao.descricao)}</strong><small>${realizado ? `Realizada: ${formatarData(manutencao.data_realizada_em || manutencao.data_realizada)}` : `Prevista: ${manutencao.data_prevista ? formatarData(manutencao.data_prevista) : 'Sem data'}`}${manutencao.custo ? ` · Custo: ${formatarMoedaInventario(manutencao.custo)}` : ''}</small></article>`;
+    }).join('')}</div>`;
+    } catch (err) {
+    const conteudo = document.getElementById(conteudoId);
+    if (conteudo) conteudo.innerHTML = `<div class="text-secondary text-center">${escapeHTML(err.message || 'Não foi possível carregar os serviços.')}</div>`;
+    }
+}
+
+function abrirConfirmacaoManutencao(id) {
+    const agendamento = agendamentosManutencao.find(item => Number(item.id) === Number(id));
+    const titulo = agendamento ? `✅ Confirmar serviço — ${escapeHTML(agendamento.patrimonio)}` : '✅ Confirmar serviço realizado';
+    const servico = agendamento ? ([agendamento.categoria_servico_nome, agendamento.nome_servico].filter(Boolean).join(' · ') || agendamento.tipo) : 'Manutenção agendada';
+    openModal(titulo, `<form class="form-grid col-1"><div class="inventario-confirmacao-servico"><span>Serviço</span><strong>${escapeHTML(servico)}</strong>${agendamento ? `<small>${escapeHTML(agendamento.descricao)}</small>` : ''}</div><div class="form-group"><label>Data e hora da confirmação</label><input type="datetime-local" value="${dataHoraAtualInput()}" readonly aria-readonly="true"><small class="text-secondary">Registradas automaticamente pelo sistema ao confirmar.</small></div><div class="form-group"><label>Custo (R$)</label><input type="number" id="confirmar-manutencao-custo" step="0.01" min="0" placeholder="0,00"></div></form>`, [
+    { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-confirmar-manutencao', onClick:closeModal },
+    { text:'✅ Confirmar serviço', cls:'btn-success', id:'btn-confirmar-manutencao', onClick:async()=>{
+        const custo = parseFloat(document.getElementById('confirmar-manutencao-custo').value) || 0;
+        try {
+        const r = await api(`/api/manutencoes/${id}`, { method:'PUT', body:{ custo } });
+        showToast(r.mensagem, 'success'); closeModal(); carregarAtivos();
+        if (detalheAtivoId) carregarManutencoes(detalheAtivoId);
+        } catch (err) { showToast(err.message, 'error'); }
+    }}
+    ]);
+}
+
+function obterLocalPreventivaSelecionado() {
+    const localId = Number(document.getElementById('preventiva-local')?.value);
+    return locaisPreventiva.find(local => Number(local.id) === localId) || null;
+}
+
+function atualizarResumoPreventivaLote() {
+    const local = obterLocalPreventivaSelecionado();
+    const selecionados = document.querySelectorAll('#preventiva-lista-computadores input[type="checkbox"]:checked').length;
+    const disponiveis = local?.disponiveis || 0;
+    const impedidos = local?.impedidos || 0;
+    const contador = document.getElementById('preventiva-contador-selecionados');
+    const resumo = document.getElementById('preventiva-resumo-local');
+    const botaoAgendar = document.getElementById('btn-agendar-preventiva-lote');
+    if (contador) contador.textContent = `${selecionados} de ${disponiveis} selecionado${selecionados === 1 ? '' : 's'}`;
+    if (resumo) resumo.innerHTML = `<strong>${local?.total || 0}</strong> computador${local?.total === 1 ? '' : 'es'} ativo${local?.total === 1 ? '' : 's'} <span>•</span> <strong>${impedidos}</strong> impedido${impedidos === 1 ? '' : 's'}`;
+    if (botaoAgendar) botaoAgendar.disabled = selecionados === 0;
+}
+
+function renderizarComputadoresPreventivaLote() {
+    const local = obterLocalPreventivaSelecionado();
+    const lista = document.getElementById('preventiva-lista-computadores');
+    if (!lista) return;
+    if (!local?.computadores?.length) {
+    lista.innerHTML = '<div class="preventiva-lote-vazio"><iconify-icon icon="mdi:desktop-tower-off" width="30" height="30"></iconify-icon><strong>Nenhum computador ativo neste local</strong><span>Cadastre ou movimente um computador ativo para poder criar o lote.</span></div>';
+    atualizarResumoPreventivaLote();
+    return;
+    }
+
+    lista.innerHTML = local.computadores.map(computador => {
+    const descricao = [computador.fabricante, computador.modelo].filter(Boolean).join(' · ') || 'Computador';
+    return `<label class="preventiva-computador-item ${computador.impedido ? 'impedido' : ''}">
+        <input type="checkbox" value="${computador.id}" ${computador.impedido ? 'disabled' : ''} onchange="atualizarResumoPreventivaLote()">
+        <span class="preventiva-computador-icone"><iconify-icon icon="mdi:desktop-tower-monitor" width="19" height="19"></iconify-icon></span>
+        <span class="preventiva-computador-info"><strong>${escapeHTML(computador.patrimonio)}</strong><small>${escapeHTML(descricao)}${computador.usuario_nome ? ` · ${escapeHTML(computador.usuario_nome)}` : ''}</small></span>
+        ${computador.impedido ? '<span class="preventiva-computador-status"><iconify-icon icon="mdi:calendar-alert" width="14" height="14"></iconify-icon> Preventiva pendente</span>' : '<span class="preventiva-computador-status disponivel">Disponível</span>'}
+    </label>`;
+    }).join('');
+    atualizarResumoPreventivaLote();
+}
+
+function marcarTodosPreventivaLote(marcar) {
+    document.querySelectorAll('#preventiva-lista-computadores input[type="checkbox"]:not(:disabled)').forEach(campo => { campo.checked = marcar; });
+    atualizarResumoPreventivaLote();
+}
+
+function abrirCadastroLocalDaPreventiva() {
+    closeModal();
+    ativarTabInventario('locais');
+    setTimeout(abrirModalNovoLocal, 0);
+}
+
+async function abrirModalPreventivaLocal() {
+    try {
+    const candidatos = await api('/api/ativos/manutencao-preventiva/candidatos');
+    locaisPreventiva = candidatos.locais || [];
+    } catch (err) {
+    showToast(err.message, 'error');
+    return;
+    }
+
+    if (!locaisPreventiva.length) {
+    const podeCadastrarLocal = ['admin', 'gestor'].includes(AppState.usuario.perfil);
+    const mensagemAcao = podeCadastrarLocal
+        ? 'Cadastre uma sala, laboratório ou ambiente e depois vincule os computadores pelo cadastro ou pela movimentação do bem.'
+        : 'Peça a um administrador ou gestor para cadastrar os locais e vincular os computadores.';
+    const botoes = [{ text:'Fechar', cls:'btn-outline', id:'btn-fechar-sem-local', onClick:closeModal }];
+    if (podeCadastrarLocal) {
+        botoes.push({ text:'Cadastrar local', cls:'btn-primary', id:'btn-cadastrar-local-preventiva', onClick:abrirCadastroLocalDaPreventiva });
+    }
+    openModal('📍 Local físico necessário', `<div class="preventiva-sem-locais"><span class="preventiva-sem-locais-icone"><iconify-icon icon="mdi:map-marker-alert-outline" width="30" height="30"></iconify-icon></span><div><strong>Nenhum local físico ativo foi encontrado</strong><p>${mensagemAcao}</p><small>Os setores administrativos não são usados automaticamente como locais do Inventário.</small></div></div>`, botoes);
+    return;
+    }
+
+    const opcoesLocal = locaisPreventiva.map(local => `<option value="${local.id}">${escapeHTML(local.nome)} · ${escapeHTML(rotuloTipoLocal(local.tipo))} (${local.total} ${Number(local.total) === 1 ? 'computador' : 'computadores'}, ${local.disponiveis} disponíveis)</option>`).join('');
+    const hoje = dataHoraAtualInput().slice(0, 10);
+
+    openModal('🛡️ Agendar preventiva por local', `<form id="form-preventiva-lote" class="preventiva-lote-form">
+    <div class="preventiva-lote-intro"><span class="preventiva-lote-intro-icon"><iconify-icon icon="mdi:shield-check-outline" width="25" height="25"></iconify-icon></span><div><strong>Manutenção preventiva em lote</strong><p>Escolha o local físico, revise os computadores e defina o serviço que será aplicado a todos os selecionados.</p></div></div>
+    <div class="form-grid preventiva-lote-campos">
+        <div class="form-group preventiva-campo-local"><label>Local físico *</label><select id="preventiva-local">${opcoesLocal}</select></div>
+        <div class="form-group"><label>Nome do serviço *</label><input id="preventiva-servico" placeholder="Ex: Limpeza preventiva, Verificação de hardware" required></div>
+        <div class="form-group preventiva-campo-descricao"><label>Descrição do serviço *</label><textarea id="preventiva-descricao" rows="2" placeholder="Descreva o procedimento preventivo"></textarea></div>
+        <div class="form-group"><label>Data prevista *</label><input type="date" id="preventiva-data" value="${hoje}" required></div>
+    </div>
+    <section class="preventiva-selecao" aria-labelledby="preventiva-selecao-titulo">
+        <div class="preventiva-selecao-heading"><div><strong id="preventiva-selecao-titulo">Computadores do local</strong><span id="preventiva-resumo-local"></span></div><div class="preventiva-selecao-acoes"><button type="button" class="btn btn-sm btn-outline" onclick="marcarTodosPreventivaLote(true)">Selecionar todos</button><button type="button" class="btn btn-sm btn-outline" onclick="marcarTodosPreventivaLote(false)">Limpar</button></div></div>
+        <div id="preventiva-lista-computadores" class="preventiva-lista-computadores"></div>
+        <div class="preventiva-selecao-footer"><span id="preventiva-contador-selecionados">0 selecionados</span><small><iconify-icon icon="mdi:information-outline" width="14" height="14"></iconify-icon> Computadores com preventiva pendente não podem ser marcados.</small></div>
+    </section>
+    </form>`, [
+    { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-preventiva-lote', onClick:closeModal },
+    { text:'Agendar preventivas', cls:'btn-primary', id:'btn-agendar-preventiva-lote', onClick:async()=>{
+        const localId = Number(document.getElementById('preventiva-local').value);
+        const nomeServico = document.getElementById('preventiva-servico').value.trim();
+        const descricao = document.getElementById('preventiva-descricao').value.trim();
+        const dataPrevista = document.getElementById('preventiva-data').value;
+        const bemIds = Array.from(document.querySelectorAll('#preventiva-lista-computadores input[type="checkbox"]:checked')).map(campo => Number(campo.value));
+        if (!localId) { showToast('Selecione um local físico.', 'error'); return; }
+        if (!nomeServico) { showToast('Nome do serviço é obrigatório.', 'error'); return; }
+        if (!descricao) { showToast('Descrição é obrigatória.', 'error'); return; }
+        if (!dataPrevista) { showToast('Informe a data prevista.', 'error'); return; }
+        if (!bemIds.length) { showToast('Selecione ao menos um computador.', 'error'); return; }
+
+        const botao = document.getElementById('btn-agendar-preventiva-lote');
+        botao.disabled = true;
+        try {
+        const resposta = await api('/api/ativos/manutencoes/lote', { method:'POST', body:{
+            local_id: localId, bem_ids: bemIds, nome_servico: nomeServico, descricao, data_prevista: dataPrevista
+        }});
+        const nomesIgnorados = (resposta.ignorados || []).map(item => item.patrimonio);
+        const sufixo = nomesIgnorados.length ? ` Ignorados: ${nomesIgnorados.slice(0, 5).join(', ')}${nomesIgnorados.length > 5 ? '…' : ''}` : '';
+        closeModal();
+        showToast(`${resposta.mensagem}${sufixo}`, resposta.criados ? 'success' : 'info');
+        carregarAtivos();
+        if (detalheAtivoId) carregarManutencoes(detalheAtivoId);
+        } catch (err) {
+        showToast(err.message, 'error');
+        botao.disabled = false;
+        }
+    }}
+    ], 'modal-preventiva-lote');
+
+    renderizarComputadoresPreventivaLote();
+    document.getElementById('preventiva-local')?.addEventListener('change', renderizarComputadoresPreventivaLote);
+}
+
+async function carregarAtivos() {
+    try {
+    carregarIndicadoresManutencao();
+    carregarAgendamentosManutencao();
+    const tipo = document.getElementById('filtro-tipo').value;
+    const status = document.getElementById('filtro-status-ativo').value;
+    const localId = document.getElementById('filtro-local-ativo').value;
+    const busca = document.getElementById('filtro-busca-ativos').value.trim();
+    const filtros = new URLSearchParams();
+    if (tipo) filtros.set('tipo', tipo);
+    if (status) filtros.set('status', status);
+    if (localId) filtros.set('local_id', localId);
+    if (busca) filtros.set('busca', busca);
+    const url = filtros.size ? `/api/ativos?${filtros.toString()}` : '/api/ativos';
+    const comps = await api(url);
+    todosAtivos = comps;
+    const podeEditar = temPermissao('ativos.editar');
+    const podeExcluir = temPermissao('ativos.excluir');
+    const podeMovimentar = temPermissao('ativos.movimentar');
+    const podeManutencao = temPermissao('ativos.manutencoes');
+    const podeAtribuir = ['admin', 'gestor', 'tecnico'].includes(AppState.usuario.perfil) || temPermissao('inventario.atribuir_usuario');
+    const tbody = document.getElementById('tabela-ativos');
+    if (!comps.length) {
+        const msg = tipo ? 'Nenhum ' + tipo + ' encontrado' : 'Nenhum bem cadastrado';
+        tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><h3>${msg}</h3></div></td></tr>`; return;
+    }
+    tbody.innerHTML = comps.map(c => {
+        const tipoIcon = iconeAtivo(c.tipo);
+        const descricao = c.tipo === 'projetor'
+        ? [c.fabricante, c.modelo, c.num_serie && `S/N: ${c.num_serie}`].filter(Boolean).join(' · ') || '<span class="text-secondary">—</span>'
+        : [c.processador, c.memoria_ram, [c.armazenamento_tipo, c.armazenamento_tamanho].filter(Boolean).join(' ')].filter(Boolean).join(' | ') || '<span class="text-secondary">—</span>';
+        const statusBadge = c.status === 'Em manutenção' ? 'badge-andamento' : c.status === 'Desativado' || c.status === 'Baixado' ? 'badge-erro' : 'badge-sucesso';
+        const btnDetalhes = `<button class="btn btn-outline btn-sm" onclick="abrirDetalhesAtivo(${c.id})" style="padding:4px 6px;font-size:0.7rem" title="Detalhes"><iconify-icon icon="mdi:eye-outline" width="14" height="14"></iconify-icon></button>`;
+        const btnQr = `<button class="btn btn-outline btn-sm" onclick="gerarQrAtivo(${c.id})" style="padding:4px 6px;font-size:0.7rem" title="QR Code"><iconify-icon icon="mdi:qrcode" width="14" height="14"></iconify-icon></button>`;
+        const btnAtribuir = podeAtribuir ? `<button class="btn btn-outline btn-sm" onclick="abrirModalAtribuirAtivo(${c.id})" style="padding:4px 6px;font-size:0.7rem" title="Atribuir funcionário"><iconify-icon icon="mdi:account-arrow-right-outline" width="14" height="14"></iconify-icon></button>` : '';
+        const btnMov = podeMovimentar ? `<button class="btn btn-outline btn-sm" onclick="abrirModalMovimentar(${c.id})" style="padding:4px 6px;font-size:0.7rem" title="Movimentar"><iconify-icon icon="mdi:transfer" width="14" height="14"></iconify-icon></button>` : '';
+        const btnManu = podeManutencao ? `<button class="btn btn-outline btn-sm" onclick="abrirModalNovaManutencao(${c.id})" style="padding:4px 6px;font-size:0.7rem" title="Agendar manutenção"><iconify-icon icon="mdi:wrench" width="14" height="14"></iconify-icon></button>` : '';
+        const btnEditar = podeEditar ? `<button class="btn btn-outline btn-sm" onclick="editarAtivo(${c.id})" style="padding:4px 8px;font-size:0.7rem"><iconify-icon icon="mdi:pencil" width="14" height="14"></iconify-icon></button>` : '';
+        const totalAgendamentos = Number(c.manutencoes_agendadas || 0);
+        const btnExcluir = podeExcluir
+        ? totalAgendamentos > 0
+            ? `<button class="btn btn-outline btn-sm" disabled aria-disabled="true" style="padding:4px 8px;font-size:0.7rem" title="Não é possível excluir: ${totalAgendamentos} ${totalAgendamentos === 1 ? 'serviço agendado' : 'serviços agendados'}"><iconify-icon icon="mdi:delete-lock-outline" width="14" height="14"></iconify-icon></button>`
+            : `<button class="btn btn-danger btn-sm" onclick="excluirAtivo(${c.id},'${c.patrimonio}')" style="padding:4px 8px;font-size:0.7rem" title="Excluir bem"><iconify-icon icon="mdi:delete" width="14" height="14"></iconify-icon></button>`
+        : '';
+        const acoes = [btnDetalhes, btnQr, btnAtribuir, btnMov, btnManu, btnEditar, btnExcluir].filter(Boolean).join(' ');
+        return `<tr data-ativo-id="${c.id}">
+        <td><strong><iconify-icon icon="${tipoIcon}" width="16" height="16" style="vertical-align:middle;margin-right:4px"></iconify-icon> ${c.patrimonio}</strong></td>
+        <td><span class="badge badge-perfil-gestor">${c.tipo||'gabinete'}</span></td>
+        <td style="font-size:0.85rem">${descricao}</td>
+        <td>${c.local_nome ? `<span class="inventario-local-celula"><iconify-icon icon="${iconeTipoLocal(c.local_tipo)}" width="15" height="15"></iconify-icon><span><strong>${escapeHTML(c.local_nome)}</strong><small>${escapeHTML(rotuloTipoLocal(c.local_tipo))}</small></span></span>` : '<span class="inventario-sem-local">Sem local</span>'}</td>
+        <td><span class="badge ${statusBadge}">${c.status||'Ativo'}</span></td>
+        <td>${c.usuario_nome ? `<strong>${c.usuario_nome}</strong>` : '<span class="text-secondary">—</span>'}</td>
+        <td style="white-space:nowrap">${acoes}</td>
+        </tr>`;
+    }).join('');
+    const foco = new URLSearchParams(window.location.search).get('focusAtivo');
+    const linhaFoco = foco && Array.from(tbody.querySelectorAll('[data-ativo-id]')).find(linha => linha.dataset.ativoId === foco);
+    if (linhaFoco) {
+        linhaFoco.classList.add('search-result-highlight');
+        linhaFoco.scrollIntoView({ behavior: 'smooth', block: 'center' });
+        setTimeout(() => linhaFoco.classList.remove('search-result-highlight'), 3500);
+    }
+    } catch (e) { showToast('Erro: '+e.message, 'error'); }
+}
+
+function getIlustracaoAtivo(tipo, variante) {
+    const imagens = {
+    gabinete: { src: '/midia/ativo-computador.svg', alt: 'Ilustração de gabinete', nome: 'Gabinete' },
+    projetor: { src: '/midia/ativo-projetor.svg', alt: 'Ilustração de projetor', nome: 'Projetor' }
+    };
+    const imagem = imagens[tipo];
+    if (!imagem) {
+    return `<div class="ativo-ilustracao ${variante || ''} ativo-ilustracao-fallback" aria-label="Ilustração de aparelho"><iconify-icon icon="${iconeAtivo(tipo)}" width="42" height="42"></iconify-icon><span>${tipo || 'Aparelho'}</span></div>`;
+    }
+    return `<div class="ativo-ilustracao ${variante || ''}"><img src="${imagem.src}" alt="${imagem.alt}"><span>${imagem.nome}</span></div>`;
+}
+
+function atualizarIlustracaoFormulario() {
+    const preview = document.getElementById('ativo-ilustracao-preview');
+    const tipo = document.getElementById('f-tipo')?.value;
+    if (preview) preview.innerHTML = getIlustracaoAtivo(tipo, 'ativo-ilustracao-formulario');
+}
+
+function getFormFieldsAtivo(tipo, dados, optsLocais) {
+    const d = dados || {};
+    const tipoAtual = d.tipo || tipo || 'gabinete';
+    const comune = `
+    <section class="ativo-cadastro-hero">
+        <div class="ativo-ilustracao-preview" id="ativo-ilustracao-preview">${getIlustracaoAtivo(tipoAtual, 'ativo-ilustracao-formulario')}</div>
+        <div class="ativo-cadastro-intro">
+        <span class="ativo-form-eyebrow">Cadastro de patrimônio</span>
+        <h4>Qual tipo de aparelho você está cadastrando?</h4>
+        <p>Escolha o tipo para exibir apenas os campos necessários.</p>
+        <input type="hidden" id="f-tipo" value="${tipoAtual}">
+        <div class="ativo-tipo-seletor" role="group" aria-label="Tipo de aparelho">
+            <button type="button" class="ativo-tipo-opcao ${tipoAtual==='gabinete'?'active':''}" data-tipo-ativo="gabinete" aria-pressed="${tipoAtual==='gabinete'}"><iconify-icon icon="mdi:desktop-tower-monitor" width="20" height="20"></iconify-icon><span>Gabinete</span></button>
+            <button type="button" class="ativo-tipo-opcao ${tipoAtual==='monitor'?'active':''}" data-tipo-ativo="monitor" aria-pressed="${tipoAtual==='monitor'}"><iconify-icon icon="mdi:monitor" width="20" height="20"></iconify-icon><span>Monitor</span></button>
+            <button type="button" class="ativo-tipo-opcao ${tipoAtual==='projetor'?'active':''}" data-tipo-ativo="projetor" aria-pressed="${tipoAtual==='projetor'}"><iconify-icon icon="mdi:projector" width="20" height="20"></iconify-icon><span>Projetor</span></button>
+            <button type="button" class="ativo-tipo-opcao ${tipoAtual==='caixa de som'?'active':''}" data-tipo-ativo="caixa de som" aria-pressed="${tipoAtual==='caixa de som'}"><iconify-icon icon="mdi:speaker" width="20" height="20"></iconify-icon><span>Caixa de Som</span></button>
+            <button type="button" class="ativo-tipo-opcao ${tipoAtual==='fones'?'active':''}" data-tipo-ativo="fones" aria-pressed="${tipoAtual==='fones'}"><iconify-icon icon="mdi:headphones" width="20" height="20"></iconify-icon><span>Fones</span></button>
+            <button type="button" class="ativo-tipo-opcao ${tipoAtual==='outros'?'active':''}" data-tipo-ativo="outros" aria-pressed="${tipoAtual==='outros'}"><iconify-icon icon="mdi:package-variant-closed" width="20" height="20"></iconify-icon><span>Outros</span></button>
+        </div>
+        </div>
+    </section>
+    <section class="ativo-form-section">
+        <div class="ativo-form-section-header"><iconify-icon icon="mdi:clipboard-text-outline" width="19" height="19"></iconify-icon><div><h4>Dados do bem</h4><p>Informações para identificação e localização.</p></div></div>
+        <div class="ativo-form-section-grid">
+        <input type="hidden" id="f-pat" value="${d.patrimonio||''}">
+        <div class="form-group"><label>Local físico ${d.id ? '' : '*'}</label><select id="f-local">${optsLocais}</select>${d.id && !d.local_id ? '<small class="text-secondary">Bem antigo ainda sem localização definida.</small>' : ''}</div>
+        <div class="form-group"><label>Endereço IP</label><input id="f-ip" value="${d.ip_endereco||''}" placeholder="Ex: 10.2.200.25"></div>
+        <div class="form-group"><label>Status</label><select id="f-status">
+            <option value="Ativo" ${(d.status||'Ativo')==='Ativo'?'selected':''}>Ativo</option>
+            <option value="Em manutenção" ${d.status==='Em manutenção'?'selected':''}>Em manutenção</option>
+            <option value="Desativado" ${d.status==='Desativado'?'selected':''}>Desativado</option>
+            <option value="Baixado" ${d.status==='Baixado'?'selected':''}>Baixado</option>
+        </select></div>
+        </div>
+    </section>
+    <section class="ativo-form-section">
+        <div class="ativo-form-section-header"><iconify-icon icon="mdi:tag-outline" width="19" height="19"></iconify-icon><div><h4>Identificação</h4><p>Dados do fabricante para conferência do item.</p></div></div>
+        <div class="ativo-form-section-grid">
+        <div class="form-group"><label>Fabricante</label><input id="f-fabricante" value="${d.fabricante||''}" placeholder="Ex: Dell, Epson"></div>
+        <div class="form-group"><label>Modelo</label><input id="f-modelo" value="${d.modelo||''}" placeholder="Ex: OptiPlex 3080"></div>
+        <div class="form-group"><label>Nº de série</label><input id="f-nserie" value="${d.num_serie||''}" placeholder="Opcional"></div>
+        </div>
+    </section>
+    <section class="ativo-form-section">
+        <div class="ativo-form-section-header"><iconify-icon icon="mdi:note-text-outline" width="19" height="19"></iconify-icon><div><h4>Observações</h4><p>Registre detalhes úteis sobre o equipamento.</p></div></div>
+        <div class="form-group"><textarea id="f-obs" rows="3" placeholder="Ex: equipamento reserva, acessórios incluídos...">${d.observacoes||''}</textarea></div>
+    </section>
+    `;
+    const camposPC = `
+    <section class="ativo-form-section pc-field">
+        <div class="ativo-form-section-header"><iconify-icon icon="mdi:memory" width="19" height="19"></iconify-icon><div><h4>Configuração técnica</h4><p>Especificações e acessos remotos do computador.</p></div></div>
+        <div class="ativo-form-section-grid ativo-form-section-grid-tecnico">
+        <div class="form-group"><label>Processador *</label><input id="f-proc" value="${d.processador||''}" placeholder="Ex: Intel Core i5"></div>
+        <div class="form-group"><label>Memória RAM *</label><input id="f-ram" value="${d.memoria_ram||''}" placeholder="Ex: 16GB DDR4"></div>
+        <div class="form-group"><label>Armazenamento</label><select id="f-arm-tipo"><option value="SSD" ${d.armazenamento_tipo==='SSD'?'selected':''}>SSD</option><option value="NVMe SSD" ${d.armazenamento_tipo==='NVMe SSD'?'selected':''}>NVMe SSD</option><option value="HD" ${d.armazenamento_tipo==='HD'?'selected':''}>HD</option></select></div>
+        <div class="form-group"><label>Tamanho</label><input id="f-arm-tam" value="${d.armazenamento_tamanho||''}" placeholder="Ex: 512GB"></div>
+        <div class="form-group"><label>AnyDesk ID</label><input id="f-any" value="${d.anydesk_id||''}" placeholder="Opcional"></div>
+        <div class="form-group"><label>TeamViewer ID</label><input id="f-tv" value="${d.teamviewer_id||''}" placeholder="Opcional"></div>
+        </div>
+    </section>
+    `;
+    return { comune, camposPC };
+}
+
+function togglePcFields() {
+    const tipo = document.getElementById('f-tipo')?.value;
+    document.querySelectorAll('.pc-field').forEach(el => el.style.display = tipo === 'gabinete' ? '' : 'none');
+    const ipGroup = document.getElementById('f-ip')?.closest('.form-group');
+    if (ipGroup) ipGroup.style.display = (tipo === 'gabinete' || tipo === 'projetor') ? '' : 'none';
+    atualizarIlustracaoFormulario();
+}
+
+function selecionarTipoAtivo(tipo) {
+    if (!['gabinete', 'monitor', 'projetor', 'caixa de som', 'fones', 'outros'].includes(tipo)) return;
+    const campoTipo = document.getElementById('f-tipo');
+    if (!campoTipo) return;
+    campoTipo.value = tipo;
+    document.querySelectorAll('[data-tipo-ativo]').forEach(botao => {
+    const ativo = botao.dataset.tipoAtivo === tipo;
+    botao.classList.toggle('active', ativo);
+    botao.setAttribute('aria-pressed', String(ativo));
+    });
+    togglePcFields();
+}
+
+function configurarFormularioAtivo() {
+    document.querySelectorAll('[data-tipo-ativo]').forEach(botao => {
+    botao.addEventListener('click', () => selecionarTipoAtivo(botao.dataset.tipoAtivo));
+    });
+    togglePcFields();
+}
+
+async function abrirModalCadastroAtivo() {
+    const locais = await api('/api/locais');
+    if (!locais.length) { showToast('Cadastre um local físico antes de incluir um novo bem.', 'error'); return; }
+    const optsLocais = '<option value="">Selecione...</option>' + locais.map(local => `<option value="${local.id}">${escapeHTML(local.nome)} · ${escapeHTML(rotuloTipoLocal(local.tipo))}</option>`).join('');
+    const { comune, camposPC } = getFormFieldsAtivo('gabinete', null, optsLocais);
+    const html = `<form id="fma" class="form-grid ativo-cadastro-form">${comune}${camposPC}</form>`;
+    openModal('➕ Novo Aparelho', html, [
+    {text:'Cancelar',cls:'btn-outline',id:'btn-cancelar-cad',onClick:closeModal},
+    {text:'💾 Cadastrar',cls:'btn-primary',id:'btn-salvar-ativo',onClick:salvarAtivo}
+    ], 'modal-ativo-cadastro');
+    configurarFormularioAtivo();
+}
+
+async function salvarAtivo() {
+    const g = i => document.getElementById(i).value.trim();
+    const tipo = g('f-tipo');
+    const body = {
+    tipo,
+    patrimonio: g('f-pat'),
+    fabricante: g('f-fabricante'),
+    modelo: g('f-modelo'),
+    num_serie: g('f-nserie'),
+    local_id: Number(g('f-local')) || null,
+    ip_endereco: g('f-ip'),
+    observacoes: g('f-obs'),
+    status: g('f-status')
+    };
+    if (tipo === 'gabinete') {
+    Object.assign(body, {
+        processador: g('f-proc'), memoria_ram: g('f-ram'),
+        armazenamento_tipo: g('f-arm-tipo'), armazenamento_tamanho: g('f-arm-tam'),
+        anydesk_id: g('f-any'), teamviewer_id: g('f-tv')
+    });
+    if (!body.processador || !body.memoria_ram) { showToast('Processador e RAM são obrigatórios para gabinete.', 'error'); return; }
+    }
+    if (!body.local_id) { showToast('Local físico é obrigatório.', 'error'); return; }
+    try {
+    const r = await api('/api/ativos', { method:'POST', body });
+    showToast(r.mensagem, 'success');
+    closeModal();
+    carregarAtivos();
+    } catch(err) { showToast(err.message, 'error'); }
+}
+
+async function editarAtivo(id) {
+    const c = todosAtivos.find(x => x.id === id); if (!c) return;
+    const locais = await api('/api/locais');
+    const localAtualInativo = c.local_id && !locais.some(local => Number(local.id) === Number(c.local_id));
+    const opcaoAtual = localAtualInativo ? `<option value="${c.local_id}" selected>${escapeHTML(c.local_nome || 'Local atual')} (inativo)</option>` : '';
+    const opcaoVazia = c.local_id ? '' : '<option value="" selected>Sem local</option>';
+    const optsLocais = opcaoVazia + opcaoAtual + locais.map(local => `<option value="${local.id}" ${Number(c.local_id)===Number(local.id)?'selected':''}>${escapeHTML(local.nome)} · ${escapeHTML(rotuloTipoLocal(local.tipo))}</option>`).join('');
+    const { comune, camposPC } = getFormFieldsAtivo(c.tipo, c, optsLocais);
+    const html = `<form id="fma" class="form-grid ativo-cadastro-form">${comune}${camposPC}</form>`;
+    openModal(`✏️ Editar ${c.patrimonio}`, html, [
+    {text:'Cancelar',cls:'btn-outline',id:'btn-cancelar-edit',onClick:closeModal},
+    {text:'💾 Salvar',cls:'btn-primary',id:'btn-salvar-ativo',onClick:async()=>{
+        const g = i => document.getElementById(i).value.trim();
+        const tipo = g('f-tipo');
+        const body = {
+        tipo, patrimonio: g('f-pat'), fabricante: g('f-fabricante'),
+        modelo: g('f-modelo'), num_serie: g('f-nserie'), local_id: Number(g('f-local')) || null, ip_endereco: g('f-ip'),
+        observacoes: g('f-obs'), status: g('f-status')
+        };
+        if (tipo === 'gabinete') {
+        Object.assign(body, {
+            processador: g('f-proc'), memoria_ram: g('f-ram'),
+            armazenamento_tipo: g('f-arm-tipo'), armazenamento_tamanho: g('f-arm-tam'),
+            anydesk_id: g('f-any'), teamviewer_id: g('f-tv')
+        });
+        }
+        try { const r = await api(`/api/ativos/${id}`, { method:'PUT', body }); showToast(r.mensagem, 'success'); closeModal(); carregarAtivos(); } catch(err) { showToast(err.message, 'error'); }
+    }}
+    ], 'modal-ativo-cadastro');
+    configurarFormularioAtivo();
+}
+
+function excluirAtivo(id, patrimonio) {
+    openModal('🗑️ Excluir Bem', `<p>Excluir <strong>${patrimonio}</strong>?</p>`, [
+    {text:'Cancelar',cls:'btn-outline',id:'btn-cancelar-del',onClick:closeModal},
+    {text:'🗑️ Excluir',cls:'btn-danger',id:'btn-del-ativo',onClick:async()=>{
+        try { const r = await api(`/api/ativos/${id}`, { method:'DELETE' }); showToast(r.mensagem, 'success'); closeModal(); carregarAtivos(); } catch(err) { showToast(err.message, 'error'); }
+    }}
+    ]);
+}
+
+// --- MOVIMENTAÇÕES ---
+async function abrirModalMovimentar(bemId) {
+    const ativo = todosAtivos.find(item => Number(item.id) === Number(bemId));
+    const locais = await api('/api/locais');
+    const destinos = locais.filter(local => Number(local.id) !== Number(ativo?.local_id));
+    if (!destinos.length) { showToast('Não há outro local físico ativo disponível para a movimentação.', 'error'); return; }
+    const optsLocais = '<option value="">Selecione...</option>' + destinos.map(local => `<option value="${local.id}">${escapeHTML(local.nome)} · ${escapeHTML(rotuloTipoLocal(local.tipo))}</option>`).join('');
+    openModal('📦 Movimentar Bem', `<form id="fmv" class="form-grid col-1"><div class="inventario-movimentacao-origem"><span>Local atual</span><strong>${escapeHTML(ativo?.local_nome || 'Sem local')}</strong></div><div class="form-group"><label>Local de destino *</label><select id="mv-local">${optsLocais}</select></div><div class="form-group"><label>Observação</label><textarea id="mv-obs" rows="2" placeholder="Motivo da movimentação"></textarea></div></form>`, [
+    {text:'Cancelar',cls:'btn-outline',id:'btn-cancelar-mv',onClick:closeModal},
+    {text:'✅ Movimentar',cls:'btn-primary',id:'btn-salvar-mv',onClick:async()=>{
+        const localDestino = Number(document.getElementById('mv-local').value);
+        if (!localDestino) { showToast('Selecione o local de destino.', 'error'); return; }
+        try { const r = await api(`/api/ativos/${bemId}/movimentacoes`, { method:'POST', body:{ local_destino_id: localDestino, observacao: document.getElementById('mv-obs').value.trim() } }); showToast(r.mensagem, 'success'); closeModal(); carregarAtivos(); } catch(err) { showToast(err.message, 'error'); }
+    }}
+    ]);
+}
+
+async function abrirModalAtribuirAtivo(bemId) {
+    const ativo = todosAtivos.find(item => item.id === bemId);
+    if (!ativo) return;
+    try {
+    const usuarios = await api('/api/usuarios');
+    const funcionarios = usuarios.filter(usuario => !ativo.unidade_id || usuario.unidade_id === ativo.unidade_id);
+    const opcoes = '<option value="">Sem responsável</option>' + funcionarios.map(usuario => `<option value="${usuario.id}" ${Number(ativo.usuario_id) === Number(usuario.id) ? 'selected' : ''}>${escapeHTML(usuario.nome)}${usuario.setor_nome ? ' — ' + escapeHTML(usuario.setor_nome) : ''}</option>`).join('');
+    openModal(`👤 Atribuir funcionário — ${escapeHTML(ativo.patrimonio)}`, `<form class="form-grid col-1"><div class="form-group"><label>Funcionário responsável</label><select id="atribuir-usuario-ativo">${opcoes}</select></div><p class="text-secondary" style="margin:0;font-size:.8rem">Selecione “Sem responsável” para remover a atribuição atual.</p></form>`, [
+        { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-atribuir-ativo', onClick:closeModal },
+        { text:'💾 Salvar atribuição', cls:'btn-primary', id:'btn-salvar-atribuir-ativo', onClick:async()=>{
+        const usuarioId = document.getElementById('atribuir-usuario-ativo').value;
+        try { const r = await api(`/api/ativos/${bemId}/atribuir`, { method:'PUT', body:{ usuario_id: usuarioId ? Number(usuarioId) : null } }); showToast(r.mensagem, 'success'); closeModal(); carregarAtivos(); } catch (err) { showToast(err.message, 'error'); }
+        }}
+    ]);
+    } catch (err) { showToast(err.message, 'error'); }
+}
+
+// --- LOCAIS FÍSICOS ---
+function opcoesTipoLocal(tipoAtual = 'sala_aula') {
+    return Object.entries(TIPOS_LOCAIS_LABEL).map(([valor, rotulo]) => `<option value="${valor}" ${valor === tipoAtual ? 'selected' : ''}>${escapeHTML(rotulo)}</option>`).join('');
+}
+
+function renderizarLocaisAdministracao() {
+    const destino = document.getElementById('tabela-locais-inventario');
+    if (!destino) return;
+    if (!locaisInventario.length) {
+    destino.innerHTML = '<tr><td colspan="5"><div class="empty-state"><h3>Nenhum local físico cadastrado</h3><p>Cadastre a primeira sala, laboratório ou ambiente da unidade.</p></div></td></tr>';
+    return;
+    }
+    destino.innerHTML = locaisInventario.map(local => `<tr class="${local.ativo ? '' : 'inventario-local-inativo'}">
+    <td><span class="inventario-local-celula"><iconify-icon icon="${iconeTipoLocal(local.tipo)}" width="17" height="17"></iconify-icon><span><strong>${escapeHTML(local.nome)}</strong><small>Unidade atual</small></span></span></td>
+    <td><span class="inventario-local-tipo">${escapeHTML(rotuloTipoLocal(local.tipo))}</span></td>
+    <td><strong>${local.total_bens || 0}</strong> <span class="text-secondary">${Number(local.total_bens) === 1 ? 'bem' : 'bens'}</span></td>
+    <td><span class="badge ${local.ativo ? 'badge-sucesso' : 'badge-erro'}">${local.ativo ? 'Ativo' : 'Inativo'}</span></td>
+    <td class="inventario-local-acoes"><button class="btn btn-outline btn-sm" onclick="abrirModalEditarLocal(${local.id})" title="Editar"><iconify-icon icon="mdi:pencil-outline" width="15" height="15"></iconify-icon></button><button class="btn btn-sm ${local.ativo ? 'btn-outline' : 'btn-primary'}" onclick="alterarStatusLocal(${local.id}, ${!local.ativo})" title="${local.ativo ? 'Inativar' : 'Ativar'}"><iconify-icon icon="${local.ativo ? 'mdi:pause-circle-outline' : 'mdi:play-circle-outline'}" width="15" height="15"></iconify-icon></button></td>
+    </tr>`).join('');
+}
+
+async function carregarLocaisAdministracao() {
+    const destino = document.getElementById('tabela-locais-inventario');
+    if (destino) destino.innerHTML = '<tr><td colspan="5" class="text-center text-secondary">Carregando...</td></tr>';
+    try {
+    locaisInventario = await api('/api/locais?incluir_inativos=1');
+    renderizarLocaisAdministracao();
+    } catch (err) {
+    if (destino) destino.innerHTML = `<tr><td colspan="5" class="text-center text-secondary">${escapeHTML(err.message || 'Não foi possível carregar os locais.')}</td></tr>`;
+    }
+}
+
+function abrirModalNovoLocal() {
+    openModal('📍 Novo local físico', `<form class="form-grid col-1"><div class="inventario-local-form-intro"><iconify-icon icon="mdi:map-marker-plus-outline" width="24" height="24"></iconify-icon><div><strong>Identifique o ambiente</strong><p>Use nomes claros, como “Sala 04 — Bloco B” ou “Laboratório de Informática”.</p></div></div><div class="form-group"><label>Nome do local *</label><input id="novo-local-nome" maxlength="100" placeholder="Ex: Laboratório 02" required></div><div class="form-group"><label>Tipo *</label><select id="novo-local-tipo">${opcoesTipoLocal()}</select></div></form>`, [
+    { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-local', onClick:closeModal },
+    { text:'💾 Cadastrar local', cls:'btn-primary', id:'btn-salvar-local', onClick:async()=>{
+        const nome = document.getElementById('novo-local-nome').value.trim();
+        const tipo = document.getElementById('novo-local-tipo').value;
+        if (!nome) { showToast('Informe o nome do local.', 'error'); return; }
+        try { const r = await api('/api/locais', { method:'POST', body:{ nome, tipo } }); showToast(r.mensagem, 'success'); closeModal(); carregarLocaisAdministracao(); carregarFiltroLocais(); } catch (err) { showToast(err.message, 'error'); }
+    }}
+    ]);
+}
+
+function abrirModalEditarLocal(id) {
+    const local = locaisInventario.find(item => Number(item.id) === Number(id));
+    if (!local) return;
+    openModal('✏️ Editar local físico', `<form class="form-grid col-1"><div class="form-group"><label>Nome do local *</label><input id="editar-local-nome" maxlength="100" value="${escapeHTML(local.nome)}" required></div><div class="form-group"><label>Tipo *</label><select id="editar-local-tipo">${opcoesTipoLocal(local.tipo)}</select></div><p class="text-secondary inventario-local-vinculos"><iconify-icon icon="mdi:package-variant-closed" width="16" height="16"></iconify-icon> ${local.total_bens || 0} ${Number(local.total_bens) === 1 ? 'bem vinculado' : 'bens vinculados'} a este local.</p></form>`, [
+    { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-editar-local', onClick:closeModal },
+    { text:'💾 Salvar', cls:'btn-primary', id:'btn-salvar-editar-local', onClick:async()=>{
+        const nome = document.getElementById('editar-local-nome').value.trim();
+        const tipo = document.getElementById('editar-local-tipo').value;
+        if (!nome) { showToast('Informe o nome do local.', 'error'); return; }
+        try { const r = await api(`/api/locais/${id}`, { method:'PUT', body:{ nome, tipo, ativo: local.ativo } }); showToast(r.mensagem, 'success'); closeModal(); carregarLocaisAdministracao(); carregarFiltroLocais(); carregarAtivos(); } catch (err) { showToast(err.message, 'error'); }
+    }}
+    ]);
+}
+
+function alterarStatusLocal(id, ativo) {
+    const local = locaisInventario.find(item => Number(item.id) === Number(id));
+    if (!local) return;
+    const acao = ativo ? 'Ativar' : 'Inativar';
+    const aviso = !ativo && local.total_bens ? `<p class="text-secondary">Os ${local.total_bens} bens vinculados continuarão mostrando este local, mas ele não poderá ser escolhido em novos cadastros ou movimentações.</p>` : '<p class="text-secondary">O histórico e os vínculos existentes serão preservados.</p>';
+    openModal(`${acao} local físico`, `<p>${acao} <strong>${escapeHTML(local.nome)}</strong>?</p>${aviso}`, [
+    { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-status-local', onClick:closeModal },
+    { text:acao, cls:ativo ? 'btn-primary' : 'btn-danger', id:'btn-status-local', onClick:async()=>{
+        try { const r = await api(`/api/locais/${id}`, { method:'PUT', body:{ nome: local.nome, tipo: local.tipo, ativo } }); showToast(r.mensagem, 'success'); closeModal(); carregarLocaisAdministracao(); carregarFiltroLocais(); carregarAtivos(); } catch (err) { showToast(err.message, 'error'); }
+    }}
+    ]);
+}
+
+// --- MAPA DE REDE E ACESSOS ---
+function copiarValorRede(botao) {
+    const valor = botao?.dataset?.copy || '';
+    if (!valor) return;
+    navigator.clipboard.writeText(valor)
+    .then(() => showToast('Identificador copiado.', 'success'))
+    .catch(() => showToast('Não foi possível copiar o identificador.', 'error'));
+}
+
+function renderizarMapaRede() {
+    const destino = document.getElementById('tabela-mapa-rede');
+    if (!destino) return;
+    const busca = document.getElementById('rede-busca')?.value.trim().toLocaleLowerCase('pt-BR') || '';
+    const localId = document.getElementById('rede-filtro-local')?.value || '';
+    const status = document.getElementById('rede-filtro-status')?.value || '';
+    const itens = (mapaRedeInventario.itens || []).filter(item => {
+    const texto = [item.patrimonio, item.tipo, item.fabricante, item.modelo, item.local_nome, item.ip_endereco, item.usuario_nome].filter(Boolean).join(' ').toLocaleLowerCase('pt-BR');
+    return (!busca || texto.includes(busca)) && (!localId || String(item.local_id || '') === localId) && (!status || item.status === status);
+    });
+    if (!itens.length) {
+    destino.innerHTML = '<tr><td colspan="7"><div class="empty-state"><h3>Nenhum bem encontrado</h3><p>Ajuste os filtros ou cadastre o IP no bem patrimonial.</p></div></td></tr>';
+    return;
+    }
+    const acesso = valor => mapaRedeInventario.pode_ver_acesso_remoto
+    ? (valor ? `<button type="button" class="rede-copiar-acesso" data-copy="${escapeHTML(valor)}" onclick="copiarValorRede(this)" title="Copiar identificador"><span>${escapeHTML(valor)}</span><iconify-icon icon="mdi:content-copy" width="14" height="14"></iconify-icon></button>` : '<span class="text-secondary">—</span>')
+    : '<span class="rede-acesso-restrito"><iconify-icon icon="mdi:lock-outline" width="14" height="14"></iconify-icon> Restrito</span>';
+    destino.innerHTML = itens.map(item => {
+    const ip = item.ip_endereco
+        ? `<span class="rede-ip ${item.ip_duplicado ? 'duplicado' : 'configurado'}"><iconify-icon icon="${item.ip_duplicado ? 'mdi:alert-circle-outline' : 'mdi:check-network-outline'}" width="15" height="15"></iconify-icon>${escapeHTML(item.ip_endereco)}</span>`
+        : '<span class="rede-ip ausente">Não informado</span>';
+    return `<tr class="${item.ip_duplicado ? 'rede-linha-conflito' : ''}">
+        <td><div class="rede-bem"><span class="rede-bem-icone"><iconify-icon icon="${iconeAtivo(item.tipo)}" width="18" height="18"></iconify-icon></span><div><strong>${escapeHTML(item.patrimonio)}</strong><small>${escapeHTML([item.fabricante, item.modelo].filter(Boolean).join(' · ') || item.tipo || 'Aparelho')}</small></div></div></td>
+        <td>${item.local_nome ? `<span class="chamado-local-badge"><iconify-icon icon="${iconeTipoLocal(item.local_tipo)}" width="14" height="14"></iconify-icon>${escapeHTML(item.local_nome)}</span>` : '<span class="text-secondary">Sem local</span>'}</td>
+        <td>${ip}</td>
+        <td><span class="badge ${item.status === 'Ativo' ? 'badge-sucesso' : item.status === 'Em manutenção' ? 'badge-andamento' : 'badge-erro'}">${escapeHTML(item.status || 'Ativo')}</span></td>
+        <td>${acesso(item.anydesk_id)}</td><td>${acesso(item.teamviewer_id)}</td>
+        <td>${escapeHTML(item.usuario_nome || 'Sem responsável')}</td>
+    </tr>`;
+    }).join('');
+}
+
+async function carregarMapaRede() {
+    const destino = document.getElementById('tabela-mapa-rede');
+    if (destino) destino.innerHTML = '<tr><td colspan="7" class="text-center text-secondary">Carregando mapa de rede...</td></tr>';
+    try {
+    mapaRedeInventario = await api('/api/ativos/mapa-rede');
+    const resumo = mapaRedeInventario.resumo || {};
+    document.getElementById('rede-total').textContent = resumo.total || 0;
+    document.getElementById('rede-com-ip').textContent = resumo.com_ip || 0;
+    document.getElementById('rede-sem-ip').textContent = resumo.sem_ip || 0;
+    document.getElementById('rede-conflitos').textContent = resumo.conflitos_ip || 0;
+    const filtroLocal = document.getElementById('rede-filtro-local');
+    const valorAtual = filtroLocal.value;
+    const locais = [...new Map((mapaRedeInventario.itens || []).filter(item => item.local_id).map(item => [String(item.local_id), item.local_nome])).entries()]
+        .sort((a, b) => a[1].localeCompare(b[1], 'pt-BR'));
+    filtroLocal.innerHTML = '<option value="">Todos os locais</option>' + locais.map(([id, nome]) => `<option value="${id}">${escapeHTML(nome)}</option>`).join('');
+    if (locais.some(([id]) => id === valorAtual)) filtroLocal.value = valorAtual;
+    renderizarMapaRede();
+    } catch (err) {
+    if (destino) destino.innerHTML = `<tr><td colspan="7" class="text-center text-secondary">${escapeHTML(err.message || 'Não foi possível carregar o mapa de rede.')}</td></tr>`;
+    }
+}
+
+// --- CHECKLISTS DE LABORATÓRIO ---
+function rotuloTurnoChecklist(turno) {
+    return ({ manha:'Manhã', tarde:'Tarde', noite:'Noite', integral:'Integral' })[turno] || turno || '—';
+}
+
+function rotuloSituacaoChecklist(situacao) {
+    return ({ ok:'Em ordem', problema:'Com problema', ausente:'Ausente' })[situacao] || situacao || '—';
+}
+
+function classeSituacaoChecklist(situacao) {
+    return situacao === 'ok' ? 'ok' : situacao === 'ausente' ? 'ausente' : 'problema';
+}
+
+function formatarDataHoraChecklist(valor) {
+    if (!valor) return '—';
+    const data = new Date(valor);
+    return Number.isNaN(data.getTime()) ? escapeHTML(String(valor)) : data.toLocaleString('pt-BR', { dateStyle:'short', timeStyle:'short' });
+}
+
+async function carregarBaseChecklists() {
+    const destino = document.getElementById('tabela-checklists');
+    if (destino) destino.innerHTML = '<tr><td colspan="6" class="text-center text-secondary">Carregando checklists...</td></tr>';
+    try {
+    const dados = await api('/api/checklists-laboratorio/preparacao');
+    laboratoriosChecklist = dados.laboratorios || [];
+    const filtro = document.getElementById('checklist-filtro-local');
+    const valorAtual = filtro.value;
+    filtro.innerHTML = '<option value="">Todos os laboratórios</option>' + laboratoriosChecklist.map(local => `<option value="${local.id}">${escapeHTML(local.nome)}</option>`).join('');
+    if (laboratoriosChecklist.some(local => String(local.id) === valorAtual)) filtro.value = valorAtual;
+    const botao = document.getElementById('btn-novo-checklist');
+    if (botao) {
+        botao.disabled = !laboratoriosChecklist.length;
+        botao.title = laboratoriosChecklist.length ? 'Iniciar nova conferência' : 'Cadastre um local do tipo Laboratório';
+    }
+    await carregarHistoricoChecklists();
+    } catch (err) {
+    if (destino) destino.innerHTML = `<tr><td colspan="6" class="text-center text-secondary">${escapeHTML(err.message || 'Não foi possível carregar os checklists.')}</td></tr>`;
+    }
+}
+
+async function carregarHistoricoChecklists() {
+    const destino = document.getElementById('tabela-checklists');
+    if (!destino) return;
+    destino.innerHTML = '<tr><td colspan="6" class="text-center text-secondary">Carregando histórico...</td></tr>';
+    try {
+    const localId = document.getElementById('checklist-filtro-local')?.value;
+    const historico = await api(`/api/checklists-laboratorio?limite=50${localId ? `&local_id=${encodeURIComponent(localId)}` : ''}`);
+    if (!historico.length) {
+        destino.innerHTML = `<tr><td colspan="6"><div class="empty-state"><h3>Nenhuma conferência registrada</h3><p>${laboratoriosChecklist.length ? 'Inicie o primeiro checklist deste laboratório.' : 'Cadastre um local do tipo Laboratório para começar.'}</p></div></td></tr>`;
+        return;
+    }
+    destino.innerHTML = historico.map(item => {
+        const pendencias = Number(item.total_problemas || 0) + Number(item.total_ausentes || 0);
+        return `<tr>
+        <td>${formatarDataHoraChecklist(item.criado_em)}</td>
+        <td><span class="chamado-local-badge"><iconify-icon icon="mdi:flask-outline" width="14" height="14"></iconify-icon>${escapeHTML(item.local_nome_snapshot)}</span></td>
+        <td>${escapeHTML(rotuloTurnoChecklist(item.turno))}</td>
+        <td>${escapeHTML(item.realizado_por_nome || 'Usuário removido')}</td>
+        <td><span class="checklist-resultado ${pendencias ? 'pendencias' : 'aprovado'}"><iconify-icon icon="${pendencias ? 'mdi:alert-circle-outline' : 'mdi:check-circle-outline'}" width="15" height="15"></iconify-icon>${pendencias ? `${pendencias} pendência${pendencias === 1 ? '' : 's'}` : 'Tudo em ordem'}</span></td>
+        <td><button class="btn btn-outline btn-sm" onclick="abrirDetalhesChecklist(${item.id})"><iconify-icon icon="mdi:eye-outline" width="15" height="15"></iconify-icon> Ver</button></td>
+        </tr>`;
+    }).join('');
+    } catch (err) {
+    destino.innerHTML = `<tr><td colspan="6" class="text-center text-secondary">${escapeHTML(err.message || 'Não foi possível carregar o histórico.')}</td></tr>`;
+    }
+}
+
+function renderizarItensChecklistModal() {
+    const destino = document.getElementById('checklist-itens-modal');
+    if (!destino) return;
+    if (!itensChecklistAtual.length) {
+    destino.innerHTML = '<div class="empty-state"><h3>Nenhum item ativo neste laboratório</h3><p>A conferência ainda incluirá internet e periféricos compartilhados.</p></div>';
+    return;
+    }
+    destino.innerHTML = itensChecklistAtual.map((item, indice) => `<article class="checklist-item" data-checklist-index="${indice}">
+    <div class="checklist-item-identificacao"><span><iconify-icon icon="${item.tipo === 'bem' ? 'mdi:desktop-tower-monitor' : item.tipo === 'internet' ? 'mdi:wifi' : 'mdi:keyboard-outline'}" width="19" height="19"></iconify-icon></span><div><strong>${escapeHTML(item.nome)}</strong><small>${item.tipo === 'bem' ? 'Bem patrimonial' : 'Item operacional'}</small></div></div>
+    <select class="checklist-item-situacao" aria-label="Situação de ${escapeHTML(item.nome)}"><option value="">Selecione a situação...</option><option value="ok">Em ordem</option><option value="problema">Com problema</option><option value="ausente">Ausente</option></select>
+    <input class="checklist-item-observacao" maxlength="500" placeholder="Observação opcional">
+    </article>`).join('');
+}
+
+async function carregarItensChecklistModal(localId) {
+    const destino = document.getElementById('checklist-itens-modal');
+    if (destino) destino.innerHTML = '<div class="text-center text-secondary">Carregando itens do laboratório...</div>';
+    try {
+    const dados = await api(`/api/checklists-laboratorio/preparacao?local_id=${encodeURIComponent(localId)}`);
+    itensChecklistAtual = dados.itens || [];
+    const total = document.getElementById('checklist-total-itens');
+    if (total) total.textContent = `${itensChecklistAtual.length} ${itensChecklistAtual.length === 1 ? 'item' : 'itens'} para conferir`;
+    renderizarItensChecklistModal();
+    } catch (err) {
+    itensChecklistAtual = [];
+    if (destino) destino.innerHTML = `<div class="text-center text-secondary">${escapeHTML(err.message || 'Não foi possível carregar os itens.')}</div>`;
+    }
+}
+
+async function abrirNovoChecklist() {
+    if (!laboratoriosChecklist.length) {
+    showToast('Cadastre um local ativo do tipo Laboratório antes de iniciar a conferência.', 'error');
+    return;
+    }
+    const hora = new Date().getHours();
+    const turnoPadrao = hora < 12 ? 'manha' : hora < 18 ? 'tarde' : 'noite';
+    const locais = laboratoriosChecklist.map(local => `<option value="${local.id}">${escapeHTML(local.nome)} · ${Number(local.total_bens || 0)} bens</option>`).join('');
+    openModal('✅ Nova conferência de laboratório', `<form class="checklist-form"><div class="checklist-form-topo"><div class="form-group"><label>Laboratório *</label><select id="checklist-local">${locais}</select></div><div class="form-group"><label>Turno *</label><select id="checklist-turno"><option value="manha" ${turnoPadrao === 'manha' ? 'selected' : ''}>Manhã</option><option value="tarde" ${turnoPadrao === 'tarde' ? 'selected' : ''}>Tarde</option><option value="noite" ${turnoPadrao === 'noite' ? 'selected' : ''}>Noite</option><option value="integral">Integral</option></select></div></div><div class="checklist-form-cabecalho"><div><strong>Itens da conferência</strong><p>Informe a situação de todos os itens para concluir.</p></div><span id="checklist-total-itens">Carregando...</span></div><div id="checklist-itens-modal" class="checklist-itens"></div><div class="form-group"><label>Observações gerais</label><textarea id="checklist-observacoes" rows="3" maxlength="2000" placeholder="Registre orientações ou detalhes gerais da conferência"></textarea></div></form>`, [
+    { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-checklist', onClick:closeModal },
+    { text:'✅ Concluir checklist', cls:'btn-primary', id:'btn-salvar-checklist', onClick:salvarChecklist }
+    ], 'modal-checklist-laboratorio');
+    const seletor = document.getElementById('checklist-local');
+    seletor.addEventListener('change', () => carregarItensChecklistModal(seletor.value));
+    carregarItensChecklistModal(seletor.value);
+}
+
+async function salvarChecklist() {
+    const localId = Number(document.getElementById('checklist-local')?.value);
+    const linhas = [...document.querySelectorAll('[data-checklist-index]')];
+    const itens = linhas.map(linha => {
+    const item = itensChecklistAtual[Number(linha.dataset.checklistIndex)];
+    return { tipo:item.tipo, chave:item.chave, bem_id:item.bem_id || null, situacao:linha.querySelector('.checklist-item-situacao').value, observacao:linha.querySelector('.checklist-item-observacao').value.trim() };
+    });
+    if (!itens.length || itens.some(item => !item.situacao)) {
+    showToast('Informe a situação de todos os itens da conferência.', 'error');
+    document.querySelector('.checklist-item-situacao:invalid, .checklist-item-situacao option[value=""]:checked')?.closest('select')?.focus();
+    return;
+    }
+    try {
+    const resposta = await api('/api/checklists-laboratorio', { method:'POST', body:{ local_id:localId, turno:document.getElementById('checklist-turno').value, observacoes:document.getElementById('checklist-observacoes').value.trim(), itens } });
+    showToast(resposta.mensagem, resposta.problemas ? 'warning' : 'success');
+    closeModal();
+    carregarBaseChecklists();
+    } catch (err) { showToast(err.message, 'error'); }
+}
+
+async function abrirDetalhesChecklist(id) {
+    try {
+    const item = await api(`/api/checklists-laboratorio/${id}`);
+    const itens = (item.itens || []).map(linha => `<article class="checklist-detalhe-item ${classeSituacaoChecklist(linha.situacao)}"><div><strong>${escapeHTML(linha.nome_snapshot)}</strong><small>${linha.tipo === 'bem' ? 'Bem patrimonial' : 'Item operacional'}</small></div><span>${escapeHTML(rotuloSituacaoChecklist(linha.situacao))}</span>${linha.observacao ? `<p>${escapeHTML(linha.observacao)}</p>` : ''}</article>`).join('');
+    openModal('📋 Resultado da conferência', `<section class="checklist-detalhe-resumo"><div><span>Laboratório</span><strong>${escapeHTML(item.local_nome_snapshot)}</strong></div><div><span>Data e hora</span><strong>${formatarDataHoraChecklist(item.criado_em)}</strong></div><div><span>Turno</span><strong>${escapeHTML(rotuloTurnoChecklist(item.turno))}</strong></div><div><span>Responsável</span><strong>${escapeHTML(item.realizado_por_nome || 'Usuário removido')}</strong></div></section><div class="checklist-detalhe-lista">${itens}</div>${item.observacoes ? `<section class="checklist-detalhe-observacoes"><strong>Observações gerais</strong><p>${escapeHTML(item.observacoes)}</p></section>` : ''}`, [
+        { text:'Fechar', cls:'btn-primary', id:'btn-fechar-detalhe-checklist', onClick:closeModal }
+    ], 'modal-checklist-laboratorio');
+    } catch (err) { showToast(err.message, 'error'); }
+}
+
+// --- MANUTENÇÕES ---
+let categoriasServicoManutencao = [];
+
+function renderizarGerenciamentoServicos(categorias) {
+    const destino = document.getElementById('tabela-servicos-manutencao');
+    if (!destino) return;
+    if (!categorias.length) {
+    destino.innerHTML = '<tr><td colspan="3"><div class="empty-state"><h3>Nenhuma categoria cadastrada</h3></div></td></tr>';
+    return;
+    }
+    destino.innerHTML = categorias.map(categoria => `
+    <tr>
+        <td><strong>${escapeHTML(categoria.nome)}</strong></td>
+        <td><span class="text-secondary">${categoria.servicos_count || 0} serviço(s)</span></td>
+        <td style="white-space:nowrap"><button class="btn btn-outline btn-sm" onclick="editarCategoriaServico(${categoria.id})" style="padding:4px 8px;font-size:.7rem" title="Editar"><iconify-icon icon="mdi:pencil" width="14" height="14"></iconify-icon></button> <button class="btn btn-danger btn-sm" onclick="excluirCategoriaServico(${categoria.id})" style="padding:4px 8px;font-size:.7rem" title="Excluir"><iconify-icon icon="mdi:delete" width="14" height="14"></iconify-icon></button></td>
+    </tr>
+    `).join('');
+}
+
+async function atualizarGerenciamentoServicos() {
+    const destino = document.getElementById('tabela-servicos-manutencao');
+    if (destino) destino.innerHTML = '<tr><td colspan="3" class="text-center text-secondary">Carregando...</td></tr>';
+    try {
+    categoriasServicoManutencao = await api('/api/manutencoes/categorias-servico');
+    renderizarGerenciamentoServicos(categoriasServicoManutencao);
+    } catch (err) {
+    if (destino) destino.innerHTML = `<tr><td colspan="3" class="text-center text-secondary">${escapeHTML(err.message || 'Não foi possível carregar o catálogo.')}</td></tr>`;
+    }
+}
+
+function ativarTabInventario(tab) {
+    document.querySelectorAll('[data-inventario-tab]').forEach(botao => botao.classList.toggle('active', botao.dataset.inventarioTab === tab));
+    const abaBens = document.getElementById('inventario-tab-bens');
+    const abaServicos = document.getElementById('inventario-tab-servicos');
+    const abaLocais = document.getElementById('inventario-tab-locais');
+    const abaRede = document.getElementById('inventario-tab-rede');
+    const abaChecklists = document.getElementById('inventario-tab-checklists');
+    document.getElementById('painel-indicadores-manutencao').style.display = tab === 'bens' ? '' : 'none';
+    document.getElementById('painel-agendamentos-manutencao').style.display = tab === 'bens' ? '' : 'none';
+    abaBens.classList.toggle('active', tab === 'bens');
+    abaServicos.classList.toggle('active', tab === 'servicos');
+    abaLocais.classList.toggle('active', tab === 'locais');
+    abaRede.classList.toggle('active', tab === 'rede');
+    abaChecklists.classList.toggle('active', tab === 'checklists');
+    abaBens.style.display = tab === 'bens' ? 'block' : 'none';
+    abaServicos.style.display = tab === 'servicos' ? 'block' : 'none';
+    abaLocais.style.display = tab === 'locais' ? 'block' : 'none';
+    abaRede.style.display = tab === 'rede' ? 'block' : 'none';
+    abaChecklists.style.display = tab === 'checklists' ? 'block' : 'none';
+    if (tab === 'servicos') atualizarGerenciamentoServicos();
+    if (tab === 'locais') carregarLocaisAdministracao();
+    if (tab === 'rede') carregarMapaRede();
+    if (tab === 'checklists') carregarBaseChecklists();
+}
+
+function obterCategoriaServico(id) { return categoriasServicoManutencao.find(categoria => categoria.id === id); }
+
+function abrirModalNovaCategoriaServico() {
+    openModal('📂 Nova categoria de serviço', '<form class="form-grid col-1"><div class="form-group"><label>Nome</label><input id="nova-categoria-servico" placeholder="Ex: Rede e acesso" required></div></form>', [
+    { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-cat-servico', onClick:closeModal },
+    { text:'💾 Salvar', cls:'btn-primary', id:'btn-salvar-cat-servico', onClick:async()=>{
+        const nome = document.getElementById('nova-categoria-servico').value.trim();
+        if (!nome) { showToast('Informe o nome da categoria.', 'error'); return; }
+        try { const r = await api('/api/manutencoes/categorias-servico', { method:'POST', body:{ nome } }); showToast(r.mensagem, 'success'); closeModal(); atualizarGerenciamentoServicos(); } catch (err) { showToast(err.message, 'error'); }
+    }}
+    ]);
+}
+
+function editarCategoriaServico(id) {
+    const categoria = obterCategoriaServico(id); if (!categoria) return;
+    openModal('✏️ Editar categoria de serviço', `<form class="form-grid col-1"><div class="form-group"><label>Nome</label><input id="editar-categoria-servico" value="${escapeHTML(categoria.nome)}" required></div></form>`, [
+    { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-editar-cat-servico', onClick:closeModal },
+    { text:'💾 Salvar', cls:'btn-primary', id:'btn-salvar-editar-cat-servico', onClick:async()=>{
+        const nome = document.getElementById('editar-categoria-servico').value.trim();
+        if (!nome) { showToast('Informe o nome da categoria.', 'error'); return; }
+        try { const r = await api(`/api/manutencoes/categorias-servico/${id}`, { method:'PUT', body:{ nome } }); showToast(r.mensagem, 'success'); closeModal(); atualizarGerenciamentoServicos(); } catch (err) { showToast(err.message, 'error'); }
+    }}
+    ]);
+}
+
+function excluirCategoriaServico(id) {
+    const categoria = obterCategoriaServico(id); if (!categoria) return;
+    openModal('🗑️ Excluir categoria', `<p>Excluir <strong>${escapeHTML(categoria.nome)}</strong>?</p>`, [
+    { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-excluir-cat-servico', onClick:closeModal },
+    { text:'🗑️ Excluir', cls:'btn-danger', id:'btn-excluir-cat-servico', onClick:async()=>{
+        try { const r = await api(`/api/manutencoes/categorias-servico/${id}`, { method:'DELETE' }); showToast(r.mensagem, 'success'); closeModal(); atualizarGerenciamentoServicos(); } catch (err) { showToast(err.message, 'error'); }
+    }}
+    ]);
+}
+
+function rotuloServicoManutencao(manutencao) {
+    const nome = manutencao.nome_servico || manutencao.tipo || 'Não classificado';
+    return manutencao.categoria_servico_nome ? `${manutencao.categoria_servico_nome} · ${nome}` : nome;
+}
+
+async function abrirModalNovaManutencao(bemId) {
+    let categorias;
+    try {
+    categorias = await api('/api/manutencoes/categorias-servico');
+    } catch (err) {
+    showToast(err.message, 'error');
+    return;
+    }
+    const opcoesCategoria = categorias.map(c => `<option value="${c.id}">${escapeHTML(c.nome)}</option>`).join('');
+    openModal('🔧 Agendar Manutenção', `<form id="fmn" class="form-grid col-1"><div class="form-group"><label>Natureza</label><select id="mn-tipo"><option value="preventiva">Preventiva</option><option value="corretiva">Corretiva</option></select></div><div class="form-group"><label>Categoria</label><select id="mn-categoria"><option value="">Sem categoria</option>${opcoesCategoria}</select></div><div class="form-group"><label>Nome do serviço *</label><input id="mn-servico" placeholder="Ex: Troca de SSD, Limpeza interna" required></div><div class="form-group"><label>Descrição do serviço *</label><textarea id="mn-desc" rows="2" placeholder="Descreva o que será feito, peças ou observações"></textarea></div><div class="form-group"><label>Data Prevista</label><input type="date" id="mn-data"></div></form>`, [
+    {text:'Cancelar',cls:'btn-outline',id:'btn-cancelar-mn',onClick:closeModal},
+    {text:'💾 Agendar',cls:'btn-primary',id:'btn-salvar-mn',onClick:async()=>{
+        const servico = document.getElementById('mn-servico').value.trim();
+        const desc = document.getElementById('mn-desc').value.trim();
+        if (!servico) { showToast('Nome do serviço é obrigatório.', 'error'); return; }
+        if (!desc) { showToast('Descrição é obrigatória.', 'error'); return; }
+        try { const r = await api(`/api/ativos/${bemId}/manutencoes`, { method:'POST', body:{
+        tipo: document.getElementById('mn-tipo').value,
+        categoria_servico_id: Number(document.getElementById('mn-categoria').value) || null,
+        nome_servico: servico, descricao: desc,
+        data_prevista: document.getElementById('mn-data').value || null
+        }}); showToast(r.mensagem, 'success'); closeModal(); carregarAtivos(); } catch(err) { showToast(err.message, 'error'); }
+    }}
+    ]);
+}
+
+// --- DETALHES DO ATIVO (movimentações + manutenções) ---
+let detalheAtivoId = null;
+
+async function abrirDetalhesAtivo(id) {
+    detalheAtivoId = id;
+    const ativo = todosAtivos.find(x => x.id === id);
+    if (!ativo) return;
+    document.getElementById('modal-detalhes').style.display = 'flex';
+    document.getElementById('modal-detalhes-titulo').textContent = `${ativo.patrimonio} — ${ativo.tipo}`;
+    document.getElementById('modal-detalhes-corpo').innerHTML = `
+    <section class="ativo-resumo-detalhes">
+        ${getIlustracaoAtivo(ativo.tipo, 'ativo-ilustracao-detalhes')}
+        <div class="ativo-resumo-info">
+        <span class="ativo-resumo-label">Bem patrimonial</span>
+        <strong>${ativo.patrimonio}</strong>
+        <div><span class="badge badge-perfil-gestor">${ativo.tipo || 'aparelho'}</span> <span class="badge ${ativo.status === 'Em manutenção' ? 'badge-andamento' : ativo.status === 'Desativado' || ativo.status === 'Baixado' ? 'badge-erro' : 'badge-sucesso'}">${ativo.status || 'Ativo'}</span></div>
+        <small class="ativo-resumo-local"><iconify-icon icon="${iconeTipoLocal(ativo.local_tipo)}" width="15" height="15"></iconify-icon> ${escapeHTML(ativo.local_nome || 'Sem local')}</small>
+        <small class="ativo-resumo-local"><iconify-icon icon="mdi:ip-network-outline" width="15" height="15"></iconify-icon> IP: ${escapeHTML(ativo.ip_endereco || 'Não informado')}</small>
+        </div>
+    </section>
+    <div class="tabs" style="margin-bottom:12px">
+        <button class="tab-btn active" onclick="mudarSubTabDetalhes(this,'mov')">📦 Movimentações</button>
+        <button class="tab-btn" onclick="mudarSubTabDetalhes(this,'manu')">🔧 Manutenções</button>
+    </div>
+    <div id="sub-tab-mov"><div class="text-secondary text-center">Carregando...</div></div>
+    <div id="sub-tab-manu" style="display:none"><div class="text-secondary text-center">Carregando...</div></div>
+    `;
+    carregarMovimentacoes(id);
+    carregarManutencoes(id);
+}
+
+function mudarSubTabDetalhes(el, tabId) {
+    document.querySelectorAll('#modal-detalhes-corpo .tab-btn').forEach(b => b.classList.remove('active'));
+    el.classList.add('active');
+    document.getElementById('sub-tab-mov').style.display = tabId === 'mov' ? '' : 'none';
+    document.getElementById('sub-tab-manu').style.display = tabId === 'manu' ? '' : 'none';
+}
+
+async function carregarMovimentacoes(id) {
+    try {
+    const movs = await api(`/api/ativos/${id}/movimentacoes`);
+    const el = document.getElementById('sub-tab-mov');
+    if (!movs.length) { el.innerHTML = '<div class="empty-state"><h3>Nenhuma movimentação</h3></div>'; return; }
+    el.innerHTML = '<div style="max-height:300px;overflow-y:auto">' + movs.map(m => `
+        <div style="padding:8px 0;border-bottom:1px solid var(--color-border);font-size:0.85rem">
+        <strong>${escapeHTML(m.local_origem_nome||'Sem local')}</strong> → <strong>${escapeHTML(m.local_destino_nome||'Sem local')}</strong>
+        <div class="text-secondary">${m.responsavel_nome ? m.responsavel_nome+' — ' : ''}${formatarData(m.criado_em)}</div>
+        ${m.observacao ? '<div style="margin-top:4px">'+m.observacao+'</div>' : ''}
+        </div>
+    `).join('') + '</div>';
+    } catch(e) { document.getElementById('sub-tab-mov').innerHTML = '<div class="text-secondary">Erro ao carregar.</div>'; }
+}
+
+async function carregarManutencoes(id) {
+    try {
+    const manu = await api(`/api/ativos/${id}/manutencoes`);
+    const el = document.getElementById('sub-tab-manu');
+    if (!manu.length) { el.innerHTML = '<div class="empty-state"><h3>Nenhuma manutenção</h3></div>'; return; }
+    el.innerHTML = '<div style="max-height:300px;overflow-y:auto">' + manu.map(m => {
+        const servico = rotuloServicoManutencao(m);
+        return `<div style="padding:8px 0;border-bottom:1px solid var(--color-border);font-size:0.85rem">
+        <span class="badge ${m.status==='concluida'?'badge-sucesso':'badge-andamento'}">${m.tipo}</span>
+        ${servico ? `<span class="badge badge-perfil-usuario">${escapeHTML(servico)}</span>` : ''}
+        <strong>${m.descricao}</strong>
+        <div class="text-secondary">Prevista: ${m.data_prevista ? formatarData(m.data_prevista) : '—'} ${m.status==='concluida' ? '| Realizada: '+formatarData(m.data_realizada_em || m.data_realizada) : ''} ${m.custo ? '| Custo: R$ '+parseFloat(m.custo).toFixed(2) : ''}</div>
+        ${m.status !== 'concluida' && temPermissao('ativos.manutencoes') ? `<button class="btn btn-sm btn-success" style="margin-top:4px;font-size:0.7rem" onclick="concluirManutencao(${m.id})">✅ Concluir</button>` : ''}
+        </div>`;
+    }).join('') + '</div>';
+    } catch(e) { document.getElementById('sub-tab-manu').innerHTML = '<div class="text-secondary">Erro ao carregar.</div>'; }
+}
+
+async function concluirManutencao(id) {
+    abrirConfirmacaoManutencao(id);
+}
+
+// Logout
+document.getElementById('sidebar-logout').addEventListener('click', function(e) {
+    e.preventDefault();
+    openModal('🚪 Sair do Sistema', '<p>Tem certeza que deseja sair?</p>', [
+    { text:'Cancelar', cls:'btn-outline', id:'btn-cancelar-logout', onClick: closeModal },
+    { text:'✅ Sair', cls:'btn-danger', id:'btn-confirmar-logout', onClick: () => AppState.logout() }
+    ]);
+});
+
+carregarFiltroLocais();
+carregarAtivos();

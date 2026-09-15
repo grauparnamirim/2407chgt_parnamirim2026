@@ -1,0 +1,482 @@
+.filter-bar-imp {
+    display: flex;
+    gap: 16px;
+    align-items: center;
+    flex-wrap: wrap;
+    margin-bottom: 20px;
+    background: var(--color-surface);
+    border-radius: var(--radius);
+    padding: 16px 20px;
+    border: 1px solid var(--color-border);
+    box-shadow: var(--shadow);
+}
+
+.filter-bar-imp label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.filter-bar-imp select {
+    padding: 8px 13px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
+    font-family: inherit;
+    background: #f9fafb;
+    min-width: 140px;
+}
+
+.filter-bar-imp select:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(67, 179, 7, 0.12);
+    background: white;
+}
+
+.param-grid {
+    display: grid;
+    grid-template-columns: 1fr 1fr;
+    gap: 16px;
+}
+
+.param-field {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+}
+
+.param-field label {
+    font-size: 0.82rem;
+    font-weight: 600;
+    color: var(--color-text);
+}
+
+.param-field input {
+    padding: 10px 13px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    font-size: 0.9rem;
+    font-family: inherit;
+    transition: border-color 0.15s, box-shadow 0.15s;
+    background: #f9fafb;
+}
+
+.param-field input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 3px rgba(67, 179, 7, 0.12);
+    background: white;
+}
+
+.mensalidade-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 12px;
+    margin-top: 16px;
+}
+
+.mensalidade-card {
+    background: var(--color-surface);
+    border-radius: var(--radius);
+    padding: 16px 18px;
+    border: 1px solid var(--color-border);
+    text-align: center;
+}
+
+.mensalidade-card .fc-value {
+    font-size: 1.6rem;
+    font-weight: 700;
+    color: var(--color-text);
+}
+
+.mensalidade-card .fc-label {
+    font-size: 0.75rem;
+    color: var(--color-text-secondary);
+    margin-top: 4px;
+}
+
+.mensalidade-card.destaque {
+    border-color: var(--color-primary);
+    background: #f0fae8;
+}
+
+html[data-theme="escuro"] .mensalidade-card.destaque {
+    background: #1a2e10;
+}
+
+.contagem-input {
+    width: 100px;
+    padding: 6px 8px;
+    border: 1px solid var(--color-border);
+    border-radius: 4px;
+    font-size: 0.85rem;
+    font-family: inherit;
+    text-align: center;
+    background: #f9fafb;
+    transition: border-color 0.15s;
+}
+
+.contagem-input:focus {
+    outline: none;
+    border-color: var(--color-primary);
+    box-shadow: 0 0 0 2px rgba(67, 179, 7, 0.12);
+    background: white;
+}
+
+.contagem-input.saved {
+    border-color: var(--color-primary);
+    background: #f0fae8;
+}
+
+.total-impressoes {
+    font-weight: 700;
+    color: var(--color-primary);
+}
+
+.total-impressoes.zero {
+    color: var(--color-text-secondary);
+}
+
+.tab-cadastro-hidden {
+    display: none !important;
+}
+
+.alert-verde .fc-value {
+    color: var(--color-primary) !important;
+}
+
+.alert-verde {
+    border-color: var(--color-primary);
+    background: #f0fae8;
+}
+
+html[data-theme="escuro"] .alert-verde {
+    background: #1a2e10;
+}
+
+.alert-laranja .fc-value {
+    color: #c27803 !important;
+}
+
+.alert-laranja {
+    border-color: #c27803;
+    background: #fff8e1;
+}
+
+html[data-theme="escuro"] .alert-laranja {
+    background: #2a2000;
+}
+
+.alert-vermelho .fc-value {
+    color: #c81e1e !important;
+}
+
+.alert-vermelho {
+    border-color: #c81e1e;
+    background: #fef2f2;
+}
+
+html[data-theme="escuro"] .alert-vermelho {
+    background: #2a0a0a;
+}
+
+tr.inativa {
+    opacity: 0.5;
+}
+
+tr.inativa td {
+    color: var(--color-text-secondary);
+}
+
+.badge-inativa {
+    background: #fee2e2;
+    color: #991b1b;
+    font-size: 0.7rem;
+    padding: 2px 8px;
+    border-radius: 9999px;
+    font-weight: 600;
+}
+
+html[data-theme="escuro"] .badge-inativa {
+    background: #3b1111;
+    color: #fca5a5;
+}
+
+.btn-toggle-status {
+    padding: 4px 8px;
+    font-size: 0.7rem;
+}
+
+.filter-bar-imp .btn-imprimir-relatorio {
+    margin-left: auto;
+}
+
+.controle-impressao-print-header {
+    display: none;
+}
+
+.impressao-opcao-financeira {
+    display: flex;
+    align-items: flex-start;
+    gap: 12px;
+    padding: 14px;
+    border: 1px solid var(--color-border);
+    border-radius: var(--radius-sm);
+    background: var(--color-bg);
+    cursor: pointer;
+}
+
+.impressao-opcao-financeira input {
+    margin-top: 3px;
+    accent-color: var(--color-primary);
+}
+
+.impressao-opcao-financeira>span {
+    display: grid;
+    gap: 3px;
+}
+
+.impressao-opcao-financeira strong {
+    color: var(--color-text);
+    font-size: .88rem;
+}
+
+.impressao-opcao-financeira small {
+    color: var(--color-text-secondary);
+    font-size: .75rem;
+    line-height: 1.45;
+}
+
+.impressao-opcao-aviso {
+    display: flex;
+    align-items: flex-start;
+    gap: 7px;
+    margin: 12px 0 0;
+    color: var(--color-text-secondary);
+    font-size: .72rem;
+    line-height: 1.45;
+}
+
+@media (max-width: 640px) {
+    .filter-bar-imp .btn-imprimir-relatorio {
+        width: 100%;
+        margin-left: 0;
+        justify-content: center;
+    }
+}
+
+@page {
+    size: A4 landscape;
+    margin: 10mm;
+}
+
+@media print {
+
+    html,
+    body {
+        width: auto !important;
+        min-width: 0 !important;
+        margin: 0 !important;
+        padding: 0 !important;
+        background: #fff !important;
+        color: #17210f !important;
+        font-size: 9pt !important;
+        print-color-adjust: exact;
+        -webkit-print-color-adjust: exact;
+    }
+
+    .sidebar,
+    .sidebar-toggle,
+    .top-header,
+    #tabs-container,
+    .filter-bar-imp,
+    #tab-cadastro,
+    #tab-parametros,
+    .modal-overlay,
+    .app-loading-overlay,
+    .toast {
+        display: none !important;
+    }
+
+    .main {
+        width: 100% !important;
+        margin: 0 !important;
+        padding: 0 !important;
+    }
+
+    #tab-mensal,
+    #mensal-content {
+        display: block !important;
+    }
+
+    .controle-impressao-print-header {
+        display: flex !important;
+        align-items: center;
+        justify-content: space-between;
+        gap: 16px;
+        margin: 0 0 7mm;
+        padding: 0 0 4mm;
+        border-bottom: 2px solid #43b307;
+    }
+
+    .controle-impressao-print-marca {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+    }
+
+    .controle-impressao-print-marca img {
+        width: 38px;
+        height: 38px;
+        border-radius: 7px;
+        object-fit: contain;
+    }
+
+    .controle-impressao-print-marca>div,
+    .controle-impressao-print-periodo {
+        display: grid;
+        gap: 2px;
+    }
+
+    .controle-impressao-print-header h1 {
+        margin: 0;
+        color: #17210f;
+        font-size: 15pt;
+        line-height: 1.1;
+    }
+
+    .controle-impressao-print-header p,
+    .controle-impressao-print-header span {
+        margin: 0;
+        color: #526047;
+        font-size: 8pt;
+    }
+
+    .controle-impressao-print-periodo {
+        text-align: right;
+    }
+
+    .controle-impressao-print-periodo strong {
+        color: #28780d;
+        font-size: 11pt;
+    }
+
+    .mensalidade-grid {
+        grid-template-columns: repeat(5, minmax(0, 1fr)) !important;
+        gap: 5px !important;
+        margin: 0 0 5mm !important;
+    }
+
+    body.impressao-incluir-mensalidade .mensalidade-grid {
+        grid-template-columns: repeat(6, minmax(0, 1fr)) !important;
+    }
+
+    body:not(.impressao-incluir-mensalidade) .mensalidade-card-mensalidade {
+        display: none !important;
+    }
+
+    .mensalidade-card {
+        min-width: 0 !important;
+        padding: 8px 6px !important;
+        border: 1px solid #cbd5c3 !important;
+        border-radius: 5px !important;
+        background: #fff !important;
+        box-shadow: none !important;
+        break-inside: avoid;
+    }
+
+    .mensalidade-card .fc-value {
+        color: #17210f !important;
+        font-size: 12pt !important;
+    }
+
+    .mensalidade-card .fc-label {
+        color: #526047 !important;
+        font-size: 6.8pt !important;
+    }
+
+    #mensal-content>.card {
+        margin: 0 !important;
+        border: 0 !important;
+        box-shadow: none !important;
+        background: #fff !important;
+    }
+
+    #mensal-content>.card .card-header {
+        min-height: 0 !important;
+        padding: 0 0 3mm !important;
+        border: 0 !important;
+        background: #fff !important;
+    }
+
+    #mensal-content>.card .card-header h2 {
+        color: #17210f !important;
+        font-size: 10pt !important;
+    }
+
+    #mensal-content .card-body {
+        padding: 0 !important;
+    }
+
+    #mensal-content .table-wrap {
+        overflow: visible !important;
+    }
+
+    #mensal-content table {
+        width: 100% !important;
+        border-collapse: collapse !important;
+        table-layout: fixed;
+        background: #fff !important;
+    }
+
+    #mensal-content thead {
+        display: table-header-group;
+    }
+
+    #mensal-content tr {
+        break-inside: avoid;
+    }
+
+    #mensal-content th,
+    #mensal-content td {
+        padding: 5px 4px !important;
+        border: 1px solid #cbd5c3 !important;
+        color: #17210f !important;
+        background: #fff !important;
+        font-size: 7pt !important;
+        line-height: 1.25;
+        word-break: break-word;
+    }
+
+    #mensal-content th {
+        background: #edf5e9 !important;
+        font-weight: 700;
+    }
+
+    #mensal-content .badge {
+        border: 0 !important;
+        color: #17210f !important;
+        background: transparent !important;
+        padding: 0 !important;
+    }
+
+    #mensal-content .contagem-input {
+        width: 100% !important;
+        min-width: 0 !important;
+        padding: 0 !important;
+        border: 0 !important;
+        color: #17210f !important;
+        background: transparent !important;
+        box-shadow: none !important;
+        font: inherit !important;
+    }
+
+    #mensal-content .total-impressoes {
+        color: #17210f !important;
+    }
+
+    iconify-icon {
+        display: none !important;
+    }
+}

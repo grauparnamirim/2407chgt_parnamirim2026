@@ -1,0 +1,595 @@
+// Scripts da página de notas fiscais 
+
+// Previne submit acidental ao pressionar Enter
+document.addEventListener('keydown', function(e) {
+    if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); }
+});
+
+// Verifica autenticação e permissões
+verificarAutenticacao();
+const u = AppState.usuario;
+if (!u) { window.location.href = '/'; }
+else if (!['admin','gestor','tecnico'].includes(u.perfil) && !temPermissao('notas_fiscais.ver')) {
+    window.location.href = u.perfil === 'usuario' ? '/meus-chamados' : '/';
+}
+const usuario = AppState.usuario;
+
+// Array auxiliar com nomes de meses
+const NOMES_MESES = ['', 'Janeiro','Fevereiro','Março','Abril','Maio','Junho','Julho','Agosto','Setembro','Outubro','Novembro','Dezembro'];
+
+// Configura a navegação da sidebar
+configurarSidebar([]);
+(function() {
+    const navEl = document.getElementById('sidebar-nav');
+    if (!navEl) return;
+    const perfil = AppState.usuario.perfil;
+    const isAdminOrGestor = ['admin','gestor','tecnico'].includes(perfil);
+    let html = '';
+
+    html += '<div class="nav-section">Principal</div>';
+    html += `<a href="painel"><span class="nav-icon"><iconify-icon icon="mdi:view-dashboard" width="20" height="20"></iconify-icon></span> Painel</a>`;
+    if (temAlgumaPermissao('chamados.ver_atribuidos', 'chamados.ver_todos_unidade', 'chamados.ver_proprios')) {
+    html += `<a href="painel"><span class="nav-icon"><iconify-icon icon="mdi:ticket-outline" width="20" height="20"></iconify-icon></span> Chamados</a>`;
+    }
+
+    const mostraCadastros = temAlgumaPermissao('setores.ver', 'categorias.ver', 'usuarios.ver', 'inventario.ver', 'ativos.ver');
+    if (mostraCadastros) {
+    html += '<div class="nav-section">Cadastros</div>';
+    if (temAlgumaPermissao('setores.ver')) {
+        html += `<a href="setores"><span class="nav-icon"><iconify-icon icon="mdi:domain" width="20" height="20"></iconify-icon></span> Setores</a>`;
+    }
+    if (temAlgumaPermissao('categorias.ver')) {
+        html += `<a href="categorias"><span class="nav-icon"><iconify-icon icon="mdi:shape-outline" width="20" height="20"></iconify-icon></span> Categorias</a>`;
+    }
+    if (temAlgumaPermissao('inventario.ver')) {
+        html += `<a href="inventario"><span class="nav-icon"><iconify-icon icon="mdi:desktop-tower-monitor" width="20" height="20"></iconify-icon></span> Inventário</a>`;
+    }
+    if (temAlgumaPermissao('usuarios.ver')) {
+        html += `<a href="usuarios"><span class="nav-icon"><iconify-icon icon="mdi:account-group" width="20" height="20"></iconify-icon></span> Usuários</a>`;
+    }
+    }
+
+    const mostraGestao = temAlgumaPermissao('relatorios.ver_dashboard', 'relatorios.ver_tempos', 'impressoras.ver', 'fornecedores.ver', 'projetores.ver', 'notas_fiscais.ver', 'dispositivos.ver') || isAdminOrGestor;
+    if (mostraGestao) {
+    html += '<div class="nav-section">Gestão</div>';
+    if (temAlgumaPermissao('relatorios.ver_dashboard', 'relatorios.ver_tempos')) {
+        html += `<a href="relatorios"><span class="nav-icon"><iconify-icon icon="mdi:chart-bar" width="20" height="20"></iconify-icon></span> Relatórios</a>`;
+    }
+    if (temAlgumaPermissao('impressoras.ver') || isAdminOrGestor) {
+        html += `<a href="impressoras"><span class="nav-icon"><iconify-icon icon="mdi:printer" width="20" height="20"></iconify-icon></span> Controle Impressões</a>`;
+    }
+    if (temAlgumaPermissao('fornecedores.ver') || isAdminOrGestor) {
+        html += `<a href="fornecedores"><span class="nav-icon"><iconify-icon icon="mdi:truck-delivery" width="20" height="20"></iconify-icon></span> Fornecedores</a>`;
+    }
+    if (temPermissao('dispositivos.ver')) {
+        html += `<a href="dispositivos"><span class="nav-icon"><iconify-icon icon="mdi:cellphone-link" width="20" height="20"></iconify-icon></span> Dispositivos</a>`;
+    }
+    if (temAlgumaPermissao('projetores.ver', 'inventario.ver', 'ativos.ver')) {
+        html += `<a href="projetores"><span class="nav-icon"><iconify-icon icon="mdi:projector" width="20" height="20"></iconify-icon></span> Controle Projetores</a>`;
+    }
+    }
+
+    const mostraFinanceiro = temAlgumaPermissao('financeiro.ver', 'financeiro.criar', 'financeiro.aprovar') || isAdminOrGestor;
+    if (mostraFinanceiro) {
+    html += '<div class="nav-section">Financeiro</div>';
+    html += `<a href="financeiro"><span class="nav-icon"><iconify-icon icon="mdi:currency-usd" width="20" height="20"></iconify-icon></span> Financeiro</a>`;
+    if (temAlgumaPermissao('notas_fiscais.ver') || isAdminOrGestor) {
+        html += `<a href="notas-fiscais" class="active"><span class="nav-icon"><iconify-icon icon="mdi:file-document" width="20" height="20"></iconify-icon></span> Notas Fiscais</a>`;
+    }
+    }
+
+    if (AppState.usuario.perfil === 'admin') {
+    html += '<div class="nav-section">Sistema</div>';
+    html += '<a href="avancado"><span class="nav-icon"><iconify-icon icon="mdi:cog-outline" width="20" height="20"></iconify-icon></span> Avançado</a>';
+    }
+
+    navEl.innerHTML = html;
+})();
+
+// Esconder botão sem permissão
+(function() {
+    const btnNovo = document.getElementById('btn-nova-nf');
+    if (btnNovo && !temPermissao('notas_fiscais.criar')) btnNovo.style.display = 'none';
+})();
+(function() {
+    const btnNovo = document.getElementById('btn-novo-comp');
+    if (btnNovo && !temPermissao('nf_comparativo.criar') && !['admin','gestor','tecnico'].includes(AppState.usuario.perfil)) btnNovo.style.display = 'none';
+})();
+
+// Popular selects
+(function() {
+    const selectAno = document.getElementById('select-ano-nf');
+    const anoAtual = new Date().getFullYear();
+    selectAno.innerHTML = '';
+    for (let a = anoAtual; a >= anoAtual - 5; a--) {
+    selectAno.innerHTML += `<option value="${a}">${a}</option>`;
+    }
+    selectAno.value = anoAtual;
+})();
+
+async function carregarFornecedoresSelect() {
+    try {
+    const f = await api('/api/fornecedores');
+    const select = document.getElementById('select-fornecedor-nf');
+    select.innerHTML = '<option value="">Todos</option>' + f.map(x => `<option value="${x.id}">${escapeHTML(x.nome)}</option>`).join('');
+    } catch (e) {}
+}
+
+async function carregarChamadosSelect() {
+    try {
+    const c = await api('/api/chamados');
+    const select = document.getElementById('select-chamado-nf');
+    select.innerHTML = '<option value="">Todos</option>' + c.map(x => `<option value="${x.id}">#${x.id} - ${escapeHTML(x.titulo)}</option>`).join('');
+    } catch (e) {}
+}
+
+// Formatar data
+function formatarData(data) {
+    if (!data) return '<span class="text-secondary">—</span>';
+    const d = new Date(data + 'T00:00:00');
+    return d.toLocaleDateString('pt-BR');
+}
+
+// Formatar valor
+function formatarValor(valor) {
+    return 'R$ ' + parseFloat(valor || 0).toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+
+// Badge de status
+function badgeStatus(status) {
+    const map = {
+    pendente: '<span class="badge badge-pendente">Pendente</span>',
+    paga: '<span class="badge badge-paga">Paga</span>',
+    atrasada: '<span class="badge badge-atrasada">Atrasada</span>',
+    cancelada: '<span class="badge badge-cancelada">Cancelada</span>'
+    };
+    return map[status] || status;
+}
+
+// --- CARREGAR NFs ---
+async function carregarNFs() {
+    const mes = document.getElementById('select-mes-nf').value;
+    const ano = document.getElementById('select-ano-nf').value;
+    const status = document.getElementById('select-status-nf').value;
+    const fornecedor_id = document.getElementById('select-fornecedor-nf').value;
+    const chamado_id = document.getElementById('select-chamado-nf').value;
+
+    let url = '/api/notas-fiscais?';
+    if (mes) url += 'mes=' + mes + '&ano=' + ano + '&';
+    if (status !== 'todos') url += 'status=' + status + '&';
+    if (fornecedor_id) url += 'fornecedor_id=' + fornecedor_id + '&';
+    if (chamado_id) url += 'chamado_id=' + chamado_id + '&';
+
+    try {
+    const [nfs, stats] = await Promise.all([
+        api(url),
+        api('/api/notas-fiscais/estatisticas?' + (mes ? 'mes=' + mes + '&ano=' + ano : ''))
+    ]);
+
+    // Stats
+    document.getElementById('stat-total-nf').textContent = stats.total || 0;
+    document.getElementById('stat-pendentes').textContent = (stats.pendentes || 0) + (stats.atrasadas || 0);
+    document.getElementById('stat-pagas').textContent = stats.pagas || 0;
+    document.getElementById('stat-valor-total').textContent = formatarValor(stats.valor_total);
+
+    // Tabela
+    const podeEditar = temPermissao('notas_fiscais.editar');
+    const podeExcluir = temPermissao('notas_fiscais.excluir');
+    const tbody = document.getElementById('tabela-nf');
+    if (!nfs.length) {
+        tbody.innerHTML = '<tr><td colspan="10"><div class="empty-state"><h3>Nenhuma nota fiscal encontrada</h3></div></td></tr>';
+        return;
+    }
+    tbody.innerHTML = nfs.map(nf => {
+        const isVencida = nf.status === 'atrasada' || (nf.status === 'pendente' && nf.data_vencimento && new Date(nf.data_vencimento + 'T00:00:00') < new Date(new Date().toDateString()));
+        const btnEditar = podeEditar ? `<button class="btn btn-outline btn-sm" onclick="abrirModalEditarNF(${nf.id})" style="padding:4px 8px;font-size:0.7rem"><iconify-icon icon="mdi:pencil" width="14" height="14"></iconify-icon></button>` : '';
+        const btnExcluir = podeExcluir ? `<button class="btn btn-danger btn-sm" onclick="excluirNF(${nf.id},'${escapeHTML(nf.numero)}')" style="padding:4px 8px;font-size:0.7rem"><iconify-icon icon="mdi:delete" width="14" height="14"></iconify-icon></button>` : '';
+        const btnStatus = podeEditar && nf.status !== 'paga' && nf.status !== 'cancelada'
+        ? `<button class="btn btn-outline btn-sm" onclick="marcarComoPaga(${nf.id})" style="padding:4px 8px;font-size:0.7rem" title="Marcar como paga"><iconify-icon icon="mdi:check-circle" width="14" height="14"></iconify-icon></button>` : '';
+        const acoes = [btnStatus, btnEditar, btnExcluir].filter(Boolean).join(' ') || '<span class="text-secondary">—</span>';
+        
+        // Chamado vinculado
+        const chamadoHtml = nf.chamado_titulo
+        ? `<span class="badge badge-pendente" style="cursor:pointer;font-size:0.7rem;padding:2px 6px;" title="Chamado vinculado">#${nf.chamado_id} ${escapeHTML(nf.chamado_titulo)}</span>`
+        : '<span class="text-secondary">—</span>';
+
+        return `<tr>
+        <td><strong>${escapeHTML(nf.numero)}</strong></td>
+        <td>${escapeHTML(nf.serie)}</td>
+        <td>${escapeHTML(nf.fornecedor_nome || '—')}</td>
+        <td>${chamadoHtml}</td>
+        <td>${escapeHTML(nf.tipo)}</td>
+        <td>${formatarData(nf.data_emissao)}</td>
+        <td class="${isVencida ? 'data-atrasada' : ''}">${formatarData(nf.data_vencimento)}${isVencida ? ' ⚠️' : ''}</td>
+        <td class="valor-formatado">${formatarValor(nf.valor_total)}</td>
+        <td>${badgeStatus(nf.status)}</td>
+        <td style="white-space:nowrap">${acoes}</td>
+        </tr>`;
+    }).join('');
+    } catch (e) {
+    showToast('Erro: ' + e.message, 'error');
+    }
+}
+
+// --- MODAL NOVA NF ---
+async function abrirModalNovaNF() {
+    const [fornecedores, chamados] = await Promise.all([
+    api('/api/fornecedores'),
+    api('/api/chamados?status=Aberto,Em andamento') // Apenas chamados abertos/em andamento
+    ]);
+    const optsFornecedor = fornecedores.length
+    ? '<option value="">Selecione...</option>' + fornecedores.map(f => `<option value="${f.id}">${escapeHTML(f.nome)}</option>`).join('')
+    : '<option value="">Nenhum fornecedor cadastrado</option>';
+    const optsChamado = chamados.length
+    ? '<option value="">Nenhum (opcional)</option>' + chamados.map(c => `<option value="${c.id}">#${c.id} - ${escapeHTML(c.titulo)}</option>`).join('')
+    : '<option value="">Nenhum chamado disponível</option>';
+
+    openModal('📄 Nova Nota Fiscal', `<form id="fnf" class="form-grid col-2">
+    <div class="form-group"><label>Número *</label><input id="nf-numero" placeholder="Ex: 000123" required></div>
+    <div class="form-group"><label>Série</label><input id="nf-serie" value="1" placeholder="1"></div>
+    <div class="form-group"><label>Fornecedor *</label><select id="nf-fornecedor">${optsFornecedor}</select></div>
+    <div class="form-group"><label>Chamado (opcional)</label><select id="nf-chamado">${optsChamado}</select></div>
+    <div class="form-group"><label>Tipo *</label><select id="nf-tipo"><option value="NF-e">NF-e</option><option value="NFS-e">NFS-e</option><option value="NFC-e">NFC-e</option><option value="Outro">Outro</option></select></div>
+    <div class="form-group"><label>Data de Emissão *</label><input type="date" id="nf-emissao" required></div>
+    <div class="form-group"><label>Data de Vencimento</label><input type="date" id="nf-vencimento"></div>
+    <div class="form-group"><label>Valor Total *</label><input type="number" id="nf-valor" step="0.01" min="0" placeholder="0,00" required></div>
+    <div class="form-group"><label>Status</label><select id="nf-status"><option value="pendente">Pendente</option><option value="paga">Paga</option><option value="cancelada">Cancelada</option></select></div>
+    <div class="form-group"><label>Valor ICMS</label><input type="number" id="nf-icms" step="0.01" min="0" value="0"></div>
+    <div class="form-group"><label>Valor PIS</label><input type="number" id="nf-pis" step="0.01" min="0" value="0"></div>
+    <div class="form-group"><label>Valor COFINS</label><input type="number" id="nf-cofins" step="0.01" min="0" value="0"></div>
+    <div class="form-group col-span-2"><label>Descrição</label><textarea id="nf-descricao" rows="2" placeholder="Descrição do serviço/produto..."></textarea></div>
+    <div class="form-group col-span-2"><label>Observações</label><textarea id="nf-observacoes" rows="2" placeholder="Observações adicionais..."></textarea></div>
+    </form>`, [
+    { text: 'Cancelar', cls: 'btn-outline', id: 'btn-cancelar-nf', onClick: closeModal },
+    { text: '💾 Salvar', cls: 'btn-primary', id: 'btn-salvar-nf', onClick: async () => {
+        const numero = document.getElementById('nf-numero').value.trim();
+        const fornecedor_id = document.getElementById('nf-fornecedor').value;
+        const chamado_id = document.getElementById('nf-chamado').value;
+        const data_emissao = document.getElementById('nf-emissao').value;
+        const valor_total = document.getElementById('nf-valor').value;
+        if (!numero) { showToast('Número é obrigatório.', 'error'); return; }
+        if (!fornecedor_id) { showToast('Selecione um fornecedor.', 'error'); return; }
+        if (!data_emissao) { showToast('Data de emissão é obrigatória.', 'error'); return; }
+        if (!valor_total) { showToast('Valor total é obrigatório.', 'error'); return; }
+        try {
+        const r = await api('/api/notas-fiscais', { method: 'POST', body: {
+            numero,
+            serie: document.getElementById('nf-serie').value.trim() || '1',
+            fornecedor_id: parseInt(fornecedor_id),
+            chamado_id: chamado_id ? parseInt(chamado_id) : null,
+            tipo: document.getElementById('nf-tipo').value,
+            data_emissao,
+            data_vencimento: document.getElementById('nf-vencimento').value || null,
+            valor_total: parseFloat(valor_total),
+            valor_icms: parseFloat(document.getElementById('nf-icms').value) || 0,
+            valor_pis: parseFloat(document.getElementById('nf-pis').value) || 0,
+            valor_cofins: parseFloat(document.getElementById('nf-cofins').value) || 0,
+            descricao: document.getElementById('nf-descricao').value.trim() || null,
+            status: document.getElementById('nf-status').value,
+            observacoes: document.getElementById('nf-observacoes').value.trim() || null
+        }});
+        showToast(r.mensagem, 'success'); closeModal(); carregarNFs();
+        } catch (err) { showToast(err.message, 'error'); }
+    }}
+    ], 'modal-lg');
+}
+
+// --- MODAL EDITAR NF ---
+async function abrirModalEditarNF(id) {
+    const [nfs, fornecedores, chamados] = await Promise.all([
+    api('/api/notas-fiscais'),
+    api('/api/fornecedores'),
+    api('/api/chamados')
+    ]);
+    const nf = nfs.find(x => x.id === id);
+    if (!nf) return;
+
+    const optsFornecedor = fornecedores.map(f =>
+    `<option value="${f.id}" ${f.id === nf.fornecedor_id ? 'selected' : ''}>${escapeHTML(f.nome)}</option>`
+    ).join('');
+
+    const optsChamado = '<option value="">Nenhum (opcional)</option>' + chamados
+    .filter(c => ['Aberto', 'Em andamento'].includes(c.status))
+    .map(c => `<option value="${c.id}" ${c.id === nf.chamado_id ? 'selected' : ''}>#${c.id} - ${escapeHTML(c.titulo)}</option>`)
+    .join('');
+
+    openModal('✏️ Editar NF ' + escapeHTML(nf.numero), `<form id="fei" class="form-grid col-2">
+    <div class="form-group"><label>Número *</label><input id="efi-numero" value="${escapeHTML(nf.numero)}" required></div>
+    <div class="form-group"><label>Série</label><input id="efi-serie" value="${escapeHTML(nf.serie)}"></div>
+    <div class="form-group"><label>Fornecedor *</label><select id="efi-fornecedor">${optsFornecedor}</select></div>
+    <div class="form-group"><label>Chamado (opcional)</label><select id="efi-chamado">${optsChamado}</select></div>
+    <div class="form-group"><label>Tipo *</label><select id="efi-tipo">
+        <option value="NF-e" ${nf.tipo==='NF-e'?'selected':''}>NF-e</option>
+        <option value="NFS-e" ${nf.tipo==='NFS-e'?'selected':''}>NFS-e</option>
+        <option value="NFC-e" ${nf.tipo==='NFC-e'?'selected':''}>NFC-e</option>
+        <option value="Outro" ${nf.tipo==='Outro'?'selected':''}>Outro</option>
+    </select></div>
+    <div class="form-group"><label>Data de Emissão *</label><input type="date" id="efi-emissao" value="${nf.data_emissao ? nf.data_emissao.slice(0,10) : ''}" required></div>
+    <div class="form-group"><label>Data de Vencimento</label><input type="date" id="efi-vencimento" value="${nf.data_vencimento ? nf.data_vencimento.slice(0,10) : ''}"></div>
+    <div class="form-group"><label>Valor Total *</label><input type="number" id="efi-valor" step="0.01" min="0" value="${nf.valor_total}" required></div>
+    <div class="form-group"><label>Status</label><select id="efi-status">
+        <option value="pendente" ${nf.status==='pendente'?'selected':''}>Pendente</option>
+        <option value="paga" ${nf.status==='paga'?'selected':''}>Paga</option>
+        <option value="atrasada" ${nf.status==='atrasada'?'selected':''}>Atrasada</option>
+        <option value="cancelada" ${nf.status==='cancelada'?'selected':''}>Cancelada</option>
+    </select></div>
+    <div class="form-group"><label>Valor ICMS</label><input type="number" id="efi-icms" step="0.01" min="0" value="${nf.valor_icms || 0}"></div>
+    <div class="form-group"><label>Valor PIS</label><input type="number" id="efi-pis" step="0.01" min="0" value="${nf.valor_pis || 0}"></div>
+    <div class="form-group"><label>Valor COFINS</label><input type="number" id="efi-cofins" step="0.01" min="0" value="${nf.valor_cofins || 0}"></div>
+    <div class="form-group col-span-2"><label>Descrição</label><textarea id="efi-descricao" rows="2">${nf.descricao ? escapeHTML(nf.descricao) : ''}</textarea></div>
+    <div class="form-group col-span-2"><label>Observações</label><textarea id="efi-observacoes" rows="2">${nf.observacoes ? escapeHTML(nf.observacoes) : ''}</textarea></div>
+    </form>`, [
+    { text: 'Cancelar', cls: 'btn-outline', id: 'btn-cancelar-editnf', onClick: closeModal },
+    { text: '💾 Salvar', cls: 'btn-primary', id: 'btn-editar-nf', onClick: async () => {
+        const numero = document.getElementById('efi-numero').value.trim();
+        const fornecedor_id = document.getElementById('efi-fornecedor').value;
+        const chamado_id = document.getElementById('efi-chamado').value;
+        if (!numero) { showToast('Número é obrigatório.', 'error'); return; }
+        if (!fornecedor_id) { showToast('Selecione um fornecedor.', 'error'); return; }
+        try {
+        const r = await api('/api/notas-fiscais/' + id, { method: 'PUT', body: {
+            numero,
+            serie: document.getElementById('efi-serie').value.trim() || '1',
+            fornecedor_id: parseInt(fornecedor_id),
+            chamado_id: chamado_id ? parseInt(chamado_id) : null,
+            tipo: document.getElementById('efi-tipo').value,
+            data_emissao: document.getElementById('efi-emissao').value,
+            data_vencimento: document.getElementById('efi-vencimento').value || null,
+            valor_total: parseFloat(document.getElementById('efi-valor').value),
+            valor_icms: parseFloat(document.getElementById('efi-icms').value) || 0,
+            valor_pis: parseFloat(document.getElementById('efi-pis').value) || 0,
+            valor_cofins: parseFloat(document.getElementById('efi-cofins').value) || 0,
+            descricao: document.getElementById('efi-descricao').value.trim() || null,
+            status: document.getElementById('efi-status').value,
+            observacoes: document.getElementById('efi-observacoes').value.trim() || null
+        }});
+        showToast(r.mensagem, 'success'); closeModal(); carregarNFs();
+        } catch (err) { showToast(err.message, 'error'); }
+    }}
+    ], 'modal-lg');
+}
+
+// --- MARCAR COMO PAGA ---
+async function marcarComoPaga(id) {
+    openModal('💰 Marcar como Paga', '<p>Deseja marcar esta nota fiscal como <strong>paga</strong>?</p>', [
+    { text: 'Cancelar', cls: 'btn-outline', id: 'btn-cancelar-pagar', onClick: closeModal },
+    { text: '✅ Confirmar', cls: 'btn-primary', id: 'btn-confirmar-pagar', onClick: async () => {
+        try {
+        const r = await api('/api/notas-fiscais/' + id + '/status', { method: 'PUT', body: { status: 'paga' } });
+        showToast(r.mensagem, 'success'); closeModal(); carregarNFs();
+        } catch (err) { showToast(err.message, 'error'); }
+    }}
+    ]);
+}
+
+// --- EXCLUIR NF ---
+function excluirNF(id, numero) {
+    openModal('🗑️ Excluir Nota Fiscal', `<p>Tem certeza que deseja excluir a NF <strong>${escapeHTML(numero)}</strong>?</p>`, [
+    { text: 'Cancelar', cls: 'btn-outline', id: 'btn-cancelar-delnf', onClick: closeModal },
+    { text: '🗑️ Excluir', cls: 'btn-danger', id: 'btn-confirmar-delnf', onClick: async () => {
+        try {
+        const r = await api('/api/notas-fiscais/' + id, { method: 'DELETE' });
+        showToast(r.mensagem, 'success'); closeModal(); carregarNFs();
+        } catch (err) { showToast(err.message, 'error'); }
+    }}
+    ]);
+}
+
+// === ABA COMPARATIVO ALUNOS ===
+
+function alternarTab(tabId) {
+    document.querySelectorAll('.nf-tabs .tab-btn').forEach(b => b.classList.remove('active'));
+    document.querySelectorAll('.tab-panel').forEach(p => p.classList.remove('active'));
+    document.querySelector(`.nf-tabs .tab-btn[onclick*="${tabId}"]`).classList.add('active');
+    document.getElementById('tab-' + tabId).classList.add('active');
+    if (tabId === 'nf-comparativo') carregarComparativo();
+}
+
+// Popular selects de ano/mês do comparativo
+(function() {
+    const selectAno = document.getElementById('select-comp-ano');
+    const anoAtual = new Date().getFullYear();
+    selectAno.innerHTML = '';
+    for (let a = anoAtual; a >= anoAtual - 5; a--) {
+    selectAno.innerHTML += `<option value="${a}">${a}</option>`;
+    }
+    const hoje = new Date();
+    document.getElementById('select-comp-mes').value = hoje.getMonth() + 1;
+})();
+
+// --- CARREGAR COMPARATIVO ---
+async function carregarComparativo() {
+    const mes = document.getElementById('select-comp-mes').value;
+    const ano = document.getElementById('select-comp-ano').value;
+    if (!mes || !ano) return;
+
+    try {
+    const dados = await api(`/api/nf-comparativo?mes=${mes}&ano=${ano}`);
+
+    function atualizarCards(tipo, prefixo) {
+        const filtrados = dados.filter(d => d.curso_type === tipo);
+        const hValor = filtrados.reduce((s, d) => s + (parseFloat(d.valor_helpdesk) || 0), 0);
+        const hQtd = filtrados.reduce((s, d) => s + (parseInt(d.qtd_helpdesk) || 0), 0);
+        const pValor = filtrados.reduce((s, d) => s + (parseFloat(d.valor_prefeitura) || 0), 0);
+        const pQtd = filtrados.reduce((s, d) => s + (parseInt(d.qtd_prefeitura) || 0), 0);
+        const difValor = hValor - pValor;
+        const difQtd = hQtd - pQtd;
+
+        document.getElementById(prefixo + 'comp-' + tipo + '-valor-h').textContent = formatarValor(hValor);
+        document.getElementById(prefixo + 'comp-' + tipo + '-qtd-h').textContent = hQtd + ' NFs';
+        document.getElementById(prefixo + 'comp-' + tipo + '-valor-p').textContent = formatarValor(pValor);
+        document.getElementById(prefixo + 'comp-' + tipo + '-qtd-p').textContent = pQtd + ' NFs';
+        document.getElementById(prefixo + 'comp-' + tipo + '-dif-valor').textContent = formatarValor(Math.abs(difValor));
+        document.getElementById(prefixo + 'comp-' + tipo + '-dif-qtd').textContent = Math.abs(difQtd) + ' NFs';
+        const cardDif = document.getElementById(prefixo + 'comp-' + tipo + '-dif');
+        cardDif.classList.toggle('com-diferenca', difValor !== 0);
+        return { hValor, hQtd, pValor, pQtd };
+    }
+
+    const t = atualizarCards('tecnico', '');
+    const p = atualizarCards('profissionalizante', '');
+    // Total geral
+    const totalDifValor = (t.hValor + p.hValor) - (t.pValor + p.pValor);
+    const totalDifQtd = (t.hQtd + p.hQtd) - (t.pQtd + p.pQtd);
+    document.getElementById('comp-total-valor-h').textContent = formatarValor(t.hValor + p.hValor);
+    document.getElementById('comp-total-qtd-h').textContent = (t.hQtd + p.hQtd) + ' NFs';
+    document.getElementById('comp-total-valor-p').textContent = formatarValor(t.pValor + p.pValor);
+    document.getElementById('comp-total-qtd-p').textContent = (t.pQtd + p.pQtd) + ' NFs';
+    document.getElementById('comp-total-dif-valor').textContent = formatarValor(Math.abs(totalDifValor));
+    document.getElementById('comp-total-dif-qtd').textContent = Math.abs(totalDifQtd) + ' NFs';
+    document.getElementById('comp-total-dif').classList.toggle('com-diferenca', totalDifValor !== 0);
+
+    // Tabela
+    const podeEditar = temPermissao('nf_comparativo.editar') || temPermissao('notas_fiscais.editar');
+    const podeExcluir = temPermissao('nf_comparativo.excluir') || temPermissao('notas_fiscais.excluir');
+    const tbody = document.getElementById('tabela-comparativo');
+    if (!dados.length) {
+        tbody.innerHTML = `<tr><td colspan="10"><div class="empty-state"><h3>Nenhum registro para ${NOMES_MESES[parseInt(mes)]}/${ano}</h3><p>Clique em "Novo" para adicionar.</p></div></td></tr>`;
+        return;
+    }
+    tbody.innerHTML = dados.map(d => {
+        const dValor = (parseFloat(d.valor_helpdesk) || 0) - (parseFloat(d.valor_prefeitura) || 0);
+        const dQtd = (parseInt(d.qtd_helpdesk) || 0) - (parseInt(d.qtd_prefeitura) || 0);
+        const cursoNome = d.curso_type === 'profissionalizante' ? 'Profissionalizante' : 'Técnico';
+        const btnEditar = podeEditar ? `<button class="btn btn-outline btn-sm" onclick="abrirModalComparativo(${d.id})" style="padding:4px 8px;font-size:0.7rem"><iconify-icon icon="mdi:pencil" width="14" height="14"></iconify-icon></button>` : '';
+        const btnExcluir = podeExcluir ? `<button class="btn btn-danger btn-sm" onclick="excluirComparativo(${d.id})" style="padding:4px 8px;font-size:0.7rem"><iconify-icon icon="mdi:delete" width="14" height="14"></iconify-icon></button>` : '';
+        const acoes = [btnEditar, btnExcluir].filter(Boolean).join(' ') || '<span class="text-secondary">—</span>';
+        return `<tr>
+        <td><strong>${NOMES_MESES[parseInt(d.mes)]}/${d.ano}</strong>${d.unidade_nome ? '<br><small>' + escapeHTML(d.unidade_nome) + '</small>' : ''}</td>
+        <td><span class="badge ${d.curso_type === 'profissionalizante' ? 'badge-prof' : 'badge-tec'}">${cursoNome}</span></td>
+        <td class="valor-formatado">${formatarValor(d.valor_helpdesk)}</td>
+        <td>${d.qtd_helpdesk}</td>
+        <td class="valor-formatado">${formatarValor(d.valor_prefeitura)}</td>
+        <td>${d.qtd_prefeitura}</td>
+        <td class="${dValor !== 0 ? (dValor > 0 ? 'valor-formatado' : 'data-atrasada') : ''}">${formatarValor(dValor)}</td>
+        <td class="${dQtd !== 0 ? (dQtd > 0 ? '' : 'data-atrasada') : ''}">${dQtd > 0 ? '+' : ''}${dQtd}</td>
+        <td style="max-width:150px;overflow:hidden;text-overflow:ellipsis;white-space:nowrap" title="${escapeHTML(d.observacoes || '')}">${d.observacoes ? escapeHTML(d.observacoes) : '<span class="text-secondary">—</span>'}</td>
+        <td style="white-space:nowrap">${acoes}</td>
+        </tr>`;
+    }).join('');
+    } catch (e) {
+    showToast('Erro: ' + e.message, 'error');
+    }
+}
+
+// --- UTILITÁRIOS MOEDA BR ---
+function formatarMoedaBR(valor) {
+    if (valor == null || isNaN(valor)) return '0,00';
+    return valor.toLocaleString('pt-BR', { minimumFractionDigits: 2, maximumFractionDigits: 2 });
+}
+function parseMoedaBR(str) {
+    if (!str) return 0;
+    const limpo = str.replace(/\./g, '').replace(',', '.');
+    return parseFloat(limpo) || 0;
+}
+function mascararMoedaBR(input) {
+    let v = input.value.replace(/[^\d,]/g, '');
+    const partes = v.split(',');
+    if (partes.length > 2) { v = partes[0] + ',' + partes.slice(1).join(''); }
+    if (partes.length === 2 && partes[1].length > 2) { v = partes[0] + ',' + partes[1].slice(0, 2); }
+    if (v.indexOf(',') === -1 && v.length > 0) {
+    const num = parseInt(v.replace(/\D/g, ''));
+    if (!isNaN(num)) {
+        v = num.toLocaleString('pt-BR');
+    }
+    }
+    input.value = v;
+}
+
+// --- MODAL NOVO/EDITAR COMPARATIVO ---
+async function abrirModalComparativo(id) {
+    let dados = null;
+    const mes = document.getElementById('select-comp-mes').value;
+    const ano = document.getElementById('select-comp-ano').value;
+
+    if (id) {
+    try {
+        dados = await api('/api/nf-comparativo/' + id);
+    } catch (e) {
+        showToast('Erro ao carregar dados.', 'error');
+        return;
+    }
+    }
+
+    const titulo = dados ? '✏️ Editar Comparativo' : '📊 Novo Comparativo';
+    const vm = dados ? (dados.unidade_id || '') : '';
+    const vh = dados ? parseFloat(dados.valor_helpdesk) : 0;
+    const qh = dados ? parseInt(dados.qtd_helpdesk) : 0;
+    const vp = dados ? parseFloat(dados.valor_prefeitura) : 0;
+    const qp = dados ? parseInt(dados.qtd_prefeitura) : 0;
+    const obs = dados ? escapeHTML(dados.observacoes || '') : '';
+    const cursoVal = dados ? dados.curso_type : 'tecnico';
+    const mesVal = dados ? dados.mes : mes;
+    const anoVal = dados ? dados.ano : ano;
+
+    openModal(titulo, `<form id="fcomp" class="form-grid col-2">
+    <div class="form-group"><label>Mês *</label><select id="comp-mes">
+        ${[1,2,3,4,5,6,7,8,9,10,11,12].map(m => `<option value="${m}" ${m == mesVal ? 'selected' : ''}>${NOMES_MESES[m]}</option>`).join('')}
+    </select></div>
+    <div class="form-group"><label>Ano *</label><input type="number" id="comp-ano" value="${anoVal}" min="2020" max="2035" required></div>
+    <div class="form-group"><label>Curso *</label><select id="comp-curso-type">
+        <option value="tecnico" ${cursoVal === 'tecnico' ? 'selected' : ''}>Curso Técnico</option>
+        <option value="profissionalizante" ${cursoVal === 'profissionalizante' ? 'selected' : ''}>Curso Profissionalizante</option>
+    </select></div>
+    <div class="form-group"><label>Valor Acadweb (R$)</label><input type="text" id="comp-valor-h" inputmode="decimal" value="${formatarMoedaBR(vh)}" placeholder="0,00" oninput="mascararMoedaBR(this)"></div>
+    <div class="form-group"><label>Qtd NFs Acadweb</label><input type="number" id="comp-qtd-h" step="1" min="0" value="${qh}" placeholder="0"></div>
+    <div class="form-group"><label>Valor Prefeitura (R$)</label><input type="text" id="comp-valor-p" inputmode="decimal" value="${formatarMoedaBR(vp)}" placeholder="0,00" oninput="mascararMoedaBR(this)"></div>
+    <div class="form-group"><label>Qtd NFs Prefeitura</label><input type="number" id="comp-qtd-p" step="1" min="0" value="${qp}" placeholder="0"></div>
+    <div class="form-group col-span-2"><label>Observações</label><textarea id="comp-obs" rows="2" placeholder="Observações...">${obs}</textarea></div>
+    </form>`, [
+    { text: 'Cancelar', cls: 'btn-outline', id: 'btn-cancelar-comp', onClick: closeModal },
+    { text: '💾 Salvar', cls: 'btn-primary', id: 'btn-salvar-comp', onClick: async () => {
+        try {
+        const body = {
+            unidade_id: AppState.usuario.unidade_id,
+            curso_type: document.getElementById('comp-curso-type').value,
+            mes: parseInt(document.getElementById('comp-mes').value),
+            ano: parseInt(document.getElementById('comp-ano').value),
+            valor_helpdesk: parseMoedaBR(document.getElementById('comp-valor-h').value) || 0,
+            qtd_helpdesk: parseInt(document.getElementById('comp-qtd-h').value) || 0,
+            valor_prefeitura: parseMoedaBR(document.getElementById('comp-valor-p').value) || 0,
+            qtd_prefeitura: parseInt(document.getElementById('comp-qtd-p').value) || 0,
+            observacoes: document.getElementById('comp-obs').value.trim() || null
+        };
+        if (!body.mes) { showToast('Selecione o mês.', 'error'); return; }
+        if (!body.ano) { showToast('Informe o ano.', 'error'); return; }
+        if (dados && dados.id) {
+            await api('/api/nf-comparativo/' + dados.id, { method: 'PUT', body });
+        } else {
+            await api('/api/nf-comparativo', { method: 'POST', body });
+        }
+        showToast('Comparativo salvo!', 'success');
+        closeModal();
+        carregarComparativo();
+        } catch (err) { showToast(err.message, 'error'); }
+    }}
+    ], 'modal-lg');
+}
+
+// --- EXCLUIR COMPARATIVO ---
+function excluirComparativo(id) {
+    openModal('🗑️ Excluir Comparativo', '<p>Tem certeza que deseja excluir este registro?</p>', [
+    { text: 'Cancelar', cls: 'btn-outline', id: 'btn-cancelar-delcomp', onClick: closeModal },
+    { text: '🗑️ Excluir', cls: 'btn-danger', id: 'btn-confirmar-delcomp', onClick: async () => {
+        try {
+        const r = await api('/api/nf-comparativo/' + id, { method: 'DELETE' });
+        showToast(r.mensagem, 'success');
+        closeModal();
+        carregarComparativo();
+        } catch (err) { showToast(err.message, 'error'); }
+    }}
+    ]);
+}
+
+// Logout
+document.getElementById('sidebar-logout').addEventListener('click', function(e) {
+    e.preventDefault();
+    openModal('🚪 Sair do Sistema', '<p>Tem certeza que deseja sair?</p>', [
+    { text: 'Cancelar', cls: 'btn-outline', id: 'btn-cancelar-logout', onClick: closeModal },
+    { text: '✅ Sair', cls: 'btn-danger', id: 'btn-confirmar-logout', onClick: () => AppState.logout() }
+    ]);
+});
+
+carregarFornecedoresSelect();
+carregarChamadosSelect();
+carregarNFs();

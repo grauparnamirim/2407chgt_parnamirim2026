@@ -1,0 +1,209 @@
+// Scripts da página de categorias 
+
+// Previne submit acidental ao pressionar Enter
+document.addEventListener('keydown', function (e) {
+    if (e.key === 'Enter' && e.target.tagName === 'INPUT') { e.preventDefault(); }
+});
+
+// Verifica autenticação e permissões
+verificarAutenticacao();
+const u = AppState.usuario;
+if (!u) { window.location.href = '/'; }
+else if (!['admin', 'gestor', 'tecnico'].includes(u.perfil) && !temPermissao('categorias.ver')) {
+    window.location.href = u.perfil === 'usuario' ? '/meus-chamados' : '/';
+}
+
+// Configura a navegação da sidebar
+configurarSidebar([]);
+(function () {
+    const navEl = document.getElementById('sidebar-nav');
+    if (!navEl) return;
+    const perfil = AppState.usuario.perfil;
+    const isAdminOrGestor = ['admin', 'gestor', 'tecnico'].includes(perfil);
+    let html = '';
+
+    html += '<div class="nav-section">Principal</div>';
+    html += `<a href="painel"><span class="nav-icon"><iconify-icon icon="mdi:view-dashboard" width="20" height="20"></iconify-icon></span> Painel</a>`;
+    if (temAlgumaPermissao('chamados.ver_atribuidos', 'chamados.ver_todos_unidade', 'chamados.ver_proprios')) {
+        html += `<a href="painel"><span class="nav-icon"><iconify-icon icon="mdi:ticket-outline" width="20" height="20"></iconify-icon></span> Chamados</a>`;
+    }
+
+    const mostraCadastros = temAlgumaPermissao('setores.ver', 'categorias.ver', 'usuarios.ver', 'inventario.ver', 'ativos.ver');
+    if (mostraCadastros) {
+        html += '<div class="nav-section">Cadastros</div>';
+        if (temAlgumaPermissao('setores.ver')) {
+            html += `<a href="setores"><span class="nav-icon"><iconify-icon icon="mdi:domain" width="20" height="20"></iconify-icon></span> Setores</a>`;
+        }
+        if (temAlgumaPermissao('categorias.ver')) {
+            html += `<a href="categorias" class="active"><span class="nav-icon"><iconify-icon icon="mdi:shape-outline" width="20" height="20"></iconify-icon></span> Categorias</a>`;
+        }
+        if (temAlgumaPermissao('inventario.ver')) {
+            html += `<a href="inventario"><span class="nav-icon"><iconify-icon icon="mdi:desktop-tower-monitor" width="20" height="20"></iconify-icon></span> Inventário</a>`;
+        }
+        if (temAlgumaPermissao('usuarios.ver')) {
+            html += `<a href="usuarios"><span class="nav-icon"><iconify-icon icon="mdi:account-group" width="20" height="20"></iconify-icon></span> Usuários</a>`;
+        }
+    }
+
+    const mostraGestao = temAlgumaPermissao('relatorios.ver_dashboard', 'relatorios.ver_tempos', 'impressoras.ver', 'fornecedores.ver', 'projetores.ver', 'dispositivos.ver') || isAdminOrGestor;
+    if (mostraGestao) {
+        html += '<div class="nav-section">Gestão</div>';
+        if (temAlgumaPermissao('relatorios.ver_dashboard', 'relatorios.ver_tempos')) {
+            html += `<a href="relatorios"><span class="nav-icon"><iconify-icon icon="mdi:chart-bar" width="20" height="20"></iconify-icon></span> Relatórios</a>`;
+        }
+        if (temAlgumaPermissao('impressoras.ver') || isAdminOrGestor) {
+            html += `<a href="impressoras"><span class="nav-icon"><iconify-icon icon="mdi:printer" width="20" height="20"></iconify-icon></span> Controle Impressões</a>`;
+        }
+        if (temAlgumaPermissao('fornecedores.ver') || isAdminOrGestor) {
+            html += `<a href="fornecedores"><span class="nav-icon"><iconify-icon icon="mdi:truck-delivery" width="20" height="20"></iconify-icon></span> Fornecedores</a>`;
+        }
+        if (temPermissao('dispositivos.ver')) {
+            html += `<a href="dispositivos"><span class="nav-icon"><iconify-icon icon="mdi:cellphone-link" width="20" height="20"></iconify-icon></span> Dispositivos</a>`;
+        }
+        if (temAlgumaPermissao('projetores.ver', 'inventario.ver', 'ativos.ver')) {
+            html += `<a href="projetores"><span class="nav-icon"><iconify-icon icon="mdi:projector" width="20" height="20"></iconify-icon></span> Controle Projetores</a>`;
+        }
+    }
+
+    const mostraFinanceiro = temAlgumaPermissao('financeiro.ver', 'financeiro.criar', 'financeiro.aprovar') || isAdminOrGestor;
+    if (mostraFinanceiro) {
+        html += '<div class="nav-section">Financeiro</div>';
+        html += `<a href="financeiro"><span class="nav-icon"><iconify-icon icon="mdi:currency-usd" width="20" height="20"></iconify-icon></span> Financeiro</a>`;
+        if (temAlgumaPermissao('notas_fiscais.ver') || isAdminOrGestor) {
+            html += `<a href="notas-fiscais"><span class="nav-icon"><iconify-icon icon="mdi:file-document" width="20" height="20"></iconify-icon></span> Notas Fiscais</a>`;
+        }
+    }
+
+    if (AppState.usuario.perfil === 'admin') {
+        html += '<div class="nav-section">Sistema</div>';
+        html += '<a href="avancado"><span class="nav-icon"><iconify-icon icon="mdi:cog-outline" width="20" height="20"></iconify-icon></span> Avançado</a>';
+    }
+
+    navEl.innerHTML = html;
+})();
+
+// Oculta botão "Nova Categoria" se não tiver permissão
+(function () {
+    const btnNovo = document.getElementById('btn-nova-categoria');
+    if (btnNovo && !temPermissao('categorias.criar')) btnNovo.style.display = 'none';
+})();
+
+// Carrega categorias e subcategorias da API e renderiza a tabela
+async function carregarCategorias() {
+    try {
+        const cats = await api('/api/categorias');
+        const subs = await api('/api/subcategorias');
+        const podeEditarCat = temPermissao('categorias.editar');
+        const podeExcluirCat = temPermissao('categorias.excluir');
+        const podeCriarSub = temPermissao('categorias.criar');
+        const tbody = document.getElementById('tabela-categorias');
+        if (!cats.length) { tbody.innerHTML = '<tr><td colspan="3"><div class="empty-state"><h3>Nenhuma categoria</h3></div></td></tr>'; return; }
+        tbody.innerHTML = cats.map(c => {
+            const subList = subs.filter(s => s.categoria_id === c.id).map(s => {
+                const editSub = podeEditarCat ? `<i class="text-secondary" style="cursor:pointer;font-size:0.7rem" onclick="editarSubcategoria(${s.id},'${escapeHTML(s.nome)}',${c.id})">✏️</i>` : '';
+                const delSub = podeExcluirCat ? `<i class="text-secondary" style="cursor:pointer;color:var(--color-danger);font-size:0.7rem" onclick="excluirSubcategoria(${s.id},'${escapeHTML(s.nome)}')">✕</i>` : '';
+                const icons = [editSub, delSub].filter(Boolean).join(' ');
+                return `<span style="display:inline-block;margin:2px 4px;padding:2px 8px;background:var(--color-bg);border-radius:12px;font-size:0.75rem;">${escapeHTML(s.nome)} ${icons}</span>`;
+            }).join('') || '<span class="text-secondary">Nenhuma</span>';
+            const btnSub = podeCriarSub ? `<button class="btn btn-outline btn-sm" onclick="abrirModalNovaSubcategoria(${c.id},'${escapeHTML(c.nome)}')" style="padding:2px 6px;font-size:0.65rem;margin-left:6px">+ Sub</button>` : '';
+            const btnEditarCat = podeEditarCat ? `<button class="btn btn-outline btn-sm" onclick="editarCategoria(${c.id},'${escapeHTML(c.nome)}')" style="padding:4px 8px;font-size:0.7rem"><iconify-icon icon="mdi:pencil" width="14" height="14"></iconify-icon></button>` : '';
+            const btnExcluirCat = podeExcluirCat ? `<button class="btn btn-danger btn-sm" onclick="excluirCategoria(${c.id},'${escapeHTML(c.nome)}')" style="padding:4px 8px;font-size:0.7rem"><iconify-icon icon="mdi:delete" width="14" height="14"></iconify-icon></button>` : '';
+            const acoes = [btnEditarCat, btnExcluirCat].filter(Boolean).join(' ') || '<span class="text-secondary">—</span>';
+            return `<tr>
+        <td><strong>${escapeHTML(c.nome)}</strong></td>
+        <td>${subList} ${btnSub}</td>
+        <td style="white-space:nowrap">${acoes}</td></tr>`;
+        }).join('');
+    } catch (e) { showToast('Erro: ' + e.message, 'error'); }
+}
+
+// Abre modal para criar nova categoria
+function abrirModalNovaCategoria() {
+    openModal('📂 Nova Categoria', '<form id="fncat" class="form-grid col-1"><div class="form-group"><label>Nome</label><input id="ncat-nome" placeholder="Ex: Hardware" required></div></form>', [
+        { text: 'Cancelar', cls: 'btn-outline', id: 'btn-cancelar-cat', onClick: closeModal },
+        {
+            text: '💾 Salvar', cls: 'btn-primary', id: 'btn-salvar-cat', onClick: async () => {
+                const nome = document.getElementById('ncat-nome').value.trim();
+                if (!nome) { showToast('Informe o nome.', 'error'); return; }
+                try { await api('/api/categorias', { method: 'POST', body: { nome } }); showToast('Categoria criada!', 'success'); closeModal(); carregarCategorias(); } catch (err) { showToast(err.message, 'error'); }
+            }
+        }
+    ]);
+}
+
+// Abre modal para editar uma categoria
+function editarCategoria(id, nomeAtual) {
+    openModal('✏️ Editar Categoria', `<form id="fecat" class="form-grid col-1"><div class="form-group"><label>Nome</label><input id="ecat-nome" value="${escapeHTML(nomeAtual)}" required></div></form>`, [
+        { text: 'Cancelar', cls: 'btn-outline', id: 'btn-cancelar-editcat', onClick: closeModal },
+        {
+            text: '💾 Salvar', cls: 'btn-primary', id: 'btn-salvar-editcat', onClick: async () => {
+                const nome = document.getElementById('ecat-nome').value.trim();
+                if (!nome) { showToast('Informe o nome.', 'error'); return; }
+                try { await api(`/api/categorias/${id}`, { method: 'PUT', body: { nome } }); showToast('Categoria atualizada!', 'success'); closeModal(); carregarCategorias(); } catch (err) { showToast(err.message, 'error'); }
+            }
+        }
+    ]);
+}
+
+// Abre confirmação para excluir uma categoria
+function excluirCategoria(id, nome) {
+    openModal('🗑️ Excluir Categoria', `<p>Excluir <strong>${escapeHTML(nome)}</strong>? Subcategorias serão removidas.</p>`, [
+        { text: 'Cancelar', cls: 'btn-outline', id: 'btn-cancelar-delcat', onClick: closeModal },
+        {
+            text: '🗑️ Excluir', cls: 'btn-danger', id: 'btn-confirmar-delcat', onClick: async () => {
+                try { await api(`/api/categorias/${id}`, { method: 'DELETE' }); showToast('Categoria excluída!', 'success'); closeModal(); carregarCategorias(); } catch (err) { showToast(err.message, 'error'); }
+            }
+        }
+    ]);
+}
+
+// Abre modal para criar nova subcategoria
+function abrirModalNovaSubcategoria(catId, catNome) {
+    openModal(`📂 Nova Subcategoria — ${escapeHTML(catNome)}`, `<form id="fnsub" class="form-grid col-1"><div class="form-group"><label>Nome</label><input id="nsub-nome" placeholder="Ex: Computador" required></div></form>`, [
+        { text: 'Cancelar', cls: 'btn-outline', id: 'btn-cancelar-sub', onClick: closeModal },
+        {
+            text: '💾 Salvar', cls: 'btn-primary', id: 'btn-salvar-sub', onClick: async () => {
+                const nome = document.getElementById('nsub-nome').value.trim();
+                if (!nome) { showToast('Informe o nome.', 'error'); return; }
+                try { await api('/api/subcategorias', { method: 'POST', body: { nome, categoria_id: catId } }); showToast('Subcategoria criada!', 'success'); closeModal(); carregarCategorias(); } catch (err) { showToast(err.message, 'error'); }
+            }
+        }
+    ]);
+}
+
+// Abre modal para editar uma subcategoria
+function editarSubcategoria(id, nomeAtual, catId) {
+    openModal('✏️ Editar Subcategoria', `<form id="fesub" class="form-grid col-1"><div class="form-group"><label>Nome</label><input id="esub-nome" value="${escapeHTML(nomeAtual)}" required></div></form>`, [
+        { text: 'Cancelar', cls: 'btn-outline', id: 'btn-cancelar-editsub', onClick: closeModal },
+        {
+            text: '💾 Salvar', cls: 'btn-primary', id: 'btn-salvar-editsub', onClick: async () => {
+                const nome = document.getElementById('esub-nome').value.trim();
+                if (!nome) { showToast('Informe o nome.', 'error'); return; }
+                try { await api(`/api/subcategorias/${id}`, { method: 'PUT', body: { nome } }); showToast('Subcategoria atualizada!', 'success'); closeModal(); carregarCategorias(); } catch (err) { showToast(err.message, 'error'); }
+            }
+        }
+    ]);
+}
+
+// Abre confirmação para excluir uma subcategoria
+function excluirSubcategoria(id, nome) {
+    openModal('🗑️ Excluir Subcategoria', `<p>Excluir <strong>${escapeHTML(nome)}</strong>?</p>`, [
+        { text: 'Cancelar', cls: 'btn-outline', id: 'btn-cancelar-delsub', onClick: closeModal },
+        {
+            text: '🗑️ Excluir', cls: 'btn-danger', id: 'btn-confirmar-delsub', onClick: async () => {
+                try { await api(`/api/subcategorias/${id}`, { method: 'DELETE' }); showToast('Subcategoria excluída!', 'success'); closeModal(); carregarCategorias(); } catch (err) { showToast(err.message, 'error'); }
+            }
+        }
+    ]);
+}
+
+// Logout com confirmação
+document.getElementById('sidebar-logout').addEventListener('click', function (e) {
+    e.preventDefault();
+    openModal('🚪 Sair do Sistema', '<p>Tem certeza que deseja sair?</p>', [
+        { text: 'Cancelar', cls: 'btn-outline', id: 'btn-cancelar-logout', onClick: closeModal },
+        { text: '✅ Sair', cls: 'btn-danger', id: 'btn-confirmar-logout', onClick: () => AppState.logout() }
+    ]);
+});
+
+carregarCategorias();
