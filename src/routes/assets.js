@@ -454,7 +454,8 @@ async function createAsset(req, res) {
   const db = getDb();
   const { patrimonio, modelo, ip, ip_endereco, usuario_id, local_id, setor_id, tipo, status,
     fabricante, num_serie, observacoes, processador, memoria_ram, armazenamento_tipo, armazenamento_tamanho, anydesk_id, teamviewer_id } = req.body;
-  const patroFinal = patrimonio || gerarPatrimonio(db, unidadeId);
+  const patrimonioLimpo = typeof patrimonio === 'string' ? patrimonio.trim() : ''; // trata erro em caso de objeto 
+  const patroFinal = patrimonioLimpo ? patrimonioLimpo : await gerarPatrimonio(db, unidadeId);
   const result = (await db.prepare(`INSERT INTO computadores (patrimonio, modelo, ip, ip_endereco, usuario_id, local_id, setor_id, unidade_id, tipo, status, fabricante, num_serie, observacoes, processador, memoria_ram, armazenamento_tipo, armazenamento_tamanho, anydesk_id, teamviewer_id, criado_em, atualizado_em) VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`).run(
     patroFinal, modelo || null, ip || null, ip_endereco || null, usuario_id || null, local_id || null, setor_id || null,
     unidadeId, tipo || 'gabinete', status || 'Ativo',
