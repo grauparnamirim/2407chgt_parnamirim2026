@@ -52,9 +52,9 @@ async function assetList(req) {
 // ============================================================
 
 // Lista todos os ativos
-router.get('/computadores', autenticar, operational, (req, res) => res.json(assetList(req)));
+router.get('/computadores', autenticar, operational, async (req, res) => res.json(await assetList(req)));
 // Alias para listagem de ativos
-router.get('/ativos', autenticar, operational, (req, res) => res.json(assetList(req)));
+router.get('/ativos', autenticar, operational, async (req, res) => res.json( await assetList(req)));
 
 // Cria um novo ativo (computador)
 router.post('/computadores', autenticar, operational, createAsset);
@@ -183,7 +183,7 @@ router.post('/ativos/manutencoes/lote', autenticar, operational,async  (req, res
   const check = db.prepare("SELECT COUNT(*) AS c FROM manutencoes WHERE bem_id = ? AND tipo = 'preventiva' AND status = 'agendada'");
   for (const bem_id of ids) {
     const asset = (await db.prepare('SELECT * FROM computadores WHERE id = ?').get(bem_id));
-    if (asset && unitScope(req, asset) && await check.get(bem_id).c === 0) {
+    if (asset && unitScope(req, asset) && (await check.get(bem_id)).c) {
       await insert.run(bem_id, 'preventiva', id(req.body.categoria_servico_id) || null, String(req.body.nome_servico || '').trim(), String(req.body.descricao || '').trim(), req.body.data_prevista || null, 'agendada', req.usuario.id, now(), now());
       created++;
     }

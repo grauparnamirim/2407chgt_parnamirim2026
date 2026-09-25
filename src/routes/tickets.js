@@ -93,7 +93,7 @@ router.post('/chamados', autenticar,async  (req, res) => {
     if (!bem) return res.status(400).json({ erro: 'Equipamento inválido.' });
     if (req.usuario.perfil !== 'admin' && Number(bem.unidade_id) !== Number(unidadeId)) return res.status(400).json({ erro: 'Equipamento não pertence à sua unidade.' });
   }
-  const insert = await db.transaction(async () => {
+  const chamadoId = await db.transaction(async () => {
     const result = (await db.prepare(`INSERT INTO chamados (titulo, descricao, usuario_id, tecnico_id, unidade_id, subcategoria_id, local_id, bem_id, status, criado_em, atualizado_em)
       VALUES (?, ?, ?, NULL, ?, ?, ?, ?, 'Aberto', ?, ?)`).run(titulo, descricao, req.usuario.id, unidadeId, validId(req.body.subcategoria_id) ? id(req.body.subcategoria_id) : null, validId(req.body.local_id) ? id(req.body.local_id) : null, bemId, now(), now()));
     const chamadoId = result.lastInsertRowid;
@@ -107,7 +107,6 @@ router.post('/chamados', autenticar,async  (req, res) => {
     }
     return chamadoId;
   });
-  const chamadoId = insert();
   res.status(201).json({ sucesso: true, id: chamadoId, mensagem: 'Chamado aberto!' });
 });
 
