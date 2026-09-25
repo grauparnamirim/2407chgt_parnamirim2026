@@ -1,6 +1,5 @@
 @import url('https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;700&display=swap');
 
-/* style.css — CHGT HelpDesk — Design Profissional */
 /* Sidebar + Tabs + Cards + Modais + Animações */
 
 /* ============================================================
@@ -34,6 +33,10 @@
 
 }
 
+/* ==========================================================
+              GLOBAL HTML E BODY
+   ===========================================================*/
+
 * {
   margin: 0;
   padding: 0;
@@ -50,7 +53,7 @@ body {
 }
 
 /* ============================================================
-   SIDEBAR LATERAL
+              SIDEBAR LATERAL
    ============================================================ */
 .sidebar {
   width: var(--sidebar-width);
