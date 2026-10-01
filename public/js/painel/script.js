@@ -320,7 +320,7 @@ async function abrirHistorico(chamadoId, titulo) {
     }
     if (c.motivo) {
         html += `<div style="padding:12px 0;border-top:1px solid var(--color-border);font-size:0.88rem">
-        <strong>🔧 Motivo da resolução:</strong><br>${escapeHTML(c.motivo)}
+        <strong>🔧 Motivo da resolução:</strong>${escapeHTML(c.motivo)}
         </div>`;
     }
     html += `</div>`;
