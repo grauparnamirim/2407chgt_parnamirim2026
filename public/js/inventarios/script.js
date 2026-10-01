@@ -13,6 +13,21 @@ else if (!['admin','gestor','tecnico'].includes(u.perfil) && !temPermissao('ativ
     window.location.href = u.perfil === 'usuario' ? '/meus-chamados' : '/';
 }
 
+// Descrição da tabela por tipo de bem. Tipo novo? Adicione 1 linha aqui — nada de if/else.
+function descricaoAtivo(bemAtivo) {
+  const basica = [bemAtivo.fabricante, bemAtivo.modelo, bemAtivo.num_serie && `S/N: ${bemAtivo.num_serie}`].filter(Boolean).join(' · ');
+  const pc = [bemAtivo.processador, bemAtivo.memoria_ram, [bemAtivo.armazenamento_tipo, bemAtivo.armazenamento_tamanho].filter(Boolean).join(' ')].filter(Boolean).join(' | ');
+  const POR_TIPO = {
+    gabinete: pc,
+    projetor: basica,
+    monitor: basica,
+    'caixa de som': basica,
+    fones: basica,
+    outros: basica
+  };
+  return POR_TIPO[bemAtivo.tipo] || basica || '<span class="text-secondary">—</span>';
+}
+
 // Configura a navegação da sidebar
 configurarSidebar([]);
 (function() {
@@ -491,19 +506,17 @@ async function carregarAtivos() {
         const msg = tipo ? 'Nenhum ' + tipo + ' encontrado' : 'Nenhum bem cadastrado';
         tbody.innerHTML = `<tr><td colspan="7"><div class="empty-state"><h3>${msg}</h3></div></td></tr>`; return;
     }
-    tbody.innerHTML = comps.map(c => {
-        const tipoIcon = iconeAtivo(c.tipo);
-        const descricao = c.tipo === 'projetor'
-        ? [c.fabricante, c.modelo, c.num_serie && `S/N: ${c.num_serie}`].filter(Boolean).join(' · ') || '<span class="text-secondary">—</span>'
-        : [c.processador, c.memoria_ram, [c.armazenamento_tipo, c.armazenamento_tamanho].filter(Boolean).join(' ')].filter(Boolean).join(' | ') || '<span class="text-secondary">—</span>';
-        const statusBadge = c.status === 'Em manutenção' ? 'badge-andamento' : c.status === 'Desativado' || c.status === 'Baixado' ? 'badge-erro' : 'badge-sucesso';
-        const btnDetalhes = `<button class="btn btn-outline btn-sm" onclick="abrirDetalhesAtivo(${c.id})" style="padding:4px 6px;font-size:0.7rem" title="Detalhes"><iconify-icon icon="mdi:eye-outline" width="14" height="14"></iconify-icon></button>`;
-        const btnQr = `<button class="btn btn-outline btn-sm" onclick="gerarQrAtivo(${c.id})" style="padding:4px 6px;font-size:0.7rem" title="QR Code"><iconify-icon icon="mdi:qrcode" width="14" height="14"></iconify-icon></button>`;
-        const btnAtribuir = podeAtribuir ? `<button class="btn btn-outline btn-sm" onclick="abrirModalAtribuirAtivo(${c.id})" style="padding:4px 6px;font-size:0.7rem" title="Atribuir funcionário"><iconify-icon icon="mdi:account-arrow-right-outline" width="14" height="14"></iconify-icon></button>` : '';
-        const btnMov = podeMovimentar ? `<button class="btn btn-outline btn-sm" onclick="abrirModalMovimentar(${c.id})" style="padding:4px 6px;font-size:0.7rem" title="Movimentar"><iconify-icon icon="mdi:transfer" width="14" height="14"></iconify-icon></button>` : '';
-        const btnManu = podeManutencao ? `<button class="btn btn-outline btn-sm" onclick="abrirModalNovaManutencao(${c.id})" style="padding:4px 6px;font-size:0.7rem" title="Agendar manutenção"><iconify-icon icon="mdi:wrench" width="14" height="14"></iconify-icon></button>` : '';
-        const btnEditar = podeEditar ? `<button class="btn btn-outline btn-sm" onclick="editarAtivo(${c.id})" style="padding:4px 8px;font-size:0.7rem"><iconify-icon icon="mdi:pencil" width="14" height="14"></iconify-icon></button>` : '';
-        const totalAgendamentos = Number(c.manutencoes_agendadas || 0);
+    tbody.innerHTML = comps.map(ativo => {
+        const tipoIcon = iconeAtivo(ativo.tipo);
+        const descricao = descricaoAtivo(ativo);
+        const statusBadge = ativo.status === 'Em manutenção' ? 'badge-andamento' : ativo.status === 'Desativado' || ativo.status === 'Baixado' ? 'badge-erro' : 'badge-sucesso';
+        const btnDetalhes = `<button class="btn btn-outline btn-sm" onclick="abrirDetalhesAtivo(${ativo.id})" style="padding:4px 6px;font-size:0.7rem" title="Detalhes"><iconify-icon icon="mdi:eye-outline" width="14" height="14"></iconify-icon></button>`;
+        const btnQr = `<button class="btn btn-outline btn-sm" onclick="gerarQrAtivo(${ativo.id})" style="padding:4px 6px;font-size:0.7rem" title="QR Code"><iconify-icon icon="mdi:qrcode" width="14" height="14"></iconify-icon></button>`;
+        const btnAtribuir = podeAtribuir ? `<button class="btn btn-outline btn-sm" onclick="abrirModalAtribuirAtivo(${ativo.id})" style="padding:4px 6px;font-size:0.7rem" title="Atribuir funcionário"><iconify-icon icon="mdi:account-arrow-right-outline" width="14" height="14"></iconify-icon></button>` : '';
+        const btnMov = podeMovimentar ? `<button class="btn btn-outline btn-sm" onclick="abrirModalMovimentar(${ativo.id})" style="padding:4px 6px;font-size:0.7rem" title="Movimentar"><iconify-icon icon="mdi:transfer" width="14" height="14"></iconify-icon></button>` : '';
+        const btnManu = podeManutencao ? `<button class="btn btn-outline btn-sm" onclick="abrirModalNovaManutencao(${ativo.id})" style="padding:4px 6px;font-size:0.7rem" title="Agendar manutenção"><iconify-icon icon="mdi:wrench" width="14" height="14"></iconify-icon></button>` : '';
+        const btnEditar = podeEditar ? `<button class="btn btn-outline btn-sm" onclick="editarAtivo(${ativo.id})" style="padding:4px 8px;font-size:0.7rem"><iconify-icon icon="mdi:pencil" width="14" height="14"></iconify-icon></button>` : '';
+        const totalAgendamentos = Number(ativo.manutencoes_agendadas || 0);
         const btnExcluir = podeExcluir
         ? totalAgendamentos > 0
             ? `<button class="btn btn-outline btn-sm" disabled aria-disabled="true" style="padding:4px 8px;font-size:0.7rem" title="Não é possível excluir: ${totalAgendamentos} ${totalAgendamentos === 1 ? 'serviço agendado' : 'serviços agendados'}"><iconify-icon icon="mdi:delete-lock-outline" width="14" height="14"></iconify-icon></button>`
