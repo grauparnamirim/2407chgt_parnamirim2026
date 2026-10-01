@@ -32,7 +32,7 @@ function createCrudRoutes({ path, table, fields, unit, message, beforeCreate, be
         (SELECT COUNT(*) FROM computadores c WHERE c.local_id = ? AND c.status NOT IN ('Desativado','Baixado')) +
         (SELECT COUNT(*) FROM dispositivos d WHERE d.local_id = ? AND d.ativo = 1) +
         (SELECT COUNT(*) FROM impressoras i WHERE i.local_id = ? AND i.ativo = 1) AS total`);
-      for (const row of rows) row.total_bens = await countStmt.get(row.id, row.id, row.id).total || 0;
+      for (const row of rows) row.total_bens = Number((await countStmt.get(row.id, row.id, row.id)).total || 0);
     }
     res.json(rows);
   });
