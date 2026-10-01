@@ -520,16 +520,16 @@ async function carregarAtivos() {
         const btnExcluir = podeExcluir
         ? totalAgendamentos > 0
             ? `<button class="btn btn-outline btn-sm" disabled aria-disabled="true" style="padding:4px 8px;font-size:0.7rem" title="Não é possível excluir: ${totalAgendamentos} ${totalAgendamentos === 1 ? 'serviço agendado' : 'serviços agendados'}"><iconify-icon icon="mdi:delete-lock-outline" width="14" height="14"></iconify-icon></button>`
-            : `<button class="btn btn-danger btn-sm" onclick="excluirAtivo(${c.id},'${c.patrimonio}')" style="padding:4px 8px;font-size:0.7rem" title="Excluir bem"><iconify-icon icon="mdi:delete" width="14" height="14"></iconify-icon></button>`
+            : `<button class="btn btn-danger btn-sm" onclick="excluirAtivo(${ativo.id},'${ativo.patrimonio}')" style="padding:4px 8px;font-size:0.7rem" title="Excluir bem"><iconify-icon icon="mdi:delete" width="14" height="14"></iconify-icon></button>`
         : '';
         const acoes = [btnDetalhes, btnQr, btnAtribuir, btnMov, btnManu, btnEditar, btnExcluir].filter(Boolean).join(' ');
-        return `<tr data-ativo-id="${c.id}">
-        <td><strong><iconify-icon icon="${tipoIcon}" width="16" height="16" style="vertical-align:middle;margin-right:4px"></iconify-icon> ${c.patrimonio}</strong></td>
-        <td><span class="badge badge-perfil-gestor">${c.tipo||'gabinete'}</span></td>
+        return `<tr data-ativo-id="${ativo.id}">
+        <td><strong><iconify-icon icon="${tipoIcon}" width="16" height="16" style="vertical-align:middle;margin-right:4px"></iconify-icon> ${ativo.patrimonio}</strong></td>
+        <td><span class="badge badge-perfil-gestor">${ativo.tipo||'gabinete'}</span></td>
         <td style="font-size:0.85rem">${descricao}</td>
-        <td>${c.local_nome ? `<span class="inventario-local-celula"><iconify-icon icon="${iconeTipoLocal(c.local_tipo)}" width="15" height="15"></iconify-icon><span><strong>${escapeHTML(c.local_nome)}</strong><small>${escapeHTML(rotuloTipoLocal(c.local_tipo))}</small></span></span>` : '<span class="inventario-sem-local">Sem local</span>'}</td>
-        <td><span class="badge ${statusBadge}">${c.status||'Ativo'}</span></td>
-        <td>${c.usuario_nome ? `<strong>${c.usuario_nome}</strong>` : '<span class="text-secondary">—</span>'}</td>
+        <td>${ativo.local_nome ? `<span class="inventario-local-celula"><iconify-icon icon="${iconeTipoLocal(ativo.local_tipo)}" width="15" height="15"></iconify-icon><span><strong>${escapeHTML(ativo.local_nome)}</strong><small>${escapeHTML(rotuloTipoLocal(ativo.local_tipo))}</small></span></span>` : '<span class="inventario-sem-local">Sem local</span>'}</td>
+        <td><span class="badge ${statusBadge}">${ativo.status||'Ativo'}</span></td>
+        <td>${ativo.usuario_nome ? `<strong>${atico.usuario_nome}</strong>` : '<span class="text-secondary">—</span>'}</td>
         <td style="white-space:nowrap">${acoes}</td>
         </tr>`;
     }).join('');
@@ -540,7 +540,7 @@ async function carregarAtivos() {
         linhaFoco.scrollIntoView({ behavior: 'smooth', block: 'center' });
         setTimeout(() => linhaFoco.classList.remove('search-result-highlight'), 3500);
     }
-    } catch (e) { showToast('Erro: '+e.message, 'error'); }
+    } catch (error) { showToast('Erro: '+error.message, 'error'); }
 }
 
 function getIlustracaoAtivo(tipo, variante) {
