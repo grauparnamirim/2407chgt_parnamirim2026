@@ -20,3 +20,7 @@ db-up: ## sobe SÓ o banco
 
 down: ## derruba tudo (os dados ficam no volume pgdata)
 	docker compose down
+
+# checagem de sintaxe com node
+check:
+	npm run check

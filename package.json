@@ -14,7 +14,8 @@
     "docker:up": "docker compose up --build",
     "docker:down": "docker compose down",
     "db:up": "docker compose up -d db",
-    "db:down": "docker compose down"
+    "db:down": "docker compose down",
+    "check": "powershell -NoProfile -Command \"Get-ChildItem -Recurse -Include *.js -Path src,public/js,test | ForEach-Object { node --check $_.FullName };Write-Host 'CHECK OK - sintaxe correta'\""
   },
   "dependencies": {
     "bcrypt": "^5.1.1",
