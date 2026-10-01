@@ -66,12 +66,6 @@ async function enrichChamado(db, c) {
     tecnico_nome: c.tecnico_id ? (await db.prepare('SELECT nome FROM usuarios WHERE id = ?').get(c.tecnico_id))?.nome || '' : '',
     fornecedor_nome: c.fornecedor_id ? (await db.prepare('SELECT nome FROM fornecedores WHERE id = ?').get(c.fornecedor_id))?.nome || '' : '',
     local_nome: c.local_id ? (await db.prepare('SELECT nome FROM locais WHERE id = ?').get(c.local_id))?.nome || '' : '',
-    bem_nome: bem?.patrimonio || '',
-    bem_patrimonio: bem?.patrimonio || '',
-    bem_tipo: bem?.tipo || '',
-    bem_fabricante: bem?.fabricante || '',
-    bem_modelo: bem?.modelo || '',
-    bem_local: bem?.local_id ? (await db.prepare('SELECT nome FROM locais WHERE id = ?').get(bem.local_id))?.nome || '' : '',
     tempo_espera_ms: 0
   };
 }
