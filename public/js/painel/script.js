@@ -721,6 +721,14 @@ async function abrirModalDetalhesChamado(chamadoId) {
         <div class="detail-section-title"><iconify-icon icon="mdi:devices" width="18" height="18"></iconify-icon> Aparelho</div>
         <div class="detail-empty">Nenhum aparelho vinculado a este chamado.</div>
         </div>`;
+        // amostra a resolução do problema no detalhe do chamado
+        const resolucaoSection = d.motivo ? `
+        <div class="detail-section">
+        <div class="detail-section-title"><iconify-icon icon="mdi:wrench" width="18" height="18"></iconify-icon> Resolução</div>
+        <div class="detail-grid">
+        <div class="detail-item" style="grid-column:1/-1"><span class="detail-label">Descrição do técnico</span><span class="detail-value" style="white-space:pre-wrap">${escapeHTML(d.motivo)}</span></div>
+        </div>
+        </div>` : '';
 
         openModal(`📋 Chamado #${chamadoId}`, `
         <div class="detail-modal">
@@ -728,6 +736,7 @@ async function abrirModalDetalhesChamado(chamadoId) {
             <div class="detail-section-title"><iconify-icon icon="mdi:ticket-outline" width="18" height="18"></iconify-icon> Chamado</div>
             <div class="detail-grid">
             <div class="detail-item" style="grid-column:1/-1"><span class="detail-label">Título</span><span class="detail-value" style="font-weight:600">${escapeHTML(d.titulo)}</span></div>
+            ${resolucaoSection}
             <div class="detail-item" style="grid-column:1/-1"><span class="detail-label">Descrição</span><span class="detail-value" style="white-space:pre-wrap">${escapeHTML(d.descricao)}</span></div>
             <div class="detail-item"><span class="detail-label">Status</span><span class="detail-value">${statusBadgeHTML(d.status)}</span></div>
             <div class="detail-item"><span class="detail-label">Local do chamado</span><span class="detail-value">${d.local_nome ? escapeHTML(d.local_nome) : '<span class="text-secondary">Sem local específico</span>'}</span></div>
