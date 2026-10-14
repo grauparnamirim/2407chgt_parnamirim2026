@@ -21,16 +21,16 @@ function preencherSelectUnidades(select, fixa) {
 // Carrega a lista de unidades e a unidade fixa ao iniciar
 (async function carregarUnidades() {
     try {
-    const data = await api('/api/unidades', { loadingText: 'Preparando acesso...' });
-    unidades = Array.isArray(data) ? data : (data.unidades || []);
-    unidadeFixa = Array.isArray(data) ? null : (data.unidade_fixa || null);
-    const select = document.getElementById('unidade');
-    preencherSelectUnidades(select, unidadeFixa);
-    const hint = document.getElementById('unidade-hint');
-    if (unidadeFixa) {
-        const fixa = unidades.find(u => String(u.id) === String(unidadeFixa));
-        hint.textContent = `Unidade fixa do servidor${fixa ? ': ' + fixa.nome : ''}`;
-    }
+        const data = await api('/api/unidades', { loadingText: 'Preparando acesso...' });
+        unidades = Array.isArray(data) ? data : (data.unidades || []);
+        unidadeFixa = Array.isArray(data) ? null : (data.unidade_fixa || null);
+        const select = document.getElementById('unidade');
+        preencherSelectUnidades(select, unidadeFixa);
+        if (!unidadeFixa) {
+            const emailAtual = document.getElementById('email').value.trim().toLowerCase();
+            const lembrada = emailAtual && localStorage.getItem('chgt_unidade_' + emailAtual);
+            if (lembrada && [...select.options].some(o => o.value === lembrada)) select.value = lembrada;
+        }
     } catch (err) {
         console.error('Erro ao carregar unidades:', err);
     }
